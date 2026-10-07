@@ -1,0 +1,105 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">HR</p>
+      <h1 class="page-title">Employees</h1>
+      <p class="page-description">Add and review employees. First name, last name, and role for now.</p>
+    </div>
+  </div>
+
+  <!-- TEMP DEMO -->
+  <div class="page-card">
+    <p class="page-eyebrow">Demo: input value</p>
+    <p class="page-description">In the constructor: <strong>{{ seenInConstructor() }}</strong></p>
+    <p class="page-description">In ngOnInit: <strong>{{ seenInNgOnInit() }}</strong></p>
+  </div>
+
+  <div class="page-card">
+    <form class="page-stack" (ngSubmit)="addEmployee()">
+      <div class="button-row" style="align-items: flex-end;">
+        <div class="field" style="min-width: 200px;">
+          <label for="firstName">First name</label>
+          <input
+            id="firstName"
+            class="text-input"
+            type="text"
+            name="firstName"
+            [(ngModel)]="firstName"
+            placeholder="e.g. Nino"
+            required
+          />
+        </div>
+
+        <div class="field" style="min-width: 200px;">
+          <label for="lastName">Last name</label>
+          <input
+            id="lastName"
+            class="text-input"
+            type="text"
+            name="lastName"
+            [(ngModel)]="lastName"
+            placeholder="e.g. Beridze"
+            required
+          />
+        </div>
+
+        <div class="field" style="min-width: 160px;">
+          <label for="role">Role</label>
+          <select id="role" class="text-select" name="role" [(ngModel)]="role">
+            <option value="manager">Manager</option>
+            <option value="staff">Staff</option>
+          </select>
+        </div>
+
+        <button type="submit" class="button button--primary" [disabled]="isSaving()">
+          {{ isSaving() ? 'Adding…' : 'Add employee' }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="page-card">
+    @if (isLoading()) {
+      <p class="page-description">Loading…</p>
+    } @else if (employees().length === 0) {
+      <p class="page-description">No employees yet. Add the first one above.</p>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>First name</th>
+            <th>Last name</th>
+            <th>Role</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (employee of employees(); track employee.id) {
+            <tr>
+              <td>{{ employee.firstName }}</td>
+              <td>{{ employee.lastName }}</td>
+              <td>
+                <span
+                  class="badge"
+                  [class.badge--manager]="employee.role === 'manager'"
+                  [class.badge--staff]="employee.role === 'staff'"
+                >
+                  {{ employee.role === 'manager' ? 'Manager' : 'Staff' }}
+                </span>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="button button--secondary button--sm"
+                  (click)="deleteEmployee(employee.id)"
+                >
+                  Remove
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+</div>

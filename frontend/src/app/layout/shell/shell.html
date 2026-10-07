@@ -1,0 +1,107 @@
+<div class="shell-layout">
+  <aside class="shell-sidebar" [class.shell-sidebar--collapsed]="!isSidebarOpen()">
+    <div class="shell-sidebar__header" [class.shell-sidebar__header--collapsed]="!isSidebarOpen()">
+      @if (isSidebarOpen()) {
+        <div class="shell-brand">WebApp1</div>
+      }
+      <button
+        type="button"
+        class="shell-icon-button"
+        [attr.aria-label]="isSidebarOpen() ? 'Collapse sidebar' : 'Expand sidebar'"
+        (click)="toggleSidebar()"
+      >
+        <lucide-icon [img]="MenuIcon" [size]="20"></lucide-icon>
+      </button>
+    </div>
+    <nav class="shell-nav">
+      <!-- HR module -->
+      <div class="shell-nav__group">
+        <button
+          type="button"
+          class="shell-nav__button"
+          [class.shell-nav__button--active]="isHrActive()"
+          (click)="toggleHrMenu()"
+        >
+          <span class="shell-nav__main">
+            <lucide-icon [img]="UsersIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
+            @if (isSidebarOpen()) {
+              <span class="shell-nav__label">HR</span>
+            }
+          </span>
+          @if (isSidebarOpen()) {
+            <span class="shell-nav__caret">
+              @if (isHrExpanded()) {
+                <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
+              } @else {
+                <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+              }
+            </span>
+          }
+        </button>
+
+        @if (isSidebarOpen() && isHrExpanded()) {
+          <div class="shell-nav__submenu">
+            <a
+              class="shell-nav__subitem"
+              routerLink="/hr/employees"
+              routerLinkActive="shell-nav__subitem--active"
+            >
+              Employees
+            </a>
+          </div>
+        }
+      </div>
+
+      <!-- WMS module -->
+      <div class="shell-nav__group">
+        <button
+          type="button"
+          class="shell-nav__button"
+          [class.shell-nav__button--active]="isWmsActive()"
+          (click)="toggleWmsMenu()"
+        >
+          <span class="shell-nav__main">
+            <lucide-icon [img]="BoxesIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
+            @if (isSidebarOpen()) {
+              <span class="shell-nav__label">WMS</span>
+            }
+          </span>
+          @if (isSidebarOpen()) {
+            <span class="shell-nav__caret">
+              @if (isWmsExpanded()) {
+                <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
+              } @else {
+                <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+              }
+            </span>
+          }
+        </button>
+
+        @if (isSidebarOpen() && isWmsExpanded()) {
+          <div class="shell-nav__submenu">
+            <a
+              class="shell-nav__subitem"
+              routerLink="/wms/warehouses"
+              routerLinkActive="shell-nav__subitem--active"
+            >
+              Warehouses
+            </a>
+            <a
+              class="shell-nav__subitem"
+              routerLink="/wms/products"
+              routerLinkActive="shell-nav__subitem--active"
+            >
+              Products
+            </a>
+          </div>
+        }
+      </div>
+    </nav>
+  </aside>
+
+  <div class="shell-main">
+    <div class="shell-content">
+      <router-outlet />
+    </div>
+  </div>
+</div>

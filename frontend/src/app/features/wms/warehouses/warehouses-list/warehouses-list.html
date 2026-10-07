@@ -1,0 +1,181 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">WMS</p>
+      <h1 class="page-title">Warehouses</h1>
+      <p class="page-description">
+        Main and sales warehouses. Codes are assigned automatically from the type.
+      </p>
+    </div>
+  </div>
+
+  <div class="page-card">
+    <form class="page-stack" (ngSubmit)="saveWarehouse()">
+      <div class="form-grid">
+        <div class="field">
+          <label for="warehouseName">Warehouse</label>
+          <input
+            id="warehouseName"
+            class="text-input"
+            type="text"
+            name="name"
+            [(ngModel)]="name"
+            placeholder="e.g. Vake Sales Warehouse"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="warehouseType">Type</label>
+          <select id="warehouseType" class="text-select" name="type" [(ngModel)]="type">
+            <option value="main">Main</option>
+            <option value="sales">Sales</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="warehouseBranches">Branches</label>
+          <input
+            id="warehouseBranches"
+            class="text-input"
+            type="text"
+            name="branches"
+            [(ngModel)]="branches"
+            placeholder="Comma-separated, e.g. Vake, Saburtalo"
+          />
+        </div>
+
+        <div class="field">
+          <label for="warehouseAddress">Address</label>
+          <input
+            id="warehouseAddress"
+            class="text-input"
+            type="text"
+            name="address"
+            [(ngModel)]="address"
+            placeholder="e.g. 23 Chavchavadze Ave, Tbilisi"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="warehouseStock">Stock (units)</label>
+          <input
+            id="warehouseStock"
+            class="text-input"
+            type="number"
+            min="0"
+            step="1"
+            name="stock"
+            [(ngModel)]="stock"
+          />
+        </div>
+
+        <div class="field">
+          <label for="warehouseStatus">Status</label>
+          <select id="warehouseStatus" class="text-select" name="status" [(ngModel)]="status">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+
+      @if (errorMessage()) {
+        <p class="field-error">{{ errorMessage() }}</p>
+      }
+
+      <div class="button-row">
+        <button type="submit" class="button button--primary" [disabled]="isSaving()">
+          @if (editingId()) {
+            {{ isSaving() ? 'Saving…' : 'Save changes' }}
+          } @else {
+            {{ isSaving() ? 'Adding…' : 'Add warehouse' }}
+          }
+        </button>
+        @if (editingId()) {
+          <button type="button" class="button button--secondary" (click)="resetForm()">Cancel</button>
+        }
+      </div>
+    </form>
+  </div>
+
+  <div class="page-card">
+    @if (isLoading()) {
+      <p class="page-description">Loading…</p>
+    } @else if (warehouses().length === 0) {
+      <p class="page-description">No warehouses yet. Add the first one above.</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Warehouse</th>
+              <th>Code</th>
+              <th>Branches</th>
+              <th>Type</th>
+              <th>Address</th>
+              <th class="cell-number">Stock</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (warehouse of warehouses(); track warehouse.id) {
+              <tr [class.row-editing]="editingId() === warehouse.id">
+                <td class="cell-strong">{{ warehouse.name }}</td>
+                <td><code class="code-tag">{{ warehouse.code }}</code></td>
+                <td>
+                  <div class="chip-list">
+                    @for (branch of warehouse.branches; track branch) {
+                      <span class="chip">{{ branch }}</span>
+                    } @empty {
+                      <span class="muted">–</span>
+                    }
+                  </div>
+                </td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.badge--main]="warehouse.type === 'main'"
+                    [class.badge--sales]="warehouse.type === 'sales'"
+                  >
+                    {{ warehouse.type === 'main' ? 'Main' : 'Sales' }}
+                  </span>
+                </td>
+                <td>{{ warehouse.address }}</td>
+                <td class="cell-number">{{ warehouse.stock | number }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.badge--active]="warehouse.status === 'active'"
+                    [class.badge--inactive]="warehouse.status === 'inactive'"
+                  >
+                    {{ warehouse.status === 'active' ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+                <td>
+                  <div class="button-row button-row--tight">
+                    <button
+                      type="button"
+                      class="button button--secondary button--sm"
+                      (click)="editWarehouse(warehouse)"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      class="button button--secondary button--sm"
+                      (click)="deleteWarehouse(warehouse)"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

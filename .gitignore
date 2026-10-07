@@ -1,0 +1,11 @@
+# Dependencies and build output (also covered by backend/ and frontend/ .gitignore files)
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Local secrets: backend/.env holds the real DB credentials; .env.example is the template
+.env
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db

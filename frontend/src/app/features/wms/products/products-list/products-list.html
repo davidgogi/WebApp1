@@ -1,0 +1,201 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">WMS</p>
+      <h1 class="page-title">Products</h1>
+      <p class="page-description">Products, their total amount, and the warehouses where they can be found.</p>
+    </div>
+  </div>
+
+  <div class="page-card">
+    <form class="page-stack" (ngSubmit)="saveProduct()">
+      <div class="form-grid">
+        <div class="field">
+          <label for="productName">Product</label>
+          <input
+            id="productName"
+            class="text-input"
+            type="text"
+            name="name"
+            [(ngModel)]="name"
+            placeholder="e.g. Sunflower Oil 1L"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="productSku">SKU</label>
+          <input
+            id="productSku"
+            class="text-input"
+            type="text"
+            name="sku"
+            [(ngModel)]="sku"
+            placeholder="e.g. GRC-OIL-001"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="productCategory">Category</label>
+          <input
+            id="productCategory"
+            class="text-input"
+            type="text"
+            name="category"
+            list="productCategories"
+            [(ngModel)]="category"
+            placeholder="e.g. Grocery"
+            required
+          />
+          <datalist id="productCategories">
+            @for (option of categories(); track option) {
+              <option [value]="option"></option>
+            }
+          </datalist>
+        </div>
+
+        <div class="field">
+          <label for="productSupplier">Supplier</label>
+          <input
+            id="productSupplier"
+            class="text-input"
+            type="text"
+            name="supplier"
+            list="productSuppliers"
+            [(ngModel)]="supplier"
+            placeholder="e.g. Kakheti Agro"
+            required
+          />
+          <datalist id="productSuppliers">
+            @for (option of suppliers(); track option) {
+              <option [value]="option"></option>
+            }
+          </datalist>
+        </div>
+
+        <div class="field">
+          <label for="productAmount">Amount</label>
+          <input
+            id="productAmount"
+            class="text-input"
+            type="number"
+            min="0"
+            [step]="unit() === 'kg' ? 0.001 : 1"
+            name="amount"
+            [(ngModel)]="amount"
+          />
+        </div>
+
+        <div class="field">
+          <label for="productUnit">Unit</label>
+          <select id="productUnit" class="text-select" name="unit" [(ngModel)]="unit">
+            <option value="pcs">pcs</option>
+            <option value="kg">kg</option>
+          </select>
+        </div>
+      </div>
+
+      <fieldset class="warehouse-picker">
+        <legend>Warehouses</legend>
+        @for (warehouse of warehouses(); track warehouse.id) {
+          <label class="warehouse-option" [class.warehouse-option--checked]="isWarehouseSelected(warehouse.id)">
+            <input
+              type="checkbox"
+              [checked]="isWarehouseSelected(warehouse.id)"
+              (change)="toggleWarehouse(warehouse.id)"
+            />
+            <code class="code-tag">{{ warehouse.code }}</code>
+            <span>{{ warehouse.name }}</span>
+            @if (warehouse.status === 'inactive') {
+              <span class="muted">(inactive)</span>
+            }
+          </label>
+        } @empty {
+          <p class="page-description">No warehouses yet. Add them in WMS → Warehouses.</p>
+        }
+      </fieldset>
+
+      @if (errorMessage()) {
+        <p class="field-error">{{ errorMessage() }}</p>
+      }
+
+      <div class="button-row">
+        <button type="submit" class="button button--primary" [disabled]="isSaving()">
+          @if (editingId()) {
+            {{ isSaving() ? 'Saving…' : 'Save changes' }}
+          } @else {
+            {{ isSaving() ? 'Adding…' : 'Add product' }}
+          }
+        </button>
+        @if (editingId()) {
+          <button type="button" class="button button--secondary" (click)="resetForm()">Cancel</button>
+        }
+      </div>
+    </form>
+  </div>
+
+  <div class="page-card">
+    @if (isLoading()) {
+      <p class="page-description">Loading…</p>
+    } @else if (products().length === 0) {
+      <p class="page-description">No products yet. Add the first one above.</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>SKU</th>
+              <th>Category</th>
+              <th>Supplier</th>
+              <th class="cell-number">Amount</th>
+              <th>Unit</th>
+              <th>Warehouses</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (product of products(); track product.id) {
+              <tr [class.row-editing]="editingId() === product.id">
+                <td class="cell-strong">{{ product.name }}</td>
+                <td><code class="code-tag">{{ product.sku }}</code></td>
+                <td>{{ product.category }}</td>
+                <td>{{ product.supplier }}</td>
+                <td class="cell-number">{{ product.amount | number: '1.0-3' }}</td>
+                <td>{{ product.unit }}</td>
+                <td>
+                  <div class="chip-list">
+                    @for (warehouse of product.warehouses; track warehouse.id) {
+                      <span class="chip" [title]="warehouse.name">{{ warehouse.code }}</span>
+                    } @empty {
+                      <span class="muted">–</span>
+                    }
+                  </div>
+                </td>
+                <td>
+                  <div class="button-row button-row--tight">
+                    <button
+                      type="button"
+                      class="button button--secondary button--sm"
+                      (click)="editProduct(product)"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      class="button button--secondary button--sm"
+                      (click)="deleteProduct(product)"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
