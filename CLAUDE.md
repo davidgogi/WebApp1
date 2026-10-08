@@ -98,4 +98,6 @@ CORS on the backend is currently hardcoded to allow `http://localhost:4200` only
 
 ## Git
 
-Not yet initialized — no `.git` in this directory as of this writing.
+One repo for the whole project (backend + frontend), pushed to the private GitHub repo
+`git@github.com:davidgogi/WebApp1.git`, branch `main`. Pushing works over SSH (key already set
+up). The GitHub CLI (`gh`) is not installed. `backend/.env` is git-ignored; never commit it.

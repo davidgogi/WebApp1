@@ -7,6 +7,5 @@ export default [
     path: 'employees',
     loadComponent: () =>
       import('./employees/employees-list/employees-list').then((m) => m.EmployeesList),
-    data: { demoValue: 'Hello from the route' },
   },
 ] satisfies Routes;

@@ -23,7 +23,6 @@ export class ProductsList implements OnInit {
   protected readonly isSaving = signal(false);
   protected readonly errorMessage = signal('');
 
-  // null = adding a new product, otherwise the id of the one being edited
   protected readonly editingId = signal<string | null>(null);
 
   protected readonly name = signal('');
@@ -34,9 +33,12 @@ export class ProductsList implements OnInit {
   protected readonly unit = signal<ProductUnit>('pcs');
   protected readonly warehouseIds = signal<string[]>([]);
 
-  // Existing values, offered as suggestions while typing.
-  protected readonly categories = computed(() => this.uniqueSorted(this.products().map((p) => p.category)));
-  protected readonly suppliers = computed(() => this.uniqueSorted(this.products().map((p) => p.supplier)));
+  protected readonly categories = computed(() =>
+    this.uniqueSorted(this.products().map((p) => p.category)),
+  );
+  protected readonly suppliers = computed(() =>
+    this.uniqueSorted(this.products().map((p) => p.supplier)),
+  );
 
   ngOnInit(): void {
     this.loadProducts();
@@ -65,7 +67,9 @@ export class ProductsList implements OnInit {
   }
 
   toggleWarehouse(id: string): void {
-    this.warehouseIds.update((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+    this.warehouseIds.update((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+    );
   }
 
   saveProduct(): void {
@@ -96,7 +100,9 @@ export class ProductsList implements OnInit {
     };
 
     const id = this.editingId();
-    const request = id ? this.productService.update(id, payload) : this.productService.create(payload);
+    const request = id
+      ? this.productService.update(id, payload)
+      : this.productService.create(payload);
 
     this.isSaving.set(true);
     this.errorMessage.set('');
@@ -108,9 +114,10 @@ export class ProductsList implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         this.isSaving.set(false);
-        // e.g. "SKU GRC-OIL-001 is already used by another product"
         const message = error.error?.message;
-        this.errorMessage.set(typeof message === 'string' ? message : 'Could not save the product.');
+        this.errorMessage.set(
+          typeof message === 'string' ? message : 'Could not save the product.',
+        );
       },
     });
   }

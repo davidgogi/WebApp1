@@ -3,7 +3,9 @@
     <div>
       <p class="page-eyebrow">WMS</p>
       <h1 class="page-title">Products</h1>
-      <p class="page-description">Products, their total amount, and the warehouses where they can be found.</p>
+      <p class="page-description">
+        Products, their total amount, and the warehouses where they can be found.
+      </p>
     </div>
   </div>
 
@@ -99,7 +101,10 @@
       <fieldset class="warehouse-picker">
         <legend>Warehouses</legend>
         @for (warehouse of warehouses(); track warehouse.id) {
-          <label class="warehouse-option" [class.warehouse-option--checked]="isWarehouseSelected(warehouse.id)">
+          <label
+            class="warehouse-option"
+            [class.warehouse-option--checked]="isWarehouseSelected(warehouse.id)"
+          >
             <input
               type="checkbox"
               [checked]="isWarehouseSelected(warehouse.id)"
@@ -129,7 +134,9 @@
           }
         </button>
         @if (editingId()) {
-          <button type="button" class="button button--secondary" (click)="resetForm()">Cancel</button>
+          <button type="button" class="button button--secondary" (click)="resetForm()">
+            Cancel
+          </button>
         }
       </div>
     </form>
@@ -159,7 +166,9 @@
             @for (product of products(); track product.id) {
               <tr [class.row-editing]="editingId() === product.id">
                 <td class="cell-strong">{{ product.name }}</td>
-                <td><code class="code-tag">{{ product.sku }}</code></td>
+                <td>
+                  <code class="code-tag">{{ product.sku }}</code>
+                </td>
                 <td>{{ product.category }}</td>
                 <td>{{ product.supplier }}</td>
                 <td class="cell-number">{{ product.amount | number: '1.0-3' }}</td>

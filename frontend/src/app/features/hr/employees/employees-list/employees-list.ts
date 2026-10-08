@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, input, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Employee, EmployeeRole } from '../employee.model';
 import { EmployeeService } from '../employee.service';
@@ -20,19 +20,7 @@ export class EmployeesList implements OnInit {
   protected readonly lastName = signal('');
   protected readonly role = signal<EmployeeRole>('staff');
 
-  // TEMP DEMO: an input, filled by the router from the route's `data` (see hr.routes.ts)
-  readonly demoValue = input<string>();
-  protected readonly seenInConstructor = signal('');
-  protected readonly seenInNgOnInit = signal('');
-
-  constructor() {
-    console.log('constructor sees demoValue =', this.demoValue()); // TEMP DEMO
-    this.seenInConstructor.set(String(this.demoValue())); // TEMP DEMO
-  }
-
   ngOnInit(): void {
-    console.log('ngOnInit sees demoValue =', this.demoValue()); // TEMP DEMO
-    this.seenInNgOnInit.set(String(this.demoValue())); // TEMP DEMO
     this.loadEmployees();
   }
 
