@@ -1,0 +1,19 @@
+<dialog
+  #dialog
+  class="modal"
+  [attr.aria-labelledby]="titleId"
+  (cancel)="onCancel($event)"
+  (click)="onDialogClick($event)"
+>
+  <div class="modal__panel">
+    <div class="modal__header">
+      <h2 class="modal__title" [id]="titleId">{{ title() }}</h2>
+      <button type="button" class="shell-icon-button" aria-label="Close" (click)="closed.emit()">
+        <lucide-icon [img]="XIcon" [size]="20"></lucide-icon>
+      </button>
+    </div>
+    <div class="modal__body">
+      <ng-content />
+    </div>
+  </div>
+</dialog>

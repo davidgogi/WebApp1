@@ -1,1 +1,85 @@
+.employee-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
 
+@media (max-width: 600px) {
+  .employee-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.modal-actions {
+  justify-content: flex-end;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* ---------- Search and filter ---------- */
+
+.employee-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.employee-filters__search {
+  flex: 1 1 320px;
+}
+
+.employee-filters__role {
+  flex: 0 1 200px;
+}
+
+.search-input {
+  position: relative;
+}
+
+.search-input__icon {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.search-input .text-input {
+  padding-left: 36px;
+}
+
+.results-count {
+  margin: 0 0 12px;
+}
+
+/* ---------- Table and form details ---------- */
+
+.cell-sub {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.label-hint {
+  font-weight: 400;
+  color: #94a3b8;
+}
+
+/* Matches `.field label` for the Status field, which has no input to label. */
+.field-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.status-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 39px;
+  font-size: 0.8rem;
+}

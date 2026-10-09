@@ -3,98 +3,309 @@
     <div>
       <p class="page-eyebrow">HR</p>
       <h1 class="page-title">Employees</h1>
-      <p class="page-description">
-        Add and review employees. First name, last name, and role for now.
-      </p>
+      <p class="page-description">Your team, with contact details, branch and role.</p>
     </div>
+    <button type="button" class="button button--primary" (click)="openAddForm()">
+      <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
+      Add employee
+    </button>
   </div>
 
-  <div class="page-card">
-    <form class="page-stack" (ngSubmit)="addEmployee()">
-      <div class="button-row" style="align-items: flex-end">
-        <div class="field" style="min-width: 200px">
-          <label for="firstName">First name</label>
-          <input
-            id="firstName"
-            class="text-input"
-            type="text"
-            name="firstName"
-            [(ngModel)]="firstName"
-            placeholder="e.g. Nino"
-            required
-          />
-        </div>
-
-        <div class="field" style="min-width: 200px">
-          <label for="lastName">Last name</label>
-          <input
-            id="lastName"
-            class="text-input"
-            type="text"
-            name="lastName"
-            [(ngModel)]="lastName"
-            placeholder="e.g. Beridze"
-            required
-          />
-        </div>
-
-        <div class="field" style="min-width: 160px">
-          <label for="role">Role</label>
-          <select id="role" class="text-select" name="role" [(ngModel)]="role">
-            <option value="manager">Manager</option>
-            <option value="staff">Staff</option>
-          </select>
-        </div>
-
-        <button type="submit" class="button button--primary" [disabled]="isSaving()">
-          {{ isSaving() ? 'Adding…' : 'Add employee' }}
-        </button>
+  <div class="page-card employee-filters">
+    <div class="field employee-filters__search">
+      <label for="employeeSearch">Search</label>
+      <div class="search-input">
+        <lucide-icon [img]="SearchIcon" [size]="16" class="search-input__icon"></lucide-icon>
+        <input
+          id="employeeSearch"
+          class="text-input"
+          type="search"
+          [(ngModel)]="search"
+          placeholder="Name, personal ID, phone or email"
+        />
       </div>
-    </form>
+    </div>
+
+    <div class="field employee-filters__role">
+      <label for="employeeRoleFilter">Role</label>
+      <select id="employeeRoleFilter" class="text-select" [(ngModel)]="roleFilter">
+        <option value="all">All roles</option>
+        <option value="admin">Admin</option>
+        <option value="staff">Staff</option>
+      </select>
+    </div>
+
+    @if (hasActiveFilters()) {
+      <button type="button" class="button button--secondary" (click)="clearFilters()">Clear</button>
+    }
   </div>
 
   <div class="page-card">
     @if (isLoading()) {
       <p class="page-description">Loading…</p>
     } @else if (employees().length === 0) {
-      <p class="page-description">No employees yet. Add the first one above.</p>
+      <p class="page-description">No employees yet. Use “Add employee” to add the first one.</p>
+    } @else if (filteredEmployees().length === 0) {
+      <p class="page-description">No employees match your search.</p>
     } @else {
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>First name</th>
-            <th>Last name</th>
-            <th>Role</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (employee of employees(); track employee.id) {
+      @if (hasActiveFilters()) {
+        <p class="page-description results-count">
+          Showing {{ filteredEmployees().length }} of {{ employees().length }} employees
+        </p>
+      }
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
             <tr>
-              <td>{{ employee.firstName }}</td>
-              <td>{{ employee.lastName }}</td>
-              <td>
-                <span
-                  class="badge"
-                  [class.badge--manager]="employee.role === 'manager'"
-                  [class.badge--staff]="employee.role === 'staff'"
-                >
-                  {{ employee.role === 'manager' ? 'Manager' : 'Staff' }}
-                </span>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="button button--secondary button--sm"
-                  (click)="deleteEmployee(employee.id)"
-                >
-                  Remove
-                </button>
-              </td>
+              <th>Employee</th>
+              <th>Personal ID</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Branch</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Hire date</th>
+              <th>Actions</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (employee of filteredEmployees(); track employee.id) {
+              <tr>
+                <td>
+                  <div class="cell-strong">{{ employee.firstName }} {{ employee.lastName }}</div>
+                  @if (employee.position) {
+                    <div class="cell-sub">{{ employee.position }}</div>
+                  }
+                </td>
+                <td>
+                  @if (employee.personalId) {
+                    <code class="code-tag">{{ employee.personalId }}</code>
+                  } @else {
+                    <span class="muted">–</span>
+                  }
+                </td>
+                <td>{{ employee.email ?? '–' }}</td>
+                <td class="nowrap">{{ employee.phone ?? '–' }}</td>
+                <td>{{ employee.branch ?? '–' }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.badge--admin]="employee.role === 'admin'"
+                    [class.badge--staff]="employee.role === 'staff'"
+                  >
+                    {{ employee.role === 'admin' ? 'Admin' : 'Staff' }}
+                  </span>
+                </td>
+                <td class="nowrap">
+                  <span
+                    class="badge"
+                    [class.badge--active]="employee.status === 'active'"
+                    [class.badge--inactive]="employee.status === 'former'"
+                  >
+                    {{ employee.status === 'active' ? 'Active' : 'Former' }}
+                  </span>
+                  @if (employee.endDate) {
+                    <div class="cell-sub">
+                      {{ employee.status === 'former' ? 'since' : 'until' }}
+                      {{ employee.endDate | date: 'mediumDate' }}
+                    </div>
+                  }
+                </td>
+                <td class="nowrap">
+                  {{ employee.hireDate ? (employee.hireDate | date: 'mediumDate') : '–' }}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="button button--secondary button--sm"
+                    (click)="deleteEmployee(employee)"
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
   </div>
 </div>
+
+<app-modal [open]="isAddOpen()" title="Add employee" (closed)="closeAddForm()">
+  <form class="page-stack" [formGroup]="form" (ngSubmit)="addEmployee()" novalidate>
+    <div class="employee-form-grid">
+      <div class="field">
+        <label for="firstName">First name</label>
+        <input
+          id="firstName"
+          class="text-input"
+          formControlName="firstName"
+          placeholder="Enter first name"
+        />
+        @if (errorFor('firstName'); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="lastName">Last name</label>
+        <input
+          id="lastName"
+          class="text-input"
+          formControlName="lastName"
+          placeholder="Enter last name"
+        />
+        @if (errorFor('lastName'); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="personalId">Personal ID number</label>
+        <input
+          id="personalId"
+          class="text-input"
+          formControlName="personalId"
+          inputmode="numeric"
+          maxlength="11"
+          placeholder="Enter personal ID number"
+        />
+        @if (errorFor('personalId'); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          class="text-input"
+          type="email"
+          formControlName="email"
+          placeholder="Enter email"
+        />
+        @if (errorFor('email'); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="phone">Phone number</label>
+        <input
+          id="phone"
+          class="text-input"
+          type="tel"
+          formControlName="phone"
+          placeholder="Enter phone number"
+        />
+        @if (errorFor('phone'); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="branch">Branch</label>
+        <input
+          id="branch"
+          class="text-input"
+          formControlName="branch"
+          list="employeeBranches"
+          placeholder="Enter branch"
+        />
+        <datalist id="employeeBranches">
+          @for (option of branches(); track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
+        @if (errorFor('branch'); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="position">Position</label>
+        <input
+          id="position"
+          class="text-input"
+          formControlName="position"
+          list="employeePositions"
+          placeholder="e.g. Cashier"
+        />
+        <datalist id="employeePositions">
+          @for (option of positions(); track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
+        @if (errorFor('position'); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="role">Role</label>
+        <select id="role" class="text-select" formControlName="role">
+          <option value="staff">Staff</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="birthDate">Date of birth</label>
+        <input
+          id="birthDate"
+          class="text-input"
+          type="date"
+          formControlName="birthDate"
+          [max]="today"
+        />
+        @if (errorFor('birthDate'); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="hireDate">Hire date</label>
+        <input id="hireDate" class="text-input" type="date" formControlName="hireDate" />
+        @if (errorFor('hireDate') || hireDateError(); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="endDate">End date <span class="label-hint">(optional)</span></label>
+        <input id="endDate" class="text-input" type="date" formControlName="endDate" />
+        @if (endDateError(); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <span class="field-label">Status</span>
+        <div class="status-preview">
+          <span
+            class="badge"
+            [class.badge--active]="formStatus() === 'active'"
+            [class.badge--inactive]="formStatus() === 'former'"
+          >
+            {{ formStatus() === 'active' ? 'Active' : 'Former' }}
+          </span>
+          <span class="label-hint">Set automatically from the end date</span>
+        </div>
+      </div>
+    </div>
+
+    @if (serverError()) {
+      <p class="field-error">{{ serverError() }}</p>
+    }
+
+    <div class="button-row modal-actions">
+      <button type="button" class="button button--secondary" (click)="closeAddForm()">
+        Cancel
+      </button>
+      <button type="submit" class="button button--primary" [disabled]="isSaving()">
+        {{ isSaving() ? 'Adding…' : 'Add employee' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

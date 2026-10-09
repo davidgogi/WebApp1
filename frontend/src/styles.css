@@ -272,6 +272,9 @@ textarea {
 
 .page-stack {
   display: grid;
+  /* minmax(0, …) lets the column shrink, so wide tables scroll inside .table-scroll
+     instead of stretching the whole page. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
 }
 
@@ -462,7 +465,7 @@ textarea {
   font-weight: 700;
 }
 
-.badge--manager {
+.badge--admin {
   background: rgba(79, 70, 229, 0.1);
   color: #4338ca;
 }

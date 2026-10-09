@@ -1,15 +1,6 @@
-const originalLog = console.log;
+const names = ["banana", "Apple", "apple", "Banana"];
 
-console.log = function (...args) {
-  originalLog("CUSTOM:", ...args);
-};
+//console.log(names.sort());
 
-console.log("Hello");
-
-function func() {
-  return 1;
-}
-
-func.func1 = () => 2;
-
-console.log(func.func1());
+console.log(names.sort((a, b) => a.localeCompare(b)));
+console.log(names);
