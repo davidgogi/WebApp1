@@ -15,88 +15,241 @@
     </div>
     <nav class="shell-nav">
       <!-- HR module -->
-      <div class="shell-nav__group">
-        <button
-          type="button"
-          class="shell-nav__button"
-          [class.shell-nav__button--active]="isHrActive()"
-          (click)="toggleHrMenu()"
-        >
-          <span class="shell-nav__main">
-            <lucide-icon [img]="UsersIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
-            @if (isSidebarOpen()) {
-              <span class="shell-nav__label">HR</span>
-            }
-          </span>
-          @if (isSidebarOpen()) {
-            <span class="shell-nav__caret">
-              @if (isHrExpanded()) {
-                <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
-              } @else {
-                <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+      @if (showHr()) {
+        <div class="shell-nav__group">
+          <button
+            type="button"
+            class="shell-nav__button"
+            [class.shell-nav__button--active]="isHrActive()"
+            (click)="toggleHrMenu()"
+          >
+            <span class="shell-nav__main">
+              <lucide-icon [img]="UsersIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
+              @if (isSidebarOpen()) {
+                <span class="shell-nav__label">HR</span>
               }
             </span>
-          }
-        </button>
+            @if (isSidebarOpen()) {
+              <span class="shell-nav__caret">
+                @if (isHrExpanded()) {
+                  <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
+                } @else {
+                  <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+                }
+              </span>
+            }
+          </button>
 
-        @if (isSidebarOpen() && isHrExpanded()) {
-          <div class="shell-nav__submenu">
-            <a
-              class="shell-nav__subitem"
-              routerLink="/hr/employees"
-              routerLinkActive="shell-nav__subitem--active"
-            >
-              Employees
-            </a>
-          </div>
-        }
-      </div>
+          @if (isSidebarOpen() && isHrExpanded()) {
+            <div class="shell-nav__submenu">
+              <a
+                class="shell-nav__subitem"
+                routerLink="/hr/employees"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Employees
+              </a>
+              @if (isSystemAdmin()) {
+                <a
+                  class="shell-nav__subitem"
+                  routerLink="/hr/audit"
+                  routerLinkActive="shell-nav__subitem--active"
+                >
+                  Audit log
+                </a>
+              }
+            </div>
+          }
+        </div>
+      }
 
       <!-- WMS module -->
-      <div class="shell-nav__group">
-        <button
-          type="button"
-          class="shell-nav__button"
-          [class.shell-nav__button--active]="isWmsActive()"
-          (click)="toggleWmsMenu()"
-        >
-          <span class="shell-nav__main">
-            <lucide-icon [img]="BoxesIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
-            @if (isSidebarOpen()) {
-              <span class="shell-nav__label">WMS</span>
-            }
-          </span>
-          @if (isSidebarOpen()) {
-            <span class="shell-nav__caret">
-              @if (isWmsExpanded()) {
-                <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
-              } @else {
-                <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+      @if (showWms()) {
+        <div class="shell-nav__group">
+          <button
+            type="button"
+            class="shell-nav__button"
+            [class.shell-nav__button--active]="isWmsActive()"
+            (click)="toggleWmsMenu()"
+          >
+            <span class="shell-nav__main">
+              <lucide-icon [img]="BoxesIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
+              @if (isSidebarOpen()) {
+                <span class="shell-nav__label">WMS</span>
               }
             </span>
-          }
-        </button>
+            @if (isSidebarOpen()) {
+              <span class="shell-nav__caret">
+                @if (isWmsExpanded()) {
+                  <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
+                } @else {
+                  <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+                }
+              </span>
+            }
+          </button>
 
-        @if (isSidebarOpen() && isWmsExpanded()) {
-          <div class="shell-nav__submenu">
-            <a
-              class="shell-nav__subitem"
-              routerLink="/wms/warehouses"
-              routerLinkActive="shell-nav__subitem--active"
-            >
-              Warehouses
-            </a>
-            <a
-              class="shell-nav__subitem"
-              routerLink="/wms/products"
-              routerLinkActive="shell-nav__subitem--active"
-            >
-              Products
-            </a>
-          </div>
-        }
-      </div>
+          @if (isSidebarOpen() && isWmsExpanded()) {
+            <div class="shell-nav__submenu">
+              <a
+                class="shell-nav__subitem"
+                routerLink="/wms/warehouses"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Warehouses
+              </a>
+              @if (isAdmin()) {
+                <a
+                  class="shell-nav__subitem"
+                  routerLink="/wms/products"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Products
+              </a>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Store module -->
+      @if (showStore()) {
+        <div class="shell-nav__group">
+          <button
+            type="button"
+            class="shell-nav__button"
+            [class.shell-nav__button--active]="isStoreActive()"
+            (click)="toggleStoreMenu()"
+          >
+            <span class="shell-nav__main">
+              <lucide-icon [img]="StoreIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
+              @if (isSidebarOpen()) {
+                <span class="shell-nav__label">Store</span>
+              }
+            </span>
+            @if (isSidebarOpen()) {
+              <span class="shell-nav__caret">
+                @if (isStoreExpanded()) {
+                  <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
+                } @else {
+                  <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+                }
+              </span>
+            }
+          </button>
+
+          @if (isSidebarOpen() && isStoreExpanded()) {
+            <div class="shell-nav__submenu">
+              @if (isAdmin() || isManager()) {
+                <a
+                  class="shell-nav__subitem"
+                  routerLink="/store/stores"
+                  routerLinkActive="shell-nav__subitem--active"
+                >
+                  Stores
+                </a>
+              }
+              <a
+                class="shell-nav__subitem"
+                routerLink="/store/cash-register"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Cash register
+              </a>
+              @if (worksARegister()) {
+                <a
+                  class="shell-nav__subitem"
+                  routerLink="/store/pos"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                POS
+              </a>
+              }
+              <a
+                class="shell-nav__subitem"
+                routerLink="/store/record-expense"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Recording an expense
+              </a>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Restaurant module -->
+      @if (showRestaurant()) {
+        <div class="shell-nav__group">
+          <button
+            type="button"
+            class="shell-nav__button"
+            [class.shell-nav__button--active]="isRestaurantActive()"
+            (click)="toggleRestaurantMenu()"
+          >
+            <span class="shell-nav__main">
+              <lucide-icon [img]="UtensilsIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
+              @if (isSidebarOpen()) {
+                <span class="shell-nav__label">Restaurant</span>
+              }
+            </span>
+            @if (isSidebarOpen()) {
+              <span class="shell-nav__caret">
+                @if (isRestaurantExpanded()) {
+                  <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
+                } @else {
+                  <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+                }
+              </span>
+            }
+          </button>
+
+          @if (isSidebarOpen() && isRestaurantExpanded()) {
+            <div class="shell-nav__submenu">
+              <a
+                class="shell-nav__subitem"
+                routerLink="/restaurant/table-service"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Table service
+              </a>
+              <a
+                class="shell-nav__subitem"
+                routerLink="/restaurant/menu-management"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Menu management
+              </a>
+              <a
+                class="shell-nav__subitem"
+                routerLink="/restaurant/kitchen-screen"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Kitchen screen
+              </a>
+              <a
+                class="shell-nav__subitem"
+                routerLink="/restaurant/waiter-view"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                Waiter view
+              </a>
+            </div>
+          }
+        </div>
+      }
     </nav>
+
+    <div class="shell-user" [class.shell-user--collapsed]="!isSidebarOpen()">
+      @if (isSidebarOpen()) {
+        <div class="shell-user__info">
+          <div class="shell-user__name">{{ user()?.displayName }}</div>
+          <div class="shell-user__meta">{{ roleLabel() }} · {{ user()?.companyName }}</div>
+        </div>
+      }
+      <button type="button" class="shell-icon-button" aria-label="Sign out" title="Sign out" (click)="auth.logout()">
+        <lucide-icon [img]="LogOutIcon" [size]="18"></lucide-icon>
+      </button>
+    </div>
   </aside>
 
   <div class="shell-main">

@@ -5,21 +5,24 @@ import {
   JoinTable,
   ManyToMany,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import { TenantEntity } from '../../companies/tenant.entity.js';
 import { decimalTransformer } from '../../common/decimal.transformer.js';
 import { Warehouse } from '../warehouses/warehouse.entity.js';
 import { ProductUnit } from './product-unit.enum.js';
 
 @Entity({ name: 'products' })
-export class Product {
+@Unique(['companyId', 'sku'])
+export class Product extends TenantEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
   @Column()
   name!: string;
 
-  @Column({ unique: true })
+  @Column()
   sku!: string;
 
   // Plain text for now; may become a relation once Categories / Suppliers modules exist.

@@ -1,0 +1,42 @@
+<div class="login-page">
+  <form class="login-card" (ngSubmit)="signIn()">
+    <div class="login-brand">WebApp1</div>
+    <h1 class="login-title">Sign in</h1>
+    <p class="page-description">Use the username and password you were given.</p>
+
+    <div class="field">
+      <label for="username">Username</label>
+      <input
+        id="username"
+        class="text-input"
+        name="username"
+        autocomplete="username"
+        [(ngModel)]="username"
+        required
+      />
+    </div>
+
+    <div class="field">
+      <label for="password">Password</label>
+      <input
+        id="password"
+        class="text-input"
+        type="password"
+        name="password"
+        autocomplete="current-password"
+        [(ngModel)]="password"
+        required
+      />
+    </div>
+
+    @if (errorMessage()) {
+      <p class="field-error">{{ errorMessage() }}</p>
+    }
+
+    <button type="submit" class="button button--primary" [disabled]="isLoading()">
+      {{ isLoading() ? 'Signing in…' : 'Sign in' }}
+    </button>
+
+    <a class="login-link" routerLink="/superadmin/login">Platform owner? Sign in here</a>
+  </form>
+</div>

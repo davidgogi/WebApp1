@@ -1,35 +1,50 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { WarehousesService } from './warehouses.service.js';
+import { AuthUser } from '../../auth/auth-user.js';
+import { Access, CurrentUser, Roles } from '../../auth/decorators.js';
+import { ADMIN_ROLES } from '../../auth/user-role.enum.js';
+import { AppModuleName } from '../../companies/app-module.enum.js';
+import { ManagerOption, WarehousesService } from './warehouses.service.js';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto.js';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto.js';
 import { Warehouse } from './warehouse.entity.js';
 
+// Admins manage warehouses; a manager can only read the ones assigned to him.
 @Controller('warehouses')
+@Access(AppModuleName.WMS)
 export class WarehousesController {
   constructor(private readonly warehousesService: WarehousesService) {}
 
   @Get()
-  findAll(): Promise<Warehouse[]> {
-    return this.warehousesService.findAll();
+  findAll(@CurrentUser() user: AuthUser): Promise<Warehouse[]> {
+    return this.warehousesService.findAll(user);
+  }
+
+  @Get('manager-options')
+  @Roles(...ADMIN_ROLES)
+  managerOptions(@CurrentUser() user: AuthUser): Promise<ManagerOption[]> {
+    return this.warehousesService.managerOptions(user);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<Warehouse> {
-    return this.warehousesService.findOne(id);
+  findOne(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<Warehouse> {
+    return this.warehousesService.findOne(user, id);
   }
 
   @Post()
-  create(@Body() dto: CreateWarehouseDto): Promise<Warehouse> {
-    return this.warehousesService.create(dto);
+  @Roles(...ADMIN_ROLES)
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateWarehouseDto): Promise<Warehouse> {
+    return this.warehousesService.create(user, dto);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateWarehouseDto): Promise<Warehouse> {
-    return this.warehousesService.update(id, dto);
+  @Roles(...ADMIN_ROLES)
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateWarehouseDto): Promise<Warehouse> {
+    return this.warehousesService.update(user, id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string): Promise<void> {
-    return this.warehousesService.remove(id);
+  @Roles(...ADMIN_ROLES)
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<void> {
+    return this.warehousesService.remove(user, id);
   }
 }

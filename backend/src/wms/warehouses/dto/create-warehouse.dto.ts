@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { WarehouseStatus } from '../warehouse-status.enum.js';
 import { WarehouseType } from '../warehouse-type.enum.js';
 
@@ -26,4 +26,9 @@ export class CreateWarehouseDto {
   @IsOptional()
   @IsEnum(WarehouseStatus)
   status?: WarehouseStatus;
+
+  // An employee with the manager role in WMS. null / missing = no manager.
+  @IsOptional()
+  @IsUUID()
+  managerId?: string | null;
 }

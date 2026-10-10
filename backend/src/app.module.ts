@@ -3,7 +3,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { AuditModule } from './audit/audit.module.js';
+import { AuthModule } from './auth/auth.module.js';
 import { HrModule } from './hr/hr.module.js';
+import { StoreModule } from './store/store.module.js';
+import { SuperadminModule } from './superadmin/superadmin.module.js';
 import { WmsModule } from './wms/wms.module.js';
 
 @Module({
@@ -22,8 +26,12 @@ import { WmsModule } from './wms/wms.module.js';
         synchronize: true,
       }),
     }),
+    AuditModule,
+    AuthModule,
+    SuperadminModule,
     HrModule,
     WmsModule,
+    StoreModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -4,11 +4,16 @@
       <p class="page-eyebrow">WMS</p>
       <h1 class="page-title">Warehouses</h1>
       <p class="page-description">
-        Main and sales warehouses. Codes are assigned automatically from the type.
+        @if (isAdmin()) {
+          Main and sales warehouses. Codes are assigned automatically from the type.
+        } @else {
+          The warehouses you manage.
+        }
       </p>
     </div>
   </div>
 
+  @if (isAdmin()) {
   <div class="page-card">
     <form class="page-stack" (ngSubmit)="saveWarehouse()">
       <div class="form-grid">
@@ -78,6 +83,22 @@
             <option value="inactive">Inactive</option>
           </select>
         </div>
+
+        <div class="field">
+          <label for="warehouseManager">Manager</label>
+          <select id="warehouseManager" class="text-select" name="managerId" [(ngModel)]="managerId">
+            <option value="">— No manager —</option>
+            @for (manager of managerOptions(); track manager.id) {
+              <option [value]="manager.id">{{ manager.name }}</option>
+            }
+          </select>
+          @if (managerOptions().length === 0) {
+            <span class="field-hint">
+              No managers yet. In HR, add an employee with the Manager role in the WMS module.
+            </span>
+          }
+        </div>
+
       </div>
 
       @if (errorMessage()) {
@@ -98,12 +119,23 @@
       </div>
     </form>
   </div>
+  }
+
+  @if (!isAdmin() && errorMessage()) {
+    <p class="field-error">{{ errorMessage() }}</p>
+  }
 
   <div class="page-card">
     @if (isLoading()) {
       <p class="page-description">Loading…</p>
     } @else if (warehouses().length === 0) {
-      <p class="page-description">No warehouses yet. Add the first one above.</p>
+      <p class="page-description">
+        @if (isAdmin()) {
+          No warehouses yet. Add the first one above.
+        } @else {
+          No warehouses are assigned to you yet.
+        }
+      </p>
     } @else {
       <div class="table-scroll">
         <table class="data-table">
@@ -114,9 +146,12 @@
               <th>Branches</th>
               <th>Type</th>
               <th>Address</th>
+              <th>Manager</th>
               <th class="cell-number">Stock</th>
               <th>Status</th>
-              <th>Actions</th>
+              @if (isAdmin()) {
+                <th>Actions</th>
+              }
             </tr>
           </thead>
           <tbody>
@@ -143,6 +178,13 @@
                   </span>
                 </td>
                 <td>{{ warehouse.address }}</td>
+                <td>
+                  @if (warehouse.manager) {
+                    {{ warehouse.manager.firstName }} {{ warehouse.manager.lastName }}
+                  } @else {
+                    <span class="muted">–</span>
+                  }
+                </td>
                 <td class="cell-number">{{ warehouse.stock | number }}</td>
                 <td>
                   <span
@@ -153,6 +195,7 @@
                     {{ warehouse.status === 'active' ? 'Active' : 'Inactive' }}
                   </span>
                 </td>
+                @if (isAdmin()) {
                 <td>
                   <div class="button-row button-row--tight">
                     <button
@@ -171,6 +214,7 @@
                     </button>
                   </div>
                 </td>
+                }
               </tr>
             }
           </tbody>

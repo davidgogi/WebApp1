@@ -1,0 +1,149 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">Store</p>
+      <h1 class="page-title">Stores</h1>
+      <p class="page-description">
+        @if (isAdmin()) {
+          Your shops, each with one manager picked from the people you added in HR. A store's cashiers are
+          added by its manager in HR.
+        } @else {
+          The stores you manage.
+        }
+      </p>
+    </div>
+  </div>
+
+  @if (isAdmin()) {
+    <div class="page-card">
+      <form class="page-stack" (ngSubmit)="save()">
+        <div class="form-grid">
+          <div class="field">
+            <label for="storeName">Store</label>
+            <input
+              id="storeName"
+              class="text-input"
+              name="name"
+              [(ngModel)]="name"
+              placeholder="e.g. Vake Store"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="storeAddress">Address</label>
+            <input
+              id="storeAddress"
+              class="text-input"
+              name="address"
+              [(ngModel)]="address"
+              placeholder="e.g. 23 Chavchavadze Ave, Tbilisi"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="storeRegisters">Cash registers</label>
+            <input
+              id="storeRegisters"
+              class="text-input"
+              type="number"
+              min="1"
+              max="50"
+              step="1"
+              name="registers"
+              [(ngModel)]="registers"
+            />
+          </div>
+
+          <div class="field">
+            <label for="storeManager">Manager</label>
+            <select id="storeManager" class="text-select" name="managerId" [(ngModel)]="managerId">
+              <option value="">— No manager —</option>
+              @for (manager of options().managers; track manager.id) {
+                <option [value]="manager.id">{{ manager.name }}</option>
+              }
+            </select>
+            @if (options().managers.length === 0) {
+              <span class="field-hint">
+                No managers yet. In HR, add an employee with the Manager role in the Store module.
+              </span>
+            }
+          </div>
+
+        </div>
+
+        @if (errorMessage()) {
+          <p class="field-error">{{ errorMessage() }}</p>
+        }
+
+        <div class="button-row">
+          <button type="submit" class="button button--primary" [disabled]="isSaving()">
+            @if (editingId()) {
+              {{ isSaving() ? 'Saving…' : 'Save changes' }}
+            } @else {
+              {{ isSaving() ? 'Adding…' : 'Add store' }}
+            }
+          </button>
+          @if (editingId()) {
+            <button type="button" class="button button--secondary" (click)="resetForm()">Cancel</button>
+          }
+        </div>
+      </form>
+    </div>
+  } @else if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() }}</p>
+  }
+
+  <div class="page-card">
+    @if (isLoading()) {
+      <p class="page-description">Loading…</p>
+    } @else if (stores().length === 0) {
+      <p class="page-description">
+        @if (isAdmin()) {
+          No stores yet. Add the first one above.
+        } @else {
+          No stores are assigned to you yet.
+        }
+      </p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>Address</th>
+              <th>Manager</th>
+              <th class="cell-number">Registers</th>
+              @if (isAdmin()) {
+                <th>Actions</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (store of stores(); track store.id) {
+              <tr [class.row-editing]="editingId() === store.id">
+                <td class="cell-strong">{{ store.name }}</td>
+                <td>{{ store.address }}</td>
+                <td>{{ store.manager?.name ?? '–' }}</td>
+                <td class="cell-number">{{ store.registers }}</td>
+                @if (isAdmin()) {
+                  <td>
+                    <div class="button-row button-row--tight">
+                      <button type="button" class="button button--secondary button--sm" (click)="edit(store)">
+                        Edit
+                      </button>
+                      <button type="button" class="button button--secondary button--sm" (click)="remove(store)">
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

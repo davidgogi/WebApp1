@@ -83,3 +83,7 @@
   min-height: 39px;
   font-size: 0.8rem;
 }
+
+.employee-form-grid__wide {
+  grid-column: 1 / -1;
+}

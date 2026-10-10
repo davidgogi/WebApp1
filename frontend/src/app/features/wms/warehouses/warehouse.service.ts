@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from '../../../core/api';
-import { Warehouse, WarehousePayload } from './warehouse.model';
+import { ManagerOption, Warehouse, WarehousePayload } from './warehouse.model';
 
 const API_URL = `${API_BASE_URL}/wms/warehouses`;
 
@@ -14,6 +14,10 @@ export class WarehouseService {
 
   list(): Observable<Warehouse[]> {
     return this.http.get<Warehouse[]>(API_URL);
+  }
+
+  managerOptions(): Observable<ManagerOption[]> {
+    return this.http.get<ManagerOption[]>(`${API_URL}/manager-options`);
   }
 
   create(payload: WarehousePayload): Observable<Warehouse> {

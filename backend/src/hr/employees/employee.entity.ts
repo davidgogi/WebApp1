@@ -6,13 +6,17 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import { AppModuleName } from '../../companies/app-module.enum.js';
+import { TenantEntity } from '../../companies/tenant.entity.js';
 import { EmployeeRole } from './employee-role.enum.js';
 import { EmployeeStatus } from './employee-status.enum.js';
 
 @Entity({ name: 'employees' })
-export class Employee {
+@Unique(['companyId', 'personalId'])
+export class Employee extends TenantEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -28,7 +32,6 @@ export class Employee {
     name: 'personal_id',
     type: 'varchar',
     length: 11,
-    unique: true,
     nullable: true,
   })
   personalId!: string | null;
@@ -56,8 +59,14 @@ export class Employee {
   @Column({ name: 'end_date', type: 'date', nullable: true })
   endDate!: string | null;
 
-  @Column({ type: 'enum', enum: EmployeeRole })
-  role!: EmployeeRole;
+  // Null = no role = no access to the app.
+  @Column({ type: 'enum', enum: EmployeeRole, nullable: true })
+  role!: EmployeeRole | null;
+
+  // The module this person works in. Required for module admins, managers and cashiers; people
+  // without a role belong to one only if a module admin or manager added them.
+  @Column({ type: 'enum', enum: AppModuleName, enumName: 'app_module', nullable: true })
+  module!: AppModuleName | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
@@ -68,6 +77,9 @@ export class Employee {
   // Not stored: always calculated from the end date, so it can never contradict it and it
   // switches to FORMER by itself once the end date has passed.
   status!: EmployeeStatus;
+
+  // Not stored: the login (if any) issued for this employee. Filled in by the service.
+  username?: string | null;
 
   @AfterLoad()
   @AfterInsert()

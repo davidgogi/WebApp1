@@ -1,0 +1,58 @@
+.register-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.register-open__title {
+  margin-top: 8px;
+  font-size: 1.05rem;
+}
+
+.register-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.register-form .field {
+  min-width: 200px;
+}
+
+.register-error {
+  margin: 12px 0 0;
+}
+
+.session-row {
+  cursor: pointer;
+}
+
+.session-row:hover {
+  background: #f8fafc;
+}
+
+.session-caret {
+  width: 24px;
+  color: #94a3b8;
+}
+
+.session-detail > td {
+  padding-top: 4px;
+  padding-bottom: 16px;
+  background: #f8fafc;
+}
+
+.session-cash {
+  margin: 0 0 8px;
+}
+
+.data-table--nested {
+  background: #ffffff;
+}
+
+.nowrap {
+  white-space: nowrap;
+}

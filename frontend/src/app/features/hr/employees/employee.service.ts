@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from '../../../core/api';
+import { Credentials } from '../../../core/auth/auth.model';
 import { CreateEmployeePayload, Employee } from './employee.model';
 
 const API_URL = `${API_BASE_URL}/hr/employees`;
@@ -18,6 +19,11 @@ export class EmployeeService {
 
   create(payload: CreateEmployeePayload): Observable<Employee> {
     return this.http.post<Employee>(API_URL, payload);
+  }
+
+  // Creates the employee's login, or resets its password if it already exists.
+  issueCredentials(id: string): Observable<Credentials> {
+    return this.http.post<Credentials>(`${API_URL}/${id}/credentials`, {});
   }
 
   remove(id: string): Observable<void> {

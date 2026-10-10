@@ -1,0 +1,165 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">Platform</p>
+      <h1 class="page-title">Companies</h1>
+      <p class="page-description">
+        Every company that bought the app, and which modules it has. Selling a company creates the
+        login of its system admin.
+      </p>
+    </div>
+    <button type="button" class="button button--primary" (click)="openCreate()">
+      <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
+      Sell to a new company
+    </button>
+  </div>
+
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() }}</p>
+  }
+
+  <div class="page-card">
+    @if (isLoading()) {
+      <p class="page-description">Loading…</p>
+    } @else if (companies().length === 0) {
+      <p class="page-description">No companies yet. Use “Sell to a new company” to add the first one.</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Modules</th>
+              <th>System admin</th>
+              <th class="cell-number">People</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (company of companies(); track company.id) {
+              <tr>
+                <td class="cell-strong">{{ company.name }}</td>
+                <td>
+                  <div class="chip-list">
+                    <span class="chip">HR</span>
+                    @for (module of company.modules; track module) {
+                      <span class="chip chip--module">{{ labels[module] }}</span>
+                    }
+                  </div>
+                </td>
+                <td>
+                  <div class="cell-strong">{{ company.adminName ?? '–' }}</div>
+                  @if (company.adminUsername) {
+                    <div class="cell-sub">
+                      <code class="code-tag">{{ company.adminUsername }}</code>
+                    </div>
+                  }
+                </td>
+                <td class="cell-number">{{ company.employeeCount }}</td>
+                <td class="nowrap">{{ company.createdAt | date: 'mediumDate' }}</td>
+                <td>
+                  <div class="button-row button-row--tight">
+                    <button type="button" class="button button--secondary button--sm" (click)="openEdit(company)">
+                      Modules
+                    </button>
+                    <button type="button" class="button button--secondary button--sm" (click)="resetPassword(company)">
+                      Reset password
+                    </button>
+                    <button type="button" class="button button--secondary button--sm" (click)="remove(company)">
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+<app-modal [open]="isCreateOpen()" title="Sell to a new company" (closed)="isCreateOpen.set(false)">
+  <form class="page-stack" (ngSubmit)="create()">
+    <div class="field">
+      <label for="companyName">Company name</label>
+      <input id="companyName" class="text-input" name="name" [(ngModel)]="newName" placeholder="e.g. Acme Retail" />
+    </div>
+
+    <div class="company-form-row">
+      <div class="field">
+        <label for="adminFirst">System admin: first name</label>
+        <input id="adminFirst" class="text-input" name="first" [(ngModel)]="newAdminFirstName" />
+      </div>
+      <div class="field">
+        <label for="adminLast">Last name</label>
+        <input id="adminLast" class="text-input" name="last" [(ngModel)]="newAdminLastName" />
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Modules sold <span class="label-hint">(HR is always included)</span></span>
+      <div class="module-picker">
+        @for (module of modules; track module) {
+          <label class="module-option" [class.module-option--on]="newModules().includes(module)">
+            <input type="checkbox" [checked]="newModules().includes(module)" (change)="toggle(newModules, module)" />
+            {{ labels[module] }}
+          </label>
+        }
+      </div>
+    </div>
+
+    @if (formError()) {
+      <p class="field-error">{{ formError() }}</p>
+    }
+
+    <div class="button-row modal-actions">
+      <button type="button" class="button button--secondary" (click)="isCreateOpen.set(false)">Cancel</button>
+      <button type="submit" class="button button--primary" [disabled]="isSaving()">
+        {{ isSaving() ? 'Creating…' : 'Create and issue login' }}
+      </button>
+    </div>
+  </form>
+</app-modal>
+
+<app-modal [open]="editing() !== null" title="Edit company" (closed)="editing.set(null)">
+  <form class="page-stack" (ngSubmit)="saveEdit()">
+    <div class="field">
+      <label for="editCompanyName">Company name</label>
+      <input id="editCompanyName" class="text-input" name="name" [(ngModel)]="editName" />
+    </div>
+
+    <div class="field">
+      <span class="field-label">Modules sold</span>
+      <div class="module-picker">
+        @for (module of modules; track module) {
+          <label class="module-option" [class.module-option--on]="editModules().includes(module)">
+            <input type="checkbox" [checked]="editModules().includes(module)" (change)="toggle(editModules, module)" />
+            {{ labels[module] }}
+          </label>
+        }
+      </div>
+      <span class="label-hint">
+        Removing a module hides it from everyone in the company straight away. Its data is kept.
+      </span>
+    </div>
+
+    @if (formError()) {
+      <p class="field-error">{{ formError() }}</p>
+    }
+
+    <div class="button-row modal-actions">
+      <button type="button" class="button button--secondary" (click)="editing.set(null)">Cancel</button>
+      <button type="submit" class="button button--primary" [disabled]="isSaving()">
+        {{ isSaving() ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </form>
+</app-modal>
+
+<app-credentials-modal
+  [credentials]="credentials()"
+  title="Login for the system admin"
+  (closed)="credentials.set(null)"
+/>

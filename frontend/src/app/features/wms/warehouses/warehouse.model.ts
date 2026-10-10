@@ -10,6 +10,8 @@ export interface Warehouse {
   address: string;
   stock: number;
   status: WarehouseStatus;
+  managerId: string | null;
+  manager: { id: string; firstName: string; lastName: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,4 +24,11 @@ export interface WarehousePayload {
   address: string;
   stock: number;
   status: WarehouseStatus;
+  managerId: string | null;
+}
+
+// An HR employee with the manager role in WMS, offered in the Manager dropdown.
+export interface ManagerOption {
+  id: string;
+  name: string;
 }

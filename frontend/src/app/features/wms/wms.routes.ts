@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { accessGuard } from '../../core/auth/auth.guards';
 
 export default [
   { path: '', pathMatch: 'full', redirectTo: 'warehouses' },
@@ -9,6 +10,8 @@ export default [
   },
   {
     path: 'products',
+    // Managers only see their warehouses.
+    canActivate: [accessGuard('wms', ['system_admin', 'module_admin'])],
     loadComponent: () =>
       import('./products/products-list/products-list').then((m) => m.ProductsList),
   },

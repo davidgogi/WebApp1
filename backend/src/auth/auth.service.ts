@@ -1,0 +1,92 @@
+import { Injectable, Logger, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { AuditService } from '../audit/audit.service.js';
+import { AuthUser, SessionUser, toSessionUser } from './auth-user.js';
+import { hashPassword, verifyPassword } from './password.js';
+import { signToken, verifyToken } from './token.js';
+import { UserRole } from './user-role.enum.js';
+import { User } from './user.entity.js';
+
+@Injectable()
+export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name);
+
+  constructor(
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
+    private readonly audit: AuditService,
+    private readonly config: ConfigService,
+  ) {}
+
+  // Local development: make sure the one superuser exists (the person who sells the app).
+  async onModuleInit(): Promise<void> {
+    if (await this.usersRepository.existsBy({ role: UserRole.SUPERUSER })) {
+      return;
+    }
+    const username = this.config.get<string>('SUPERUSER_USERNAME') ?? 'superuser';
+    const password = this.config.get<string>('SUPERUSER_PASSWORD') ?? 'superuser';
+    await this.usersRepository.save(
+      this.usersRepository.create({
+        username,
+        passwordHash: hashPassword(password),
+        displayName: 'Superuser',
+        role: UserRole.SUPERUSER,
+        module: null,
+        companyId: null,
+        employeeId: null,
+      }),
+    );
+    this.logger.log(`Created the superuser "${username}" (set SUPERUSER_PASSWORD in .env to change the password)`);
+  }
+
+  // `superuser` picks which login page is being used; the two never accept each other's accounts.
+  async login(username: string, password: string, superuser: boolean): Promise<{ token: string; user: SessionUser }> {
+    const user = await this.usersRepository.findOne({
+      where: { username: username.trim() },
+      relations: { company: true, employee: true },
+    });
+    const authUser = user && verifyPassword(password, user.passwordHash) ? this.toAuthUser(user) : null;
+
+    if (!user || !authUser || (user.role === UserRole.SUPERUSER) !== superuser) {
+      throw new UnauthorizedException('Wrong username or password');
+    }
+
+    await this.audit.record(authUser, 'auth.login', `${authUser.displayName} logged in`);
+    return { token: signToken(user.id), user: toSessionUser(authUser) };
+  }
+
+  // Resolves a token to the current user, or null. Reloaded on every request so that role,
+  // module and company changes take effect immediately.
+  async authenticate(token: string): Promise<AuthUser | null> {
+    const userId = verifyToken(token);
+    if (!userId) {
+      return null;
+    }
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      relations: { company: true, employee: true },
+    });
+    return user ? this.toAuthUser(user) : null;
+  }
+
+  // Null when the login must not work: the employee has left the company.
+  private toAuthUser(user: User): AuthUser | null {
+    const today = new Date().toISOString().slice(0, 10);
+    if (user.employee?.endDate && user.employee.endDate <= today) {
+      return null;
+    }
+    return {
+      userId: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      module: user.module,
+      companyId: user.companyId,
+      companyName: user.company?.name ?? null,
+      companyModules: user.company?.modules ?? [],
+      employeeId: user.employeeId,
+    };
+  }
+}

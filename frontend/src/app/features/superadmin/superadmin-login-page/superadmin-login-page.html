@@ -1,0 +1,41 @@
+<div class="sa-login">
+  <form class="sa-login__card" (ngSubmit)="signIn()">
+    <div class="sa-login__brand">WebApp1 <span>Platform</span></div>
+    <h1 class="sa-login__title">Superuser sign in</h1>
+
+    <div class="field">
+      <label for="saUsername">Username</label>
+      <input
+        id="saUsername"
+        class="text-input"
+        name="username"
+        autocomplete="username"
+        [(ngModel)]="username"
+        required
+      />
+    </div>
+
+    <div class="field">
+      <label for="saPassword">Password</label>
+      <input
+        id="saPassword"
+        class="text-input"
+        type="password"
+        name="password"
+        autocomplete="current-password"
+        [(ngModel)]="password"
+        required
+      />
+    </div>
+
+    @if (errorMessage()) {
+      <p class="field-error">{{ errorMessage() }}</p>
+    }
+
+    <button type="submit" class="button button--primary" [disabled]="isLoading()">
+      {{ isLoading() ? 'Signing in…' : 'Sign in' }}
+    </button>
+
+    <a class="sa-login__link" routerLink="/login">Back to the company sign in</a>
+  </form>
+</div>

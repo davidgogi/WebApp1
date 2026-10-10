@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { AuditService } from '../../audit/audit.service.js';
+import { AuthUser } from '../../auth/auth-user.js';
 import { isUniqueViolation } from '../../common/is-unique-violation.js';
 import { Warehouse } from '../warehouses/warehouse.entity.js';
 import { Product } from './product.entity.js';
@@ -15,18 +17,20 @@ export class ProductsService {
     private readonly productsRepository: Repository<Product>,
     @InjectRepository(Warehouse)
     private readonly warehousesRepository: Repository<Warehouse>,
+    private readonly audit: AuditService,
   ) {}
 
-  findAll(): Promise<Product[]> {
+  findAll(actor: AuthUser): Promise<Product[]> {
     return this.productsRepository.find({
+      where: { companyId: actor.companyId! },
       relations: { warehouses: true },
       order: { name: 'ASC', warehouses: { code: 'ASC' } },
     });
   }
 
-  async findOne(id: string): Promise<Product> {
+  async findOne(actor: AuthUser, id: string): Promise<Product> {
     const product = await this.productsRepository.findOne({
-      where: { id },
+      where: { id, companyId: actor.companyId! },
       relations: { warehouses: true },
     });
 
@@ -37,36 +41,42 @@ export class ProductsService {
     return product;
   }
 
-  async create(dto: CreateProductDto): Promise<Product> {
+  async create(actor: AuthUser, dto: CreateProductDto): Promise<Product> {
     const { warehouseIds, ...fields } = dto;
     const product = this.productsRepository.create({
       ...fields,
+      companyId: actor.companyId!,
       sku: this.normalizeSku(fields.sku),
-      warehouses: await this.findWarehouses(warehouseIds),
+      warehouses: await this.findWarehouses(actor, warehouseIds),
     });
     this.assertWholePieces(product);
-    return this.save(product);
+    const saved = await this.save(product);
+    await this.audit.record(actor, 'product.create', `Created product ${saved.sku} ${saved.name}`);
+    return saved;
   }
 
-  async update(id: string, dto: UpdateProductDto): Promise<Product> {
+  async update(actor: AuthUser, id: string, dto: UpdateProductDto): Promise<Product> {
     const { warehouseIds, ...fields } = dto;
-    const product = await this.findOne(id);
+    const product = await this.findOne(actor, id);
 
     Object.assign(product, fields);
     if (fields.sku) {
       product.sku = this.normalizeSku(fields.sku);
     }
     if (warehouseIds) {
-      product.warehouses = await this.findWarehouses(warehouseIds);
+      product.warehouses = await this.findWarehouses(actor, warehouseIds);
     }
 
     this.assertWholePieces(product);
-    return this.save(product);
+    const saved = await this.save(product);
+    await this.audit.record(actor, 'product.update', `Updated product ${saved.sku} ${saved.name}`);
+    return saved;
   }
 
-  async remove(id: string): Promise<void> {
-    const product = await this.findOne(id);
+  async remove(actor: AuthUser, id: string): Promise<void> {
+    const product = await this.findOne(actor, id);
     await this.productsRepository.remove(product);
+    await this.audit.record(actor, 'product.delete', `Deleted product ${product.sku} ${product.name}`);
   }
 
   private async save(product: Product): Promise<Product> {
@@ -80,9 +90,11 @@ export class ProductsService {
     }
   }
 
-  private async findWarehouses(ids: string[]): Promise<Warehouse[]> {
+  private async findWarehouses(actor: AuthUser, ids: string[]): Promise<Warehouse[]> {
     const uniqueIds = [...new Set(ids)];
-    const warehouses = uniqueIds.length ? await this.warehousesRepository.findBy({ id: In(uniqueIds) }) : [];
+    const warehouses = uniqueIds.length
+      ? await this.warehousesRepository.findBy({ id: In(uniqueIds), companyId: actor.companyId! })
+      : [];
 
     if (warehouses.length !== uniqueIds.length) {
       throw new BadRequestException('One or more warehouses do not exist');

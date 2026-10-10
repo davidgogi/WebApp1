@@ -10,8 +10,13 @@ import {
   Validators,
 } from '@angular/forms';
 import { LucideAngularModule, Plus, Search } from 'lucide-angular';
+import { AppModule, Credentials, MODULE_LABELS } from '../../../../core/auth/auth.model';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { CredentialsModal } from '../../../../shared/credentials-modal/credentials-modal';
 import { Modal } from '../../../../shared/modal/modal';
-import { Employee, EmployeeRole, EmployeeStatus } from '../employee.model';
+import { StoreService } from '../../../store/stores/store.service';
+import { WarehouseService } from '../../../wms/warehouses/warehouse.service';
+import { EMPLOYEE_ROLE_LABELS, Employee, EmployeeRole, EmployeeStatus } from '../employee.model';
 import { EmployeeService } from '../employee.service';
 
 type FieldName =
@@ -23,7 +28,23 @@ type FieldName =
   | 'branch'
   | 'position'
   | 'birthDate'
-  | 'hireDate';
+  | 'hireDate'
+  | 'module';
+
+// TEMPORARY quick-add mode: while true, the Add employee form only asks for first name, position,
+// role (+ module / stores). The other fields are disabled and filled with random data when the form
+// opens (the backend still requires them). Set to false to get the full form back.
+const QUICK_ADD = true;
+const QUICK_ADD_DISABLED = [
+  'lastName',
+  'personalId',
+  'email',
+  'phone',
+  'branch',
+  'birthDate',
+  'hireDate',
+  'endDate',
+] as const;
 
 const ERROR_MESSAGES: Record<string, string> = {
   required: 'This field is required.',
@@ -32,17 +53,65 @@ const ERROR_MESSAGES: Record<string, string> = {
   personalId: 'Personal ID must be exactly 11 digits.',
   phone: 'Enter a valid phone number.',
   notInPast: 'Date of birth must be in the past.',
+  moduleRequired: 'Choose a module for this role.',
 };
 
 @Component({
   selector: 'app-employees-list',
-  imports: [DatePipe, FormsModule, LucideAngularModule, Modal, ReactiveFormsModule],
+  imports: [CredentialsModal, DatePipe, FormsModule, LucideAngularModule, Modal, ReactiveFormsModule],
   templateUrl: './employees-list.html',
   styleUrl: './employees-list.css',
 })
 export class EmployeesList implements OnInit {
   private readonly employeeService = inject(EmployeeService);
   private readonly fb = inject(FormBuilder).nonNullable;
+  private readonly auth = inject(AuthService);
+
+  protected readonly roleLabels = EMPLOYEE_ROLE_LABELS;
+  protected readonly moduleLabels = MODULE_LABELS;
+
+  private readonly storeService = inject(StoreService);
+  private readonly warehouseService = inject(WarehouseService);
+
+  // The system admin handles everyone. A module admin adds managers (of their own module). A Store
+  // manager adds cashiers (of his own stores).
+  protected readonly isSystemAdmin = computed(() => this.auth.user()?.role === 'system_admin');
+  protected readonly isManager = computed(() => this.auth.user()?.role === 'manager');
+  // The stores (Store manager) or warehouses (WMS manager) he runs: a person he adds must work in
+  // at least one of them.
+  protected readonly places = signal<{ id: string; name: string }[]>([]);
+  protected readonly placeIds = signal<string[]>([]);
+  protected readonly placeKind = computed(() => (this.auth.user()?.module === 'wms' ? 'warehouse' : 'store'));
+  protected readonly ownModule = computed(() => this.auth.user()?.module ?? null);
+  protected readonly availableModules = computed<AppModule[]>(() => this.auth.user()?.companyModules ?? []);
+  // Roles this user may give to a new person.
+  protected readonly availableRoles = computed<EmployeeRole[]>(() => {
+    switch (this.auth.user()?.role) {
+      case 'system_admin':
+        return ['admin']; // each level adds the one below: module admins, then managers, then cashiers
+      case 'module_admin':
+        return ['manager'];
+      default:
+        // Store managers add cashiers; WMS has no cashiers (its managers add people without a role).
+        return this.auth.user()?.module === 'store' ? ['cashier'] : [];
+    }
+  });
+  // Roles that can appear in the list (a module admin also sees the cashiers of the managers).
+  // "No role" is always offered as well.
+  protected readonly filterRoles = computed<EmployeeRole[]>(() => {
+    switch (this.auth.user()?.role) {
+      case 'system_admin':
+        return ['admin', 'manager', 'cashier'];
+      case 'module_admin':
+        return ['manager', 'cashier'];
+      default:
+        return [];
+    }
+  });
+
+  // Shown once after a login is issued.
+  protected readonly credentials = signal<Credentials | null>(null);
+  protected readonly loginError = signal('');
 
   protected readonly PlusIcon = Plus;
   protected readonly SearchIcon = Search;
@@ -56,7 +125,7 @@ export class EmployeesList implements OnInit {
 
   // ── Search and filter ─────────────────────────────────────────────────────
   protected readonly search = signal('');
-  protected readonly roleFilter = signal<'all' | EmployeeRole>('all');
+  protected readonly roleFilter = signal<'all' | 'none' | EmployeeRole>('all');
 
   protected readonly filteredEmployees = computed(() => {
     const query = this.search().trim().toLowerCase();
@@ -64,7 +133,7 @@ export class EmployeesList implements OnInit {
     const role = this.roleFilter();
 
     return this.employees().filter((employee) => {
-      if (role !== 'all' && employee.role !== role) {
+      if (role === 'none' ? employee.role !== null : role !== 'all' && employee.role !== role) {
         return false;
       }
       if (!query) {
@@ -112,9 +181,10 @@ export class EmployeesList implements OnInit {
       birthDate: ['', [Validators.required, inThePast]],
       hireDate: ['', Validators.required],
       endDate: [''], // optional
-      role: this.fb.control<EmployeeRole>('staff'),
+      role: this.fb.control<EmployeeRole | ''>(''), // '' = no role, no access
+      module: this.fb.control<AppModule | ''>(''),
     },
-    { validators: [hireDateAfterBirth, endDateAfterHire] },
+    { validators: [hireDateAfterBirth, endDateAfterHire, moduleForRole] },
   );
 
   // The status the employee will get, shown live in the form. Same rule as the backend.
@@ -125,21 +195,60 @@ export class EmployeesList implements OnInit {
 
   ngOnInit(): void {
     this.loadEmployees();
+    if (this.isManager()) {
+      if (this.placeKind() === 'warehouse') {
+        this.warehouseService
+          .list()
+          .subscribe((list) => this.places.set(list.map((w) => ({ id: w.id, name: `${w.code} ${w.name}` }))));
+      } else {
+        this.storeService.list().subscribe((list) => this.places.set(list.map((s) => ({ id: s.id, name: s.name }))));
+      }
+    }
   }
 
+  // Only the newest request may replace the list: answers can arrive out of order when several
+  // reloads fire close together (adding someone reloads, then issuing their login reloads again).
+  private latestLoad = 0;
+
   loadEmployees(): void {
-    this.isLoading.set(true);
+    const load = ++this.latestLoad;
+    // Reloads after the first one happen quietly, without flashing "Loading…" over the table.
+    if (this.employees().length === 0) {
+      this.isLoading.set(true);
+    }
     this.employeeService.list().subscribe({
       next: (employees) => {
-        this.employees.set(employees);
-        this.isLoading.set(false);
+        if (load === this.latestLoad) {
+          this.employees.set(employees);
+          this.isLoading.set(false);
+        }
       },
       error: () => this.isLoading.set(false),
     });
   }
 
+  protected readonly quickAdd = QUICK_ADD;
+  protected readonly notice = signal('');
+
+  private showNotice(message: string): void {
+    this.notice.set(message);
+    setTimeout(() => this.notice.set(''), 4000);
+  }
+
   openAddForm(): void {
     this.form.reset();
+    // A module admin mostly adds managers and a manager mostly cashiers; the system admin picks.
+    this.form.controls.role.setValue(this.isSystemAdmin() ? '' : (this.availableRoles()[0] ?? ''));
+    this.onRoleChange();
+    this.placeIds.set(this.places().length === 1 ? [this.places()[0].id] : []);
+    // A module admin's people always belong to their own module.
+    this.form.controls.module.setValue(this.ownModule() ?? '');
+    if (QUICK_ADD) {
+      this.form.patchValue(randomPersonDetails());
+      for (const name of QUICK_ADD_DISABLED) {
+        this.form.controls[name].disable();
+      }
+    }
     this.serverError.set('');
     this.isAddOpen.set(true);
   }
@@ -158,6 +267,27 @@ export class EmployeesList implements OnInit {
     return ERROR_MESSAGES[key] ?? 'Invalid value.';
   }
 
+  protected moduleError(): string {
+    return this.form.controls.module.touched && this.form.hasError('moduleRequired')
+      ? ERROR_MESSAGES['moduleRequired']
+      : '';
+  }
+
+  // Cashiers only exist in the Store module.
+  // A system admin's people without a role belong to no module.
+  protected onRoleChange(): void {
+    const role = this.form.controls.role.value;
+    if (role === 'cashier') {
+      this.form.controls.module.setValue('store');
+    }
+    if (this.isSystemAdmin() && role === '') {
+      this.form.controls.module.setValue('');
+      this.form.controls.module.disable();
+    } else {
+      this.form.controls.module.enable();
+    }
+  }
+
   protected hireDateError(): string {
     return this.form.controls.hireDate.touched && this.form.hasError('hireBeforeBirth')
       ? 'Hire date cannot be before the date of birth.'
@@ -170,9 +300,26 @@ export class EmployeesList implements OnInit {
       : '';
   }
 
+  togglePlace(place: { id: string }): void {
+    this.serverError.set('');
+    this.placeIds.update((ids) =>
+      ids.includes(place.id) ? ids.filter((id) => id !== place.id) : [...ids, place.id],
+    );
+  }
+
+  // Which rows this user may act on (create login, remove). A module admin handles managers and
+  // people without a role.
+  protected canManage(employee: Employee): boolean {
+    return this.auth.user()?.role !== 'module_admin' || employee.role === 'manager' || employee.role === null;
+  }
+
   addEmployee(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched(); // reveal every error message
+      return;
+    }
+    if (this.isManager() && this.placeIds().length === 0) {
+      this.serverError.set(`Choose the ${this.placeKind()}(s) this person works in.`);
       return;
     }
 
@@ -182,6 +329,7 @@ export class EmployeesList implements OnInit {
     this.employeeService
       .create({
         ...value,
+        role: value.role || null,
         firstName: value.firstName.trim(),
         lastName: value.lastName.trim(),
         personalId: value.personalId.trim(),
@@ -190,12 +338,21 @@ export class EmployeesList implements OnInit {
         branch: value.branch.trim(),
         position: value.position.trim(),
         endDate: value.endDate || null,
+        module: value.role || !this.isSystemAdmin() ? value.module || null : null,
+        ...(this.isManager() ? { workplaceIds: this.placeIds() } : {}),
       })
       .subscribe({
-        next: () => {
+        next: (created) => {
           this.isSaving.set(false);
           this.isAddOpen.set(false);
+          // Show the new person at once; the reload below then confirms it with the server.
+          this.employees.update((list) => [{ ...created, username: created.username ?? null }, ...list]);
+          this.showNotice(`Added ${created.firstName} ${created.lastName}`);
           this.loadEmployees();
+          // Anyone with a role gets their login right away, shown once. No role, no login.
+          if (created.role && created.status === 'active') {
+            this.issueLogin(created);
+          }
         },
         error: (error: HttpErrorResponse) => {
           this.isSaving.set(false);
@@ -212,6 +369,31 @@ export class EmployeesList implements OnInit {
       });
   }
 
+  // Can this employee get a login? Only with a role, and not once they have left.
+  protected canHaveLogin(employee: Employee): boolean {
+    return employee.role !== null && employee.status === 'active';
+  }
+
+  issueLogin(employee: Employee): void {
+    if (
+      employee.username &&
+      !confirm(`Reset the password of ${employee.firstName} ${employee.lastName}? The old password stops working.`)
+    ) {
+      return;
+    }
+    this.loginError.set('');
+    this.employeeService.issueCredentials(employee.id).subscribe({
+      next: (credentials) => {
+        this.credentials.set(credentials);
+        this.loadEmployees();
+      },
+      error: (error: HttpErrorResponse) => {
+        const message = error.error?.message;
+        this.loginError.set(typeof message === 'string' ? message : 'Could not issue the login.');
+      },
+    });
+  }
+
   deleteEmployee(employee: Employee): void {
     if (!confirm(`Remove ${employee.firstName} ${employee.lastName}?`)) {
       return;
@@ -222,8 +404,42 @@ export class EmployeesList implements OnInit {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+// Random but valid values for the fields quick-add mode disables. The personal ID is random so it
+// stays unique.
+function randomPersonDetails() {
+  const pick = <T>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+  const digits = (length: number) =>
+    Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
+  const lastName = pick([
+    'Beridze', 'Kapanadze', 'Gelashvili', 'Chikovani', 'Lomidze', 'Abashidze', 'Meladze',
+    'Tsiklauri', 'Shengelia', 'Javakhishvili', 'Gvelesiani', 'Kvaratskhelia',
+  ]);
+  const birthYear = 1975 + Math.floor(Math.random() * 28); // 1975-2002
+  const hireYear = birthYear + 20 + Math.floor(Math.random() * 6); // always after birth, 20-25 years on
+  const date = (year: number) =>
+    `${Math.min(year, new Date().getFullYear() - 1)}-${String(1 + Math.floor(Math.random() * 12)).padStart(2, '0')}-${String(1 + Math.floor(Math.random() * 28)).padStart(2, '0')}`;
+
+  return {
+    lastName,
+    personalId: digits(11),
+    email: `${lastName.toLowerCase()}.${digits(4)}@example.com`,
+    phone: `+995 5${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`,
+    branch: pick(['Vake', 'Saburtalo', 'Gldani', 'Batumi', 'Kutaisi', 'Rustavi']),
+    birthDate: date(birthYear),
+    hireDate: date(hireYear),
+    endDate: '',
+  };
+}
+
 function uniqueSorted(values: (string | null)[]): string[] {
   return [...new Set(values.filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b));
+}
+
+// Anyone with a role must belong to a module (people without a role needn't).
+function moduleForRole(group: AbstractControl): ValidationErrors | null {
+  const role = group.get('role')?.value as string;
+  const module = group.get('module')?.value as string;
+  return role && !module ? { moduleRequired: true } : null;
 }
 
 // Like Validators.required, but also rejects text that is only spaces.

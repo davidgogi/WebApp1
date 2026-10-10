@@ -8,6 +8,7 @@ import {
   IsString,
   Matches,
 } from 'class-validator';
+import { AppModuleName } from '../../../companies/app-module.enum.js';
 import { EmployeeRole } from '../employee-role.enum.js';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -76,5 +77,9 @@ export class UpdateEmployeeDto {
 
   @IsOptional()
   @IsEnum(EmployeeRole)
-  role?: EmployeeRole;
+  role?: EmployeeRole | null;
+
+  @IsOptional()
+  @IsEnum(AppModuleName)
+  module?: AppModuleName | null;
 }

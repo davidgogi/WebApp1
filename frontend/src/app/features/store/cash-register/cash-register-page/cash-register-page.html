@@ -1,0 +1,198 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">Store</p>
+      <h1 class="page-title">Cash register</h1>
+      <p class="page-description">
+        Each time a register is opened it gets its own row, with the transactions rung up on it.
+        {{ sees() }}
+      </p>
+    </div>
+  </div>
+
+  @if (canOperate()) {
+    <div class="page-card">
+      @if (current(); as open) {
+        <div class="register-open">
+          <div>
+            <span class="badge badge--active">Open</span>
+            <div class="cell-strong register-open__title">
+              Register {{ open.registerNo }} · {{ open.storeName }}
+            </div>
+            <div class="cell-sub">
+              Opened {{ open.openedAt | date: 'HH:mm' }} with ₾{{ open.openingCash | number: '1.2-2' }} ·
+              {{ open.salesCount }} sales · ₾{{ open.total | number: '1.2-2' }}
+            </div>
+          </div>
+          <form class="register-form" (ngSubmit)="close(open)">
+            <div class="field">
+              <label for="closingCash">Cash counted (₾)</label>
+              <input
+                id="closingCash"
+                class="text-input"
+                type="number"
+                min="0"
+                step="0.01"
+                name="closingCash"
+                [(ngModel)]="closingCash"
+              />
+            </div>
+            <button type="submit" class="button button--primary" [disabled]="isBusy()">Close register</button>
+            <a class="button button--secondary" routerLink="/store/pos">Go to POS</a>
+          </form>
+        </div>
+      } @else {
+        <form class="register-form" (ngSubmit)="open()">
+          <div class="field">
+            <label for="registerStore">Store</label>
+            <select
+              id="registerStore"
+              class="text-select"
+              name="storeId"
+              [ngModel]="storeId()"
+              (ngModelChange)="chooseStore($event)"
+            >
+              <option value="">Choose a store…</option>
+              @for (store of stores(); track store.id) {
+                <option [value]="store.id">{{ store.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="registerNumber">Register</label>
+            <select
+              id="registerNumber"
+              class="text-select"
+              name="registerNo"
+              [ngModel]="registerNo()"
+              (ngModelChange)="registerNo.set($event)"
+              [disabled]="availability().length === 0"
+            >
+              <option [ngValue]="0">Choose a register…</option>
+              @for (register of availability(); track register.no) {
+                <option [ngValue]="register.no" [disabled]="register.inUseBy !== null">
+                  Register {{ register.no }}{{ register.inUseBy ? ' (in use by ' + register.inUseBy + ')' : '' }}
+                </option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="openingCash">Opening cash (₾)</label>
+            <input
+              id="openingCash"
+              class="text-input"
+              type="number"
+              min="0"
+              step="0.01"
+              name="openingCash"
+              [(ngModel)]="openingCash"
+            />
+          </div>
+          <button type="submit" class="button button--primary" [disabled]="isBusy() || stores().length === 0">
+            Open register
+          </button>
+        </form>
+        @if (stores().length === 0) {
+          <p class="field-hint">You are not assigned to a store yet. Ask your admin.</p>
+        }
+      }
+      @if (errorMessage()) {
+        <p class="field-error register-error">{{ errorMessage() }}</p>
+      }
+    </div>
+  } @else if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() }}</p>
+  }
+
+  <div class="page-card">
+    @if (isLoading()) {
+      <p class="page-description">Loading…</p>
+    } @else if (sessions().length === 0) {
+      <p class="page-description">No registers have been opened yet.</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Store</th>
+              <th>Register</th>
+              <th>Cashier</th>
+              <th>Opened</th>
+              <th>Closed</th>
+              <th>Status</th>
+              <th class="cell-number">Transactions</th>
+              <th class="cell-number">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (session of sessions(); track session.id) {
+              <tr class="session-row" (click)="toggle(session)">
+                <td class="session-caret">{{ expandedId() === session.id ? '▾' : '▸' }}</td>
+                <td class="cell-strong">{{ session.storeName }}</td>
+                <td>#{{ session.registerNo }}</td>
+                <td>{{ session.cashierName }}</td>
+                <td class="nowrap">{{ session.openedAt | date: 'MMM d, HH:mm' }}</td>
+                <td class="nowrap">
+                  {{ session.closedAt ? (session.closedAt | date: 'MMM d, HH:mm') : '–' }}
+                </td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.badge--active]="session.status === 'open'"
+                    [class.badge--inactive]="session.status === 'closed'"
+                  >
+                    {{ session.status === 'open' ? 'Open' : 'Closed' }}
+                  </span>
+                </td>
+                <td class="cell-number">{{ session.salesCount }}</td>
+                <td class="cell-number">₾{{ session.total | number: '1.2-2' }}</td>
+              </tr>
+              @if (expandedId() === session.id) {
+                <tr class="session-detail">
+                  <td></td>
+                  <td colspan="8">
+                    <div class="cell-sub session-cash">
+                      Opening cash ₾{{ session.openingCash | number: '1.2-2' }}
+                      @if (session.closingCash !== null) {
+                        · counted at close ₾{{ session.closingCash | number: '1.2-2' }}
+                      }
+                    </div>
+                    @if (details()[session.id]; as detail) {
+                      @if (detail.sales.length === 0) {
+                        <p class="page-description">No transactions yet.</p>
+                      } @else {
+                        <table class="data-table data-table--nested">
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>Time</th>
+                              <th>Items</th>
+                              <th class="cell-number">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (sale of detail.sales; track sale.id) {
+                              <tr>
+                                <td>{{ sale.number }}</td>
+                                <td class="nowrap">{{ sale.createdAt | date: 'HH:mm:ss' }}</td>
+                                <td>{{ itemsOf(sale) }}</td>
+                                <td class="cell-number">₾{{ sale.total | number: '1.2-2' }}</td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      }
+                    } @else {
+                      <p class="page-description">Loading…</p>
+                    }
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

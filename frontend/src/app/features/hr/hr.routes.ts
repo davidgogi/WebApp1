@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { accessGuard } from '../../core/auth/auth.guards';
 
 // HR submodules, served under /hr (see app.routes.ts).
 export default [
@@ -7,5 +8,11 @@ export default [
     path: 'employees',
     loadComponent: () =>
       import('./employees/employees-list/employees-list').then((m) => m.EmployeesList),
+  },
+  {
+    path: 'audit',
+    data: { eyebrow: 'HR' },
+    canActivate: [accessGuard('hr', ['system_admin'])],
+    loadComponent: () => import('../../shared/audit-log/audit-log-page').then((m) => m.AuditLogPage),
   },
 ] satisfies Routes;

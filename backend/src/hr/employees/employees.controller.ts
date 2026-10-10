@@ -7,40 +7,55 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+import { AuthUser } from '../../auth/auth-user.js';
+import { Access, CurrentUser, Roles } from '../../auth/decorators.js';
+import { ADMIN_ROLES, UserRole } from '../../auth/user-role.enum.js';
+import { Credentials } from '../../auth/users.service.js';
 import { EmployeesService } from './employees.service.js';
 import { CreateEmployeeDto } from './dto/create-employee.dto.js';
 import { UpdateEmployeeDto } from './dto/update-employee.dto.js';
 import { Employee } from './employee.entity.js';
 
 @Controller('employees')
+@Access('hr')
+// Admins, and Store managers (who only see and handle the cashiers of their own stores).
+@Roles(...ADMIN_ROLES, UserRole.MANAGER)
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Get()
-  findAll(): Promise<Employee[]> {
-    return this.employeesService.findAll();
+  findAll(@CurrentUser() user: AuthUser): Promise<Employee[]> {
+    return this.employeesService.findAll(user);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<Employee> {
-    return this.employeesService.findOne(id);
+  findOne(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<Employee> {
+    return this.employeesService.findOne(user, id);
   }
 
   @Post()
-  create(@Body() dto: CreateEmployeeDto): Promise<Employee> {
-    return this.employeesService.create(dto);
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateEmployeeDto): Promise<Employee> {
+    return this.employeesService.create(user, dto);
   }
 
   @Patch(':id')
   update(
+    @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: UpdateEmployeeDto,
   ): Promise<Employee> {
-    return this.employeesService.update(id, dto);
+    return this.employeesService.update(user, id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string): Promise<void> {
-    return this.employeesService.remove(id);
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<void> {
+    return this.employeesService.remove(user, id);
+  }
+
+  // Creates the employee's login, or resets the password of the existing one. The plain
+  // password is in this response only.
+  @Post(':id/credentials')
+  issueCredentials(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<Credentials> {
+    return this.employeesService.issueCredentials(user, id);
   }
 }

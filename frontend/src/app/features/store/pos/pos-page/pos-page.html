@@ -1,0 +1,96 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">Store</p>
+      <h1 class="page-title">POS</h1>
+      <p class="page-description">Tap products to ring up a sale on your open register.</p>
+    </div>
+    @if (session(); as current) {
+      <span class="badge badge--active">
+        Register {{ current.registerNo }} · {{ current.storeName }}
+      </span>
+    }
+  </div>
+
+  @if (!isLoading() && !session()) {
+    <div class="page-card pos-banner">
+      <div>
+        <div class="cell-strong">No register is open</div>
+        <div class="cell-sub">Open a register in Cash register before ringing up sales.</div>
+      </div>
+      <a class="button button--primary" routerLink="/store/cash-register">Open a register</a>
+    </div>
+  }
+
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() }}</p>
+  }
+
+  @if (lastSale(); as sale) {
+    <div class="pos-success">Sale #{{ sale.number }} recorded: ₾{{ sale.total | number: '1.2-2' }}</div>
+  }
+
+  <div class="pos-layout">
+    <div class="page-card">
+      <div class="pos-grid">
+        @for (product of products(); track product.id) {
+          <button
+            type="button"
+            class="pos-product"
+            [disabled]="!session()"
+            (click)="add(product)"
+          >
+            <span class="pos-product__name">{{ product.name }}</span>
+            <span class="pos-product__price">₾{{ product.price | number: '1.2-2' }}</span>
+          </button>
+        } @empty {
+          <p class="page-description">No products to sell yet.</p>
+        }
+      </div>
+    </div>
+
+    <div class="page-card pos-cart">
+      <h2 class="pos-cart__title">Current sale</h2>
+
+      @if (cart().length === 0) {
+        <p class="page-description">Nothing added yet.</p>
+      } @else {
+        <ul class="pos-cart__lines">
+          @for (line of cart(); track line.product.id) {
+            <li class="pos-cart__line">
+              <div class="pos-cart__name">
+                <div class="cell-strong">{{ line.product.name }}</div>
+                <div class="cell-sub">₾{{ line.product.price | number: '1.2-2' }} each</div>
+              </div>
+              <div class="pos-qty">
+                <button type="button" class="pos-qty__button" aria-label="One less" (click)="change(line, -1)">−</button>
+                <span>{{ line.quantity }}</span>
+                <button type="button" class="pos-qty__button" aria-label="One more" (click)="change(line, 1)">+</button>
+              </div>
+              <div class="pos-cart__amount">₾{{ line.product.price * line.quantity | number: '1.2-2' }}</div>
+            </li>
+          }
+        </ul>
+      }
+
+      <div class="pos-cart__total">
+        <span>Total ({{ itemCount() }} items)</span>
+        <strong>₾{{ total() | number: '1.2-2' }}</strong>
+      </div>
+
+      <div class="button-row">
+        <button
+          type="button"
+          class="button button--primary pos-cart__charge"
+          [disabled]="cart().length === 0 || !session() || isCharging()"
+          (click)="charge()"
+        >
+          {{ isCharging() ? 'Recording…' : 'Charge ₾' + (total() | number: '1.2-2') }}
+        </button>
+        @if (cart().length > 0) {
+          <button type="button" class="button button--secondary" (click)="clear()">Clear</button>
+        }
+      </div>
+    </div>
+  </div>
+</div>

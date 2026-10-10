@@ -3,7 +3,18 @@
     <div>
       <p class="page-eyebrow">HR</p>
       <h1 class="page-title">Employees</h1>
-      <p class="page-description">Your team, with contact details, branch and role.</p>
+      <p class="page-description">
+        @if (isSystemAdmin()) {
+          Your whole team. A role gives a person a login and a limited view; with no role they are just a
+          record here, described by their position.
+        } @else if (isManager()) {
+          The people of your {{ placeKind() }}s. Add someone without a role{{
+            placeKind() === 'store' ? ', or a cashier (they get a login),' : ''
+          }} and pick the {{ placeKind() }}(s) they work in.
+        } @else {
+          The people of your module. Add managers (they get a login) or people without a role.
+        }
+      </p>
     </div>
     <button type="button" class="button button--primary" (click)="openAddForm()">
       <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
@@ -30,8 +41,10 @@
       <label for="employeeRoleFilter">Role</label>
       <select id="employeeRoleFilter" class="text-select" [(ngModel)]="roleFilter">
         <option value="all">All roles</option>
-        <option value="admin">Admin</option>
-        <option value="staff">Staff</option>
+        @for (role of filterRoles(); track role) {
+          <option [value]="role">{{ roleLabels[role] }}</option>
+        }
+        <option value="none">No role</option>
       </select>
     </div>
 
@@ -39,6 +52,14 @@
       <button type="button" class="button button--secondary" (click)="clearFilters()">Clear</button>
     }
   </div>
+
+  @if (notice()) {
+    <p class="notice-success">{{ notice() }}</p>
+  }
+
+  @if (loginError()) {
+    <p class="field-error">{{ loginError() }}</p>
+  }
 
   <div class="page-card">
     @if (isLoading()) {
@@ -58,11 +79,13 @@
           <thead>
             <tr>
               <th>Employee</th>
+              <th>Position</th>
               <th>Personal ID</th>
               <th>Email</th>
               <th>Phone</th>
               <th>Branch</th>
               <th>Role</th>
+              <th>Login</th>
               <th>Status</th>
               <th>Hire date</th>
               <th>Actions</th>
@@ -73,10 +96,8 @@
               <tr>
                 <td>
                   <div class="cell-strong">{{ employee.firstName }} {{ employee.lastName }}</div>
-                  @if (employee.position) {
-                    <div class="cell-sub">{{ employee.position }}</div>
-                  }
                 </td>
+                <td>{{ employee.position ?? '–' }}</td>
                 <td>
                   @if (employee.personalId) {
                     <code class="code-tag">{{ employee.personalId }}</code>
@@ -90,11 +111,31 @@
                 <td>
                   <span
                     class="badge"
-                    [class.badge--admin]="employee.role === 'admin'"
-                    [class.badge--staff]="employee.role === 'staff'"
+                    [class.badge--admin]="employee.role !== null"
+                    [class.badge--staff]="employee.role === null"
                   >
-                    {{ employee.role === 'admin' ? 'Admin' : 'Staff' }}
+                    {{ employee.role ? roleLabels[employee.role] : 'No role' }}
                   </span>
+                  <!-- Only the system admin sees several modules; for everyone else it would repeat. -->
+                  @if (employee.module && isSystemAdmin()) {
+                    <div class="cell-sub">{{ moduleLabels[employee.module] }}</div>
+                  }
+                </td>
+                <td>
+                  @if (!canManage(employee)) {
+                    <span class="muted">{{ employee.username ?? '–' }}</span>
+                  } @else if (employee.username) {
+                    <code class="code-tag">{{ employee.username }}</code>
+                    <div>
+                      <button type="button" class="link-button" (click)="issueLogin(employee)">Reset password</button>
+                    </div>
+                  } @else if (canHaveLogin(employee)) {
+                    <button type="button" class="button button--secondary button--sm" (click)="issueLogin(employee)">
+                      Create login
+                    </button>
+                  } @else {
+                    <span class="muted">–</span>
+                  }
                 </td>
                 <td class="nowrap">
                   <span
@@ -115,13 +156,15 @@
                   {{ employee.hireDate ? (employee.hireDate | date: 'mediumDate') : '–' }}
                 </td>
                 <td>
-                  <button
-                    type="button"
-                    class="button button--secondary button--sm"
-                    (click)="deleteEmployee(employee)"
-                  >
-                    Remove
-                  </button>
+                  @if (canManage(employee)) {
+                    <button
+                      type="button"
+                      class="button button--secondary button--sm"
+                      (click)="deleteEmployee(employee)"
+                    >
+                      Remove
+                    </button>
+                  }
                 </td>
               </tr>
             }
@@ -134,6 +177,12 @@
 
 <app-modal [open]="isAddOpen()" title="Add employee" (closed)="closeAddForm()">
   <form class="page-stack" [formGroup]="form" (ngSubmit)="addEmployee()" novalidate>
+    @if (quickAdd) {
+      <p class="field-hint">
+        Quick add (temporary): fill in first name, position, role and where they work. The greyed-out
+        fields are filled with random data.
+      </p>
+    }
     <div class="employee-form-grid">
       <div class="field">
         <label for="firstName">First name</label>
@@ -243,12 +292,55 @@
       </div>
 
       <div class="field">
-        <label for="role">Role</label>
-        <select id="role" class="text-select" formControlName="role">
-          <option value="staff">Staff</option>
-          <option value="admin">Admin</option>
+        <label for="role">Role <span class="label-hint">(no role = no access to the app)</span></label>
+        <select id="role" class="text-select" formControlName="role" (change)="onRoleChange()">
+          <option value="">No role</option>
+          @for (role of availableRoles(); track role) {
+            <option [value]="role">{{ roleLabels[role] }}</option>
+          }
         </select>
       </div>
+
+      @if (isSystemAdmin()) {
+        <div class="field">
+          <label for="module">Module</label>
+          <select id="module" class="text-select" formControlName="module">
+            <option value="">— None —</option>
+            @for (module of availableModules(); track module) {
+              <option [value]="module">{{ moduleLabels[module] }}</option>
+            }
+          </select>
+          @if (moduleError(); as message) {
+            <span class="field-error">{{ message }}</span>
+          }
+        </div>
+      } @else {
+        <div class="field">
+          <span class="field-label">Module</span>
+          <div class="status-preview">
+            <span class="badge badge--admin">{{ ownModule() ? moduleLabels[ownModule()!] : '–' }}</span>
+            <span class="label-hint">Your own module</span>
+          </div>
+        </div>
+      }
+
+      @if (isManager()) {
+        <div class="field employee-form-grid__wide">
+          <span class="field-label">
+            {{ placeKind() === 'warehouse' ? 'Warehouses' : 'Stores' }} this person works in
+          </span>
+          <div class="chip-list">
+            @for (place of places(); track place.id) {
+              <label class="check-chip" [class.check-chip--on]="placeIds().includes(place.id)">
+                <input type="checkbox" [checked]="placeIds().includes(place.id)" (change)="togglePlace(place)" />
+                {{ place.name }}
+              </label>
+            } @empty {
+              <span class="field-hint">You don't manage any {{ placeKind() }} yet.</span>
+            }
+          </div>
+        </div>
+      }
 
       <div class="field">
         <label for="birthDate">Date of birth</label>
@@ -309,3 +401,9 @@
     </div>
   </form>
 </app-modal>
+
+<app-credentials-modal
+  [credentials]="credentials()"
+  title="Login ready"
+  (closed)="credentials.set(null)"
+/>

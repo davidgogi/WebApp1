@@ -1,7 +1,8 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Warehouse, WarehouseStatus, WarehouseType } from '../warehouse.model';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { ManagerOption, Warehouse, WarehouseStatus, WarehouseType } from '../warehouse.model';
 import { WarehouseService } from '../warehouse.service';
 
 @Component({
@@ -12,6 +13,14 @@ import { WarehouseService } from '../warehouse.service';
 })
 export class WarehousesList implements OnInit {
   private readonly warehouseService = inject(WarehouseService);
+  private readonly auth = inject(AuthService);
+
+  // Admins manage warehouses; a manager only sees the ones assigned to him (read-only).
+  protected readonly isAdmin = computed(() => {
+    const role = this.auth.user()?.role;
+    return role === 'system_admin' || role === 'module_admin';
+  });
+  protected readonly managerOptions = signal<ManagerOption[]>([]);
 
   protected readonly warehouses = signal<Warehouse[]>([]);
   protected readonly isLoading = signal(false);
@@ -27,9 +36,13 @@ export class WarehousesList implements OnInit {
   protected readonly address = signal('');
   protected readonly stock = signal(0);
   protected readonly status = signal<WarehouseStatus>('active');
+  protected readonly managerId = signal(''); // '' = no manager
 
   ngOnInit(): void {
     this.loadWarehouses();
+    if (this.isAdmin()) {
+      this.warehouseService.managerOptions().subscribe((options) => this.managerOptions.set(options));
+    }
   }
 
   loadWarehouses(): void {
@@ -62,6 +75,7 @@ export class WarehousesList implements OnInit {
       address: this.address().trim(),
       stock: Math.max(0, Math.round(Number(this.stock()) || 0)),
       status: this.status(),
+      managerId: this.managerId() || null,
     };
 
     const id = this.editingId();
@@ -92,6 +106,7 @@ export class WarehousesList implements OnInit {
     this.address.set(warehouse.address);
     this.stock.set(warehouse.stock);
     this.status.set(warehouse.status);
+    this.managerId.set(warehouse.managerId ?? '');
     this.errorMessage.set('');
   }
 
@@ -119,5 +134,6 @@ export class WarehousesList implements OnInit {
     this.address.set('');
     this.stock.set(0);
     this.status.set('active');
+    this.managerId.set('');
   }
 }

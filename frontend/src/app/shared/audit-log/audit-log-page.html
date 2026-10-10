@@ -1,0 +1,45 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">{{ eyebrow() }}</p>
+      <h1 class="page-title">Audit log</h1>
+      <p class="page-description">The latest 200 actions: logins, people, logins issued, sales and more.</p>
+    </div>
+  </div>
+
+  <div class="page-card">
+    @if (isLoading()) {
+      <p class="page-description">Loading…</p>
+    } @else if (errorMessage()) {
+      <p class="field-error">{{ errorMessage() }}</p>
+    } @else if (entries().length === 0) {
+      <p class="page-description">Nothing recorded yet.</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Who</th>
+              <th>Action</th>
+              <th>What happened</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of entries(); track entry.id) {
+              <tr>
+                <td class="nowrap">{{ entry.createdAt | date: 'MMM d, HH:mm:ss' }}</td>
+                <td>
+                  <div class="cell-strong">{{ entry.actorName }}</div>
+                  <div class="cell-sub">{{ entry.actorRole.replace('_', ' ') }}</div>
+                </td>
+                <td><code class="code-tag">{{ entry.action }}</code></td>
+                <td>{{ entry.summary }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
