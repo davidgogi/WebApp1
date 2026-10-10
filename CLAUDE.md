@@ -201,8 +201,19 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
 ```bash
 cd backend && npm run start:dev    # NestJS API, port 3000
 cd frontend && npm start           # Angular dev server, port 4200
-cd backend && npm run seed         # insert sample warehouses + products (skips tables that have rows)
+cd backend && npm run seed         # create a "Demo Company" with sample data and print its logins
+cd backend && npm run data:export  # write the whole database to backend/data/snapshot.json
+cd backend && npm run data:import -- --yes   # DELETE all data in the database, load the snapshot
 ```
+
+**Moving data between machines** (`backend/src/data-snapshot.ts`, `backend/data/snapshot.json`, committed):
+`data:export` on the machine that has the data, commit, pull on the other machine, then
+`npm run data:import` (a dry run that only prints what it would delete) and `... -- --yes` to do it.
+Rows keep their ids, timestamps and **password hashes**, so the same logins work everywhere. The audit
+log is not exported, and the target machine keeps its own superuser. Import wipes everything in the
+database named in that machine's `backend/.env`. After a schema change, export again; an old snapshot
+may not fit the new tables (the import says so). Tables are discovered from the database, so new
+entities are included automatically.
 
 CORS on the backend is currently hardcoded to allow `http://localhost:4200` only
 (`backend/src/main.ts`).

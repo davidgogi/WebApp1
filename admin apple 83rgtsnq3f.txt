@@ -1,0 +1,9 @@
+admin.apple 83rgtsnq3f Apple sys admin. 
+wms-admin.apple.8100 su56u663as wms admin.
+wms-manager.apple.4216 q6fkqp27rx wms manager.
+store-admin.apple.2786 nycxnf2g68 Store admin.
+store-manager.apple.4981 j7xu6cg5jv Store manager
+cashier.apple.5556 c9mkejpg5m Store cashier
+cashier.apple.8361 sdnfmux9pc Store cashier
+cashier.apple.6798 jdthwvzk55 Store cashier
+
