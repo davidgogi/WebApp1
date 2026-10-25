@@ -1,0 +1,164 @@
+# Every push to main: build both images, test them together, push them to Docker Hub and point
+# the TEST environment at them (webapp-infra apps/webappone-*/values_test.yaml; Argo CD deploys).
+# Pull requests only build and test. Same pattern as BeautyCloud.
+# Repository / organization secrets: DOCKER_USERNAME, DOCKER_PASSWORD, ACTIONS_TOKEN (write access to webapp-infra).
+name: Build and deploy test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webappone-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          load: true
+          tags: webappone-backend:ci-${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          load: true
+          tags: webappone-frontend:ci-${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Smoke-test the images together
+        env:
+          BACKEND_IMAGE: webappone-backend:ci-${{ github.sha }}
+          FRONTEND_IMAGE: webappone-frontend:ci-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker network create smoke
+          trap 'docker logs smoke-api || true; docker rm -f smoke-web smoke-api smoke-db >/dev/null 2>&1 || true' EXIT
+          docker run -d --name smoke-db --network smoke \
+            -e POSTGRES_DB=webapp1 -e POSTGRES_PASSWORD=smoke postgres:16-alpine
+          for attempt in {1..30}; do
+            docker exec smoke-db pg_isready -U postgres -d webapp1 >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker run -d --name smoke-api --network smoke --network-alias backend \
+            -e DB_HOST=smoke-db -e DB_PORT=5432 -e DB_USERNAME=postgres -e DB_PASSWORD=smoke \
+            -e DB_DATABASE=webapp1 -e AUTH_SECRET=smoke-secret -e SUPERUSER_PASSWORD=smoke-pw \
+            "${BACKEND_IMAGE}"
+          docker run -d --name smoke-web --network smoke -e BACKEND_URL=http://backend:3000 \
+            --publish 127.0.0.1:8080:80 "${FRONTEND_IMAGE}"
+
+          # The API through the frontend's /api proxy, as the browser uses it.
+          for attempt in {1..60}; do
+            curl --fail --silent http://127.0.0.1:8080/api/health | grep --quiet '"ok"' && break
+            if [ "${attempt}" -eq 60 ]; then echo "API did not become healthy"; exit 1; fi
+            sleep 1
+          done
+          login() {
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+              -X POST http://127.0.0.1:8080/api/auth/superadmin-login \
+              -H 'Content-Type: application/json' -d "{\"username\":\"superuser\",\"password\":\"$1\"}"
+          }
+          test "$(login smoke-pw)" = 201 || test "$(login smoke-pw)" = 200
+          test "$(login superuser)" = 401
+
+          # Angular routes fall back to index.html.
+          curl --fail --silent http://127.0.0.1:8080/wms/products | grep --quiet '<app-root'
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push the tested images
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for name in backend frontend; do
+            remote="levart/webappone-${name}:${TAG}"
+            docker tag "webappone-${name}:ci-${TAG}" "${remote}"
+            # Tags are commits: never overwrite one that already exists.
+            if docker manifest inspect "${remote}" >/dev/null 2>&1; then
+              echo "${remote} already exists"
+            else
+              docker push "${remote}"
+            fi
+          done
+
+      - name: Check out infrastructure
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/checkout@v4
+        with:
+          repository: webapp-software/webapp-infra
+          token: ${{ secrets.ACTIONS_TOKEN }}
+          path: infrastructure
+          fetch-depth: 0
+
+      - name: Update test image tags
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          tag = os.environ['IMAGE_TAG']
+          for name in ('backend', 'frontend'):
+              path = Path(f'infrastructure/apps/webappone-{name}/values_test.yaml')
+              if not path.exists():
+                  raise SystemExit(f'{path} not found: is the webappone-test branch merged in webapp-infra?')
+              source = path.read_text()
+              # The image tag line, keeping its comment: `  tag: "<commit>" # ...`
+              updated, count = re.subn(r'(?m)^(  tag: )"[^"]*"', rf'\1"{tag}"', source, count=1)
+              if count != 1:
+                  raise SystemExit(f'Expected one image tag in {path}')
+              path.write_text(updated)
+          PY
+
+      - name: Commit test deployment
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        working-directory: infrastructure
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/webappone-backend/values_test.yaml apps/webappone-frontend/values_test.yaml
+          if git diff --cached --quiet; then
+            echo "Infrastructure already references ${IMAGE_TAG}"
+            exit 0
+          fi
+          git commit -m "Deploy WebappOne ${IMAGE_TAG} to test"
+          # Other apps' bots push to the same repo: retry on top of their commits.
+          for _ in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep 5
+          done
+          exit 1
