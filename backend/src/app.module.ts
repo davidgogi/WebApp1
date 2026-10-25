@@ -24,7 +24,8 @@ import { RsModule } from './rs/rs.module.js';
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_DATABASE'),
         autoLoadEntities: true,
-        synchronize: true,
+        // No migrations yet: tables follow the entities. Set DB_SYNCHRONIZE=false once migrations exist.
+        synchronize: config.get<string>('DB_SYNCHRONIZE') !== 'false',
       }),
     }),
     AuditModule,

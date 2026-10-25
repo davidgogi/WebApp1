@@ -571,8 +571,31 @@ database named in that machine's `backend/.env`. After a schema change, export a
 may not fit the new tables (the import says so). Tables are discovered from the database, so new
 entities are included automatically.
 
-CORS on the backend is currently hardcoded to allow `http://localhost:4200` only
-(`backend/src/main.ts`).
+CORS allows `CORS_ORIGIN` (comma-separated, default `http://localhost:4200`; `backend/src/main.ts`).
+
+## Deploying (test environment on Kubernetes)
+
+Added 2026-10-25. This repo only holds the images: `backend/Dockerfile`, `frontend/Dockerfile` +
+`frontend/nginx/default.conf.template`. The Kubernetes side lives in the team's infra repo
+`webapp-software/webapp-infra` (locally `~/Projects/kube-setup/webapp-infra`, Helm charts picked up
+by an Argo CD ApplicationSet): `apps/webappone-postgres`, `apps/webappone-backend` (its README has
+the setup steps), `apps/webappone-frontend`, each with `deploy/test.yaml` + `values_test.yaml`;
+namespace `webappone-test` on the infra k3s, images `levart/webappone-*` on Docker Hub, tagged with
+the WebappOne commit.
+- **One origin, no CORS**: the frontend's nginx serves the Angular build and forwards `/api/...` to
+  `BACKEND_URL` (env, stripping `/api`). `core/api.ts` uses `http://localhost:3000` under
+  `ng serve` (`isDevMode()`) and `/api` in a production build.
+- `GET /health` (public) checks the database; the probes use it. Backend `replicaCount: 1` on
+  purpose (in-memory RS cache, superuser auto-creation).
+- With `NODE_ENV=production` (set in the image) the backend refuses to start without
+  `AUTH_SECRET` and `SUPERUSER_PASSWORD`. Secrets come from the hand-made Kubernetes secret
+  `webappone-secrets`, never from git. `SECRETS_KEY` must never change once RS connections exist.
+- Still `synchronize` (`DB_SYNCHRONIZE`, default true): no migrations yet. Fine for test; needed
+  before production.
+- The image compiles with `tsc -p tsconfig.build.json`, not `nest build` (that hung in Docker).
+- RS only answers from allowed IPs, so the cluster's outgoing IP must be added to the RS service user.
+- Data: run `data:import` against the cluster database (through `kubectl port-forward`) or create
+  companies by hand in the superuser area.
 
 ## Git
 
