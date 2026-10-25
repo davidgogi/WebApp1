@@ -593,6 +593,11 @@ the WebappOne commit.
 - Still `synchronize` (`DB_SYNCHRONIZE`, default true): no migrations yet. Fine for test; needed
   before production.
 - The image compiles with `tsc -p tsconfig.build.json`, not `nest build` (that hung in Docker).
+- Live at **https://one-test.webapp.ge** (2026-10-25): Cloudflare tunnel `sentry` (cloudflared on
+  the test server, outside Kubernetes) → ingress-nginx `10.201.238.234:80` → the frontend's Ingress.
+  Developers reach the database with `cloudflared access tcp --hostname db-webappone-test.webapp.ge`
+  (Cloudflare Access app `webappone-test-db`; steps in the webapp-infra README). The superuser
+  password is `SUPERUSER_PASSWORD` in the `webappone-secrets` secret.
 - RS only answers from allowed IPs, so the cluster's outgoing IP must be added to the RS service user.
 - Data: run `data:import` against the cluster database (through `kubectl port-forward`) or create
   companies by hand in the superuser area.
