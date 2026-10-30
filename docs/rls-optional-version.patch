@@ -1,0 +1,387 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index dfacb22..f114149 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -335,6 +335,22 @@ Read this before adding any module, endpoint or page.
+     spreading a scope into `where: { ...scope, id }`: a key present in both (like `id`) is overwritten
+     and the scope silently disappears (this was a real bug in manager HR; check membership explicitly).
+   - API responses must not leak other people's HR data (managers come back as id + name only).
++  - **Row-Level Security** (2026-10-29, `database/`) is a second layer under those filters: even a
++    query that forgets `companyId` only returns the current company's rows, and writing a row for
++    another company fails. Every table with a `company_id` column (19) has RLS on and the policy
++    `company_isolation`: a row is visible when `company_id` = the setting `app.company_id`, or when
++    `app.all_companies` = `on`. `main.ts` wraps every request in an `AsyncLocalStorage` scope
++    (`tenant-scope.ts`, starts as "no company"), the global guard calls `scopeTo(user)` (company user →
++    his company, superuser → all), and `installTenantSetting()` (`row-level-security.ts`) patches
++    TypeORM's `PostgresQueryRunner.query` to run `set_config(...)` on the connection before a query
++    whenever its last setting differs (forgotten after a rollback). Code that must look across
++    companies uses `acrossCompanies(() => ...)`: login / token lookup in `AuthService`, the superuser
++    bootstrap, `freeUsername`. **Optional for now**: only when `DB_APP_USERNAME` is set does
++    `prepareDatabase` (as the owner) sync, (re)create the policies and grant row rights, and the app
++    then connects as that role (`webapp_app`, created by hand on this laptop). Without it the app runs
++    as the owner, which bypasses RLS (the Kubernetes test environment, other developers).
++    `data:export` / `data:import` always connect as the owner (`DB_CONNECT_AS_OWNER`). Not covered (no
++    `company_id`): `sales`, `sale_lines`, `store_employees`, `warehouse_employees`.
+ - **Audit log** (`audit/`): `AuditService.record(user, 'thing.action', 'summary')` for every state-changing
+   action. Shown to the superuser (all) and the system admin (own company; HR → Audit log).
+ - **Auth is a local-development stand-in**: signed tokens are hand-rolled in `auth/token.ts`
+@@ -547,6 +563,9 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
+ - Database: `webapp1`, owned by `postgres`. The old `salesapp` role was deleted (its databases,
+   `webapp1` and the other project's `salesapp_backend`, were handed to `postgres` first). The only
+   other role is `omniretail`, which belongs to a different project — leave it alone.
++- `webapp_app` (created by hand 2026-10-28; `DB_APP_USERNAME` / `DB_APP_PASSWORD` in `backend/.env`):
++  LOGIN, not a superuser, no BYPASSRLS; may only read / insert / update / delete rows, so RLS applies
++  to it. The backend runs as it on this laptop (see Row-Level Security).
+ - This session can't use `sudo`, so anything needing the OS-level `postgres` account
+   (e.g. `sudo -u postgres psql`) has to be run by the user.
+ - `synchronize: true` is set on the TypeORM connection (auto-creates/updates tables from
+diff --git a/backend/.env.example b/backend/.env.example
+index b8a4020..c6d58b2 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -14,3 +14,7 @@ SECRETS_KEY=
+ CORS_ORIGIN=http://localhost:4200
+ # true (default): tables follow the entities automatically. Set false once migrations exist.
+ DB_SYNCHRONIZE=true
++# Optional. A limited database role for the running app (rows only, Row-Level Security applies).
++# When set, DB_USERNAME (the owner) only syncs the tables and sets up the policies at startup.
++# DB_APP_USERNAME=webapp_app
++# DB_APP_PASSWORD=
+diff --git a/backend/src/app.module.ts b/backend/src/app.module.ts
+index 015c877..b01ce33 100644
+--- a/backend/src/app.module.ts
++++ b/backend/src/app.module.ts
+@@ -5,6 +5,7 @@ import { AppController } from './app.controller.js';
+ import { AppService } from './app.service.js';
+ import { AuditModule } from './audit/audit.module.js';
+ import { AuthModule } from './auth/auth.module.js';
++import { installTenantSetting, prepareDatabase } from './database/row-level-security.js';
+ import { HrModule } from './hr/hr.module.js';
+ import { StoreModule } from './store/store.module.js';
+ import { SuperadminModule } from './superadmin/superadmin.module.js';
+@@ -16,17 +17,30 @@ import { RsModule } from './rs/rs.module.js';
+     ConfigModule.forRoot({ isGlobal: true }),
+     TypeOrmModule.forRootAsync({
+       inject: [ConfigService],
+-      useFactory: (config: ConfigService) => ({
+-        type: 'postgres',
+-        host: config.get<string>('DB_HOST'),
+-        port: config.get<number>('DB_PORT'),
+-        username: config.get<string>('DB_USERNAME'),
+-        password: config.get<string>('DB_PASSWORD'),
+-        database: config.get<string>('DB_DATABASE'),
+-        autoLoadEntities: true,
+-        // No migrations yet: tables follow the entities. Set DB_SYNCHRONIZE=false once migrations exist.
+-        synchronize: config.get<string>('DB_SYNCHRONIZE') !== 'false',
+-      }),
++      useFactory: async (config: ConfigService) => {
++        const owner = {
++          type: 'postgres' as const,
++          host: config.get<string>('DB_HOST'),
++          port: config.get<number>('DB_PORT'),
++          username: config.get<string>('DB_USERNAME'),
++          password: config.get<string>('DB_PASSWORD'),
++          database: config.get<string>('DB_DATABASE'),
++        };
++        const synchronize = config.get<string>('DB_SYNCHRONIZE') !== 'false';
++        const appUser = config.get<string>('DB_APP_USERNAME');
++        installTenantSetting();
++        if (!appUser || config.get<string>('DB_CONNECT_AS_OWNER') === 'true') {
++          return { ...owner, autoLoadEntities: true, synchronize };
++        }
++        await prepareDatabase(owner, appUser, synchronize);
++        return {
++          ...owner,
++          username: appUser,
++          password: config.get<string>('DB_APP_PASSWORD'),
++          autoLoadEntities: true,
++          synchronize: false,
++        };
++      },
+     }),
+     AuditModule,
+     AuthModule,
+diff --git a/backend/src/auth/auth.guard.ts b/backend/src/auth/auth.guard.ts
+index a7dd467..4e58f56 100644
+--- a/backend/src/auth/auth.guard.ts
++++ b/backend/src/auth/auth.guard.ts
+@@ -11,6 +11,7 @@ import { AuthService } from './auth.service.js';
+ import { AuthUser } from './auth-user.js';
+ import { ACCESS_MODULE, AccessModule, IS_PUBLIC, ROLES } from './decorators.js';
+ import { UserRole } from './user-role.enum.js';
++import { scopeTo } from '../database/tenant-scope.js';
+ 
+ @Injectable()
+ export class AuthGuard implements CanActivate {
+@@ -38,6 +39,7 @@ export class AuthGuard implements CanActivate {
+       throw new UnauthorizedException('Please log in');
+     }
+     request.user = user;
++    scopeTo(user);
+ 
+     const roles = this.reflector.getAllAndOverride<UserRole[] | undefined>(
+       ROLES,
+diff --git a/backend/src/auth/auth.service.ts b/backend/src/auth/auth.service.ts
+index 808f550..8f1ecb4 100644
+--- a/backend/src/auth/auth.service.ts
++++ b/backend/src/auth/auth.service.ts
+@@ -12,6 +12,7 @@ import { AuthUser, SessionUser, toSessionUser } from './auth-user.js';
+ import { hashPassword, verifyPassword } from './password.js';
+ import { signToken, verifyToken } from './token.js';
+ import { CompanyStatus } from '../companies/company-status.enum.js';
++import { acrossCompanies, scopeTo } from '../database/tenant-scope.js';
+ import { UserRole } from './user-role.enum.js';
+ import { User } from './user.entity.js';
+ 
+@@ -26,7 +27,11 @@ export class AuthService implements OnModuleInit {
+     private readonly config: ConfigService,
+   ) {}
+ 
+-  async onModuleInit(): Promise<void> {
++  onModuleInit(): Promise<void> {
++    return acrossCompanies(() => this.ensureSuperuser());
++  }
++
++  private async ensureSuperuser(): Promise<void> {
+     if (await this.usersRepository.existsBy({ role: UserRole.SUPERUSER })) {
+       return;
+     }
+@@ -55,10 +60,12 @@ export class AuthService implements OnModuleInit {
+     password: string,
+     superuser: boolean,
+   ): Promise<{ token: string; user: SessionUser }> {
+-    const user = await this.usersRepository.findOne({
+-      where: { username: username.trim() },
+-      relations: { company: true, employee: true },
+-    });
++    const user = await acrossCompanies(() =>
++      this.usersRepository.findOne({
++        where: { username: username.trim() },
++        relations: { company: true, employee: true },
++      }),
++    );
+     const passwordOk = !!user && verifyPassword(password, user.passwordHash);
+     const authUser = user && passwordOk ? this.toAuthUser(user) : null;
+ 
+@@ -78,6 +85,7 @@ export class AuthService implements OnModuleInit {
+       throw new UnauthorizedException('Wrong username or password');
+     }
+ 
++    scopeTo(authUser);
+     await this.audit.record(
+       authUser,
+       'auth.login',
+@@ -96,10 +104,12 @@ export class AuthService implements OnModuleInit {
+     if (!userId) {
+       return null;
+     }
+-    const user = await this.usersRepository.findOne({
+-      where: { id: userId },
+-      relations: { company: true, employee: true },
+-    });
++    const user = await acrossCompanies(() =>
++      this.usersRepository.findOne({
++        where: { id: userId },
++        relations: { company: true, employee: true },
++      }),
++    );
+     return user ? this.toAuthUser(user) : null;
+   }
+ 
+diff --git a/backend/src/auth/users.service.ts b/backend/src/auth/users.service.ts
+index 357627a..5c6ad16 100644
+--- a/backend/src/auth/users.service.ts
++++ b/backend/src/auth/users.service.ts
+@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
+ import { InjectRepository } from '@nestjs/typeorm';
+ import { Repository } from 'typeorm';
+ import { AppModuleName } from '../companies/app-module.enum.js';
++import { acrossCompanies } from '../database/tenant-scope.js';
+ import { generatePassword, hashPassword } from './password.js';
+ import { UserRole } from './user-role.enum.js';
+ import { User } from './user.entity.js';
+@@ -66,14 +67,16 @@ export class UsersService {
+     }[params.role];
+     const base = `${kind}.${company}`;
+ 
+-    if (params.role === UserRole.SYSTEM_ADMIN && !(await this.usersRepository.existsBy({ username: base }))) {
+-      return base;
+-    }
+-    for (;;) {
+-      const username = `${base}.${String(Math.floor(1000 + Math.random() * 9000))}`;
+-      if (!(await this.usersRepository.existsBy({ username }))) {
+-        return username;
++    return acrossCompanies(async () => {
++      if (params.role === UserRole.SYSTEM_ADMIN && !(await this.usersRepository.existsBy({ username: base }))) {
++        return base;
+       }
+-    }
++      for (;;) {
++        const username = `${base}.${String(Math.floor(1000 + Math.random() * 9000))}`;
++        if (!(await this.usersRepository.existsBy({ username }))) {
++          return username;
++        }
++      }
++    });
+   }
+ }
+diff --git a/backend/src/data-snapshot.ts b/backend/src/data-snapshot.ts
+index bbe12bf..3be4188 100644
+--- a/backend/src/data-snapshot.ts
++++ b/backend/src/data-snapshot.ts
+@@ -134,6 +134,7 @@ async function main() {
+     console.log('Usage: node dist/data-snapshot.js export | import [--yes]');
+     return;
+   }
++  process.env.DB_CONNECT_AS_OWNER = 'true';
+   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
+   try {
+     const dataSource = app.get(DataSource);
+diff --git a/backend/src/database/row-level-security.ts b/backend/src/database/row-level-security.ts
+new file mode 100644
+index 0000000..a526cbe
+--- /dev/null
++++ b/backend/src/database/row-level-security.ts
+@@ -0,0 +1,85 @@
++import { dirname, join } from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { DataSource } from 'typeorm';
++import { PostgresDataSourceOptions } from 'typeorm/driver/postgres/PostgresDataSourceOptions.js';
++import { PostgresQueryRunner } from 'typeorm/driver/postgres/PostgresQueryRunner.js';
++import { currentScope } from './tenant-scope.js';
++
++const POLICY = 'company_isolation';
++const ROLE_NAME = /^[a-z_][a-z0-9_]*$/;
++
++type ScopedClient = { query: (sql: string, values?: unknown[]) => Promise<unknown>; tenantKey?: string };
++
++let installed = false;
++
++export function installTenantSetting(): void {
++  if (installed) {
++    return;
++  }
++  installed = true;
++  const prototype = PostgresQueryRunner.prototype;
++  const query = prototype.query;
++  const rollbackTransaction = prototype.rollbackTransaction;
++
++  prototype.query = async function (this: PostgresQueryRunner, ...args: Parameters<typeof query>) {
++    const client = (await this.connect()) as ScopedClient;
++    const scope = currentScope();
++    const allCompanies = scope?.allCompanies ? 'on' : 'off';
++    const companyId = scope?.companyId ?? '';
++    const key = `${allCompanies}|${companyId}`;
++    if (client.tenantKey !== key) {
++      await client.query(
++        `SELECT set_config('app.all_companies', $1, false), set_config('app.company_id', $2, false)`,
++        [allCompanies, companyId],
++      );
++      client.tenantKey = key;
++    }
++    return query.apply(this, args);
++  } as typeof query;
++
++  prototype.rollbackTransaction = async function (this: PostgresQueryRunner) {
++    try {
++      await rollbackTransaction.call(this);
++    } finally {
++      if (this.databaseConnection) {
++        delete (this.databaseConnection as ScopedClient).tenantKey;
++      }
++    }
++  };
++}
++
++export async function prepareDatabase(
++  owner: PostgresDataSourceOptions,
++  appUser: string,
++  synchronize: boolean,
++): Promise<void> {
++  if (!ROLE_NAME.test(appUser)) {
++    throw new Error(`DB_APP_USERNAME "${appUser}" is not a plain role name`);
++  }
++  const dataSource = new DataSource({
++    ...owner,
++    entities: [join(dirname(fileURLToPath(import.meta.url)), '..', '**', '*.entity.js')],
++    synchronize,
++  });
++  await dataSource.initialize();
++  try {
++    await dataSource.transaction(async (manager) => {
++      const tables = await manager.query<{ table_name: string }[]>(
++        `SELECT table_name FROM information_schema.columns
++         WHERE table_schema = 'public' AND column_name = 'company_id'`,
++      );
++      const rule = `current_setting('app.all_companies', true) = 'on'
++        OR company_id = NULLIF(current_setting('app.company_id', true), '')::uuid`;
++      for (const { table_name } of tables) {
++        await manager.query(`ALTER TABLE "${table_name}" ENABLE ROW LEVEL SECURITY`);
++        await manager.query(`DROP POLICY IF EXISTS ${POLICY} ON "${table_name}"`);
++        await manager.query(`CREATE POLICY ${POLICY} ON "${table_name}" USING (${rule}) WITH CHECK (${rule})`);
++      }
++      await manager.query(`GRANT USAGE ON SCHEMA public TO ${appUser}`);
++      await manager.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${appUser}`);
++      await manager.query(`GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${appUser}`);
++    });
++  } finally {
++    await dataSource.destroy();
++  }
++}
+diff --git a/backend/src/database/tenant-scope.ts b/backend/src/database/tenant-scope.ts
+new file mode 100644
+index 0000000..07e6e75
+--- /dev/null
++++ b/backend/src/database/tenant-scope.ts
+@@ -0,0 +1,31 @@
++import { AsyncLocalStorage } from 'node:async_hooks';
++import { AuthUser } from '../auth/auth-user.js';
++import { UserRole } from '../auth/user-role.enum.js';
++
++export interface TenantScope {
++  companyId: string | null;
++  allCompanies: boolean;
++}
++
++const storage = new AsyncLocalStorage<TenantScope>();
++
++export function runInRequestScope(next: () => void): void {
++  storage.run({ companyId: null, allCompanies: false }, next);
++}
++
++export function scopeTo(user: Pick<AuthUser, 'role' | 'companyId'>): void {
++  const scope = storage.getStore();
++  if (!scope) {
++    return;
++  }
++  scope.allCompanies = user.role === UserRole.SUPERUSER;
++  scope.companyId = scope.allCompanies ? null : user.companyId;
++}
++
++export function acrossCompanies<T>(work: () => Promise<T>): Promise<T> {
++  return storage.run({ companyId: null, allCompanies: true }, work);
++}
++
++export function currentScope(): TenantScope | undefined {
++  return storage.getStore();
++}
+diff --git a/backend/src/main.ts b/backend/src/main.ts
+index 5baedcf..ce7c6ba 100644
+--- a/backend/src/main.ts
++++ b/backend/src/main.ts
+@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
+ import { ValidationPipe } from '@nestjs/common';
+ import { AppModule } from './app.module.js';
+ import { TranslateExceptionFilter } from './common/i18n/translate.filter.js';
++import { runInRequestScope } from './database/tenant-scope.js';
+ import { TranslateReportInterceptor } from './common/i18n/translate.interceptor.js';
+ 
+ // Outside local development the built-in fallbacks (secret, superuser password) must not be used.
+@@ -14,6 +15,7 @@ if (process.env.NODE_ENV === 'production') {
+ 
+ async function bootstrap() {
+   const app = await NestFactory.create(AppModule);
++  app.use((_request: unknown, _response: unknown, next: () => void) => runInRequestScope(next));
+   // Comma-separated list. Not needed when the frontend proxies /api (same origin), as in deploy/.
+   const origins = (process.env.CORS_ORIGIN ?? 'http://localhost:4200').split(',').map((o) => o.trim());
+   app.enableCors({ origin: origins });

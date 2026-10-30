@@ -357,6 +357,85 @@ Read this before adding any module, endpoint or page.
   the older Demo Company logins (system admin, Giorgi = WMS admin, Levan = WMS manager) weren't
   changed. Apple no longer exists.
 
+## Tenant isolation: work in progress (Row-Level Security)
+
+Started 2026-10-28; the user is studying it step by step, so **don't jump ahead**: do the next step
+only when the user asks.
+
+**Where it stands (2026-10-30):** the code runs the original way: separation between companies
+depends only on every query filtering by `companyId`. The user is studying the risks of that first.
+Then come step 1 (the optional RLS version, to study) and step 2 (the "right way").
+
+**Risks of companyId-only filtering** (what the study is about):
+1. **A forgotten filter** returns or changes other companies' rows, and nothing catches it.
+   (TypeORM 1.1.1 at least throws on `where: { companyId: undefined }`; 0.3 silently dropped the
+   condition and matched every row.)
+2. **Trusting the parent**: queries that filter only by an id already checked elsewhere, e.g.
+   `CashRegisterService` loads the store by `session.storeId` and the open sessions by `storeId`
+   alone, and `UsersService.findByEmployeeId` has no company filter. These are safe only while the
+   check before them stays in place.
+3. **Ids sent by the client**: a body may carry another company's `categoryId` / `warehouseId` /
+   `productId`. Foreign keys don't look at the company, so every service has to check each id
+   (`assertCategoryUsable`, `assertSupplierUsable`, `checkWarehouse`, ...). Composite keys
+   `(company_id, id)` would make the database refuse it.
+4. **A spread overwriting the scope**: `where: { ...this.scope(actor), id }` in
+   `EmployeesService` (see Scoping rules).
+5. **update / delete by id only**, without the company.
+6. **Raw SQL / QueryBuilder**, where the types don't help at all.
+7. **Tables without `company_id`** (`sales`, `sale_lines`, `store_employees`,
+   `warehouse_employees`) are protected only through their parent rows.
+8. **The app connects as `postgres`** (a superuser), so a bug or an SQL injection reaches every
+   company's data, and so does anything else using that login.
+9. **No automated test** checks that one company can't see another's data.
+
+**Step 1: the optional RLS version** is saved as `docs/rls-optional-version.patch`. Apply it with
+`git apply docs/rls-optional-version.patch` from the repo root. It also adds its own notes to
+CLAUDE.md under Scoping rules and Database.
+- How it works:
+  - `backend/src/database/tenant-scope.ts` holds an `AsyncLocalStorage` scope for each request:
+    `runInRequestScope` in `main.ts`, `scopeTo(user)` in the guard and at login, and
+    `acrossCompanies()` for the login / token lookups, the superuser bootstrap and `freeUsername`.
+  - `database/row-level-security.ts` patches TypeORM's `PostgresQueryRunner.query` so that the
+    connection runs `set_config('app.company_id' / 'app.all_companies')` first.
+  - `prepareDatabase` (which runs as the owner) syncs the tables, turns RLS on, adds the policy
+    `company_isolation` to every table with `company_id` (19), and grants row rights to the app role.
+- It is active only when `DB_APP_USERNAME` / `DB_APP_PASSWORD` are set in `backend/.env`.
+  Otherwise the app connects as the owner, and the owner bypasses RLS. `data:export` / `data:import`
+  always use the owner.
+- The role has to exist first, created by hand as `postgres` on each machine:
+  `CREATE ROLE webapp_app LOGIN PASSWORD '...' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;`
+  (pick a local password and put it only in `backend/.env`).
+
+**Step 2: the "right way"**, so that it works on every machine, in CI and in production without
+manual SQL. Steps 1–4 below were built and tested once (fresh database + missing role → role
+created, 19 tables under RLS, three fail-fast cases), then thrown away by a `git restore`:
+1. `prepareDatabase` creates the role if it is missing:
+   - check `pg_roles`;
+   - build the statement with `SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB
+     NOCREATEROLE NOBYPASSRLS', $1::text, $2::text)` and run the result;
+   - it takes `appPassword`;
+   - it refuses an app user equal to `DB_USERNAME` (the owner bypasses RLS) and a missing password.
+2. `.env.example` gets working dev defaults, `DB_APP_USERNAME=webapp_app` and
+   `DB_APP_PASSWORD=webapp_app_dev`, so RLS is on for every developer (dev = prod).
+3. The `NODE_ENV=production` check in `main.ts` also requires `DB_APP_USERNAME` and `DB_APP_PASSWORD`.
+4. In `.github/workflows/deploy-test.yml`, the smoke test passes
+   `-e DB_APP_USERNAME=webapp_app -e DB_APP_PASSWORD=smoke-app`.
+5. Before pushing step 3:
+   - add both keys to the Kubernetes secret `webappone-secrets`;
+   - check that the backend chart passes them through;
+   - check that the cluster's database owner may `CREATE ROLE`.
+6. Later:
+   - a cross-company test in CI: throwaway companies A and B, where B must not see, change or
+     delete A's rows;
+   - real migrations instead of `synchronize`.
+
+**Test data for the study** (created 2026-10-30 through the API on the first laptop's database,
+so it exists only there unless that database is exported and imported):
+- *Risk Test A* (WMS: 2 WMS admins, 3 managers, 5 warehouses, 12 products, receipts and transfers
+  in every state) and *Risk Test B*, a smaller neighbour with obviously "secret" names.
+- Logins are in `risk test logins.txt` in the repo root.
+- These are deliberate exceptions to "clean up throwaway companies".
+
 ## Excel import / export
 
 Used by WMS Warehouses and Products (2026-10-21); reuse it for any future import (receipts, stock

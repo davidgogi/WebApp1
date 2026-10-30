@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { landingUrl } from '../../../core/auth/access';
+import { loginErrorMessage, missingLoginFields } from '../../../core/auth/login-error';
 import { AuthService } from '../../../core/auth/auth.service';
 import { LanguageSwitch } from '../../../shared/language-switch/language-switch';
 import { TranslatePipe } from '../../../core/i18n/t.pipe';
@@ -30,22 +31,22 @@ export class LoginPage {
   }
 
   signIn(): void {
+    const username = this.username().trim();
+    const missing = missingLoginFields(username, this.password());
+    if (missing) {
+      this.errorMessage.set(missing);
+      return;
+    }
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.auth.login(this.username().trim(), this.password()).subscribe({
+    this.auth.login(username, this.password()).subscribe({
       next: (session) => {
         this.isLoading.set(false);
         void this.router.navigateByUrl(landingUrl(session.user));
       },
       error: (error: HttpErrorResponse) => {
         this.isLoading.set(false);
-        this.errorMessage.set(
-          error.status === 401
-            ? typeof error.error?.message === 'string' && error.error.message !== 'Wrong username or password'
-              ? error.error.message
-              : 'Wrong username or password.'
-            : 'Could not reach the server. Is the backend running?',
-        );
+        this.errorMessage.set(loginErrorMessage(error));
       },
     });
   }

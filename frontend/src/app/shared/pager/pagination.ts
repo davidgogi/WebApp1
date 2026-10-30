@@ -13,7 +13,9 @@ export class Pagination<T> {
     const start = (this.current() - 1) * this.pageSize();
     return this.source().slice(start, start + this.pageSize());
   });
-  readonly from = computed(() => (this.total() === 0 ? 0 : (this.current() - 1) * this.pageSize() + 1));
+  readonly from = computed(() =>
+    this.total() === 0 ? 0 : (this.current() - 1) * this.pageSize() + 1,
+  );
   readonly to = computed(() => Math.min(this.current() * this.pageSize(), this.total()));
 
   constructor(

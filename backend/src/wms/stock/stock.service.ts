@@ -69,28 +69,32 @@ export class StockService {
         throw new BadRequestException(`${product.name} is counted in pcs, so its quantity must be whole`);
       }
 
-      await manager
-        .createQueryBuilder()
-        .insert()
-        .into(ProductWarehouse)
-        .values({ companyId, productId: product.id, warehouseId: warehouse.id, quantity: 0 })
-        .orIgnore()
-        .execute();
-      const balance = await manager.findOne(ProductWarehouse, {
-        where: { productId: product.id, warehouseId: warehouse.id },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const after = round3(balance!.quantity + line.quantity);
+      let balance: ProductWarehouse | null = null;
+      while (!balance) {
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(ProductWarehouse)
+          .values({ companyId, productId: product.id, warehouseId: warehouse.id, quantity: 0 })
+          .orIgnore()
+          .execute();
+        balance = await manager.findOne(ProductWarehouse, {
+          where: { productId: product.id, warehouseId: warehouse.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+      }
+      const after = round3(balance.quantity + line.quantity);
       if (after < 0) {
         throw new BadRequestException(
-          `Not enough ${product.name} in ${warehouse.code}: ${balance!.quantity} ${product.unit} available`,
+          `Not enough ${product.name} in ${warehouse.code}: ${balance.quantity} ${product.unit} available`,
         );
       }
-      await manager.update(
-        ProductWarehouse,
-        { productId: product.id, warehouseId: warehouse.id },
-        { quantity: after },
-      );
+      const key = { productId: product.id, warehouseId: warehouse.id };
+      if (after === 0) {
+        await manager.delete(ProductWarehouse, key);
+      } else {
+        await manager.update(ProductWarehouse, key, { quantity: after });
+      }
       movements.push(
         manager.create(StockMovement, {
           companyId,

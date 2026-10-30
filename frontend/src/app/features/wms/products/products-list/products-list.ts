@@ -42,7 +42,10 @@ import { ColumnTools } from '../../../../shared/column-order/column-tools';
 
 @Component({
   selector: 'app-products-list',
-  imports: [ColumnHeader, ColumnTable, ColumnTools, 
+  imports: [
+    ColumnHeader,
+    ColumnTable,
+    ColumnTools,
     TranslatePipe,
     DecimalPipe,
     FormsModule,

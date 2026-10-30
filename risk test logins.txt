@@ -1,0 +1,11 @@
+Risk Test A / B logins (localhost dev data, created 2026-10-30)
+
+Risk Test A  System admin                       admin.risktesta                      duyjv3crpf
+Risk Test A  WMS admin Nino Beridze             wms-admin.risktesta.9547             hbfx8rph6m
+Risk Test A  WMS admin Giorgi Kapanadze         wms-admin.risktesta.5969             k28z6vvajs
+Risk Test A  WMS manager Levan Tsiklauri        wms-manager.risktesta.6200           kcqup62uhj
+Risk Test A  WMS manager Mariam Gelashvili      wms-manager.risktesta.1346           n7cd7zu9cu
+Risk Test A  WMS manager Saba Lomidze           wms-manager.risktesta.7936           wvgwrata9s
+Risk Test B  System admin                       admin.risktestb                      397x9z6gda
+Risk Test B  WMS admin Keti Mchedlidze          wms-admin.risktestb.7525             pbvapunup2
+Risk Test B  WMS manager Nika Dolidze           wms-manager.risktestb.4949           uuwu6hsexn

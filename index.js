@@ -1,10 +1,2 @@
-function xxx() {
-  this.func = () => {
-    console.log("hi");
-  };
-}
-
-let something1 = xxx.prototype.func;
-let something2 = xxx.prototype.func;
-
-console.log(something1 == something2);
+let array = [1, 2, 3];
+console.log(array.some((item) => item == 4));
