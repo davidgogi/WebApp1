@@ -335,6 +335,42 @@ Read this before adding any module, endpoint or page.
     spreading a scope into `where: { ...scope, id }`: a key present in both (like `id`) is overwritten
     and the scope silently disappears (this was a real bug in manager HR; check membership explicitly).
   - API responses must not leak other people's HR data (managers come back as id + name only).
+  - **Row-Level Security** (`database/`) is a second layer under those filters: even a query that
+    forgets `companyId` only returns the current company's rows, and writing a row for another company
+    fails. **Keep filtering by `companyId` anyway.** Every table with a `company_id` column (23) has RLS
+    on and the policy `company_isolation`: a row is visible when `company_id` = the setting
+    `app.company_id`, or when `app.all_companies` = `on`. `main.ts` wraps every request in an
+    `AsyncLocalStorage` scope (`tenant-scope.ts`, starts as "no company"), the global guard calls
+    `scopeTo(user)` (company user → his company, superuser → all), and `installTenantSetting()`
+    (`row-level-security.ts`) patches TypeORM's `PostgresQueryRunner.query` to run `set_config(...)` on
+    the connection before a query whenever its last setting differs (forgotten after a rollback). Code
+    that must look across companies uses `acrossCompanies(() => ...)`: login / token lookup in
+    `AuthService`, the superuser bootstrap, `freeUsername`; a new use needs a real reason.
+    **The app always runs as the limited role** `webapp_app`, never as the owner: at startup
+    `migrateDatabase` (see Database → Migrations) and then `prepareDatabase` connect as the owner
+    (`DB_USERNAME`): run the pending migrations, create the role if it is missing and sets its password, (re)creates the policies, grants row rights, disconnects. A new
+    tenant table is covered automatically at the next startup. **Only the owner login is configured,
+    everywhere** (laptops, CI, Kubernetes): the role's password is an HMAC of `DB_PASSWORD`
+    (`deriveAppPassword`), held only in memory and set again at every startup, so changing the owner
+    password just works. `DB_APP_USERNAME` / `DB_APP_PASSWORD` are optional overrides. Roles belong to
+    the whole PostgreSQL server: pointing a second app or a test at the same server with a different
+    owner password changes the role's password under the first one, so test on a separate server or
+    with another `DB_APP_USERNAME`. The app refuses an app role equal to the owner and an existing
+    role that is a superuser or has BYPASSRLS.
+    `data:export` / `data:import` connect as the owner (`DB_CONNECT_AS_OWNER`, which the running app
+    refuses). **Not covered**: `companies` only (it has no `company_id`, being the tenant itself). RLS
+    protects against bugs in the app, not against someone who can run their own SQL as `webapp_app`
+    (they can call `set_config`).
+  - **Composite foreign keys** (2026-11-04): RLS doesn't check foreign keys, so `warehouse_employees`,
+    `store_employees`, `sales` and `sale_lines` point at their parents by `(company_id, id)`, and the
+    database refuses a link across companies. The link tables are real entities now
+    (`WarehouseEmployee`, `StoreEmployee`), not `@ManyToMany`: a generated join table can't have a
+    `company_id`, so **don't use `@ManyToMany` for company data**. The pattern for a new child table:
+    extend `TenantEntity`, add `@Unique(['companyId', 'id'])` to the parent, and use `@JoinColumn([{
+    name: 'company_id', referencedColumnName: 'companyId' }, { name: '<parent>_id',
+    referencedColumnName: 'id' }])`. `database/company-id-backfill.ts` (`addMissingCompanyIds`) fills
+    the new column on these four tables in databases created before this; it runs only when an old
+    database is adopted (see Database → Migrations) and goes away with that code.
 - **Audit log** (`audit/`): `AuditService.record(user, 'thing.action', 'summary')` for every state-changing
   action. Shown to the superuser (all) and the system admin (own company; HR → Audit log).
 - **Auth is a local-development stand-in**: signed tokens are hand-rolled in `auth/token.ts`
@@ -357,84 +393,33 @@ Read this before adding any module, endpoint or page.
   the older Demo Company logins (system admin, Giorgi = WMS admin, Levan = WMS manager) weren't
   changed. Apple no longer exists.
 
-## Tenant isolation: work in progress (Row-Level Security)
+## Tenant isolation: what is left
 
-Started 2026-10-28; the user is studying it step by step, so **don't jump ahead**: do the next step
-only when the user asks.
+Row-Level Security is in place (see Scoping rules; finished 2026-11-03 after the user studied the
+companyId-only version and an optional RLS version). Remaining risks and next steps:
+- **Ids sent by the client**: foreign keys don't look at the company, and they ignore RLS, so a row
+  could point at another company's row. Every service still has to check each id
+  (`assertCategoryUsable`, `assertSupplierUsable`, `checkWarehouse`, ...). Composite keys
+  `(company_id, id)` make the database refuse it, but only the link tables and sales have them so
+  far; the other tables (products → categories, receipts → warehouses, ...) still rely on those checks.
+- **Cross-company test** (2026-11-06): `backend/test/tenant-isolation.e2e-spec.ts`, `npm run
+  test:e2e`. It creates its own database `webapp_e2e_<random>` and limited role on the server in
+  `.env` (never touches `webapp1` or `webapp_app`), starts the compiled backend on a free port,
+  builds companies A and B through the API (superuser → system admin → WMS admin → category,
+  supplier, warehouse, product, receipt), then checks that A's users can't list, open, change,
+  delete, issue logins for, or link to B's rows, and that the app role sees no rows without a
+  company setting, only A's with it, and can't write B's rows; plus the composite foreign key. It
+  drops the database and role afterwards. Shown to catch a permissive RLS policy and a missing
+  `companyId` filter (once RLS is also off). CI runs it in its own job (`tenant-isolation`) before
+  the image build, so a failure blocks the deploy. Covers HR and WMS only so far: add Store
+  (stores, registers, sales) and RS when touching them. It also guards the patch on TypeORM's
+  internal `PostgresQueryRunner` against upgrades.
 
-**Where it stands (2026-10-30):** the code runs the original way: separation between companies
-depends only on every query filtering by `companyId`. The user is studying the risks of that first.
-Then come step 1 (the optional RLS version, to study) and step 2 (the "right way").
-
-**Risks of companyId-only filtering** (what the study is about):
-1. **A forgotten filter** returns or changes other companies' rows, and nothing catches it.
-   (TypeORM 1.1.1 at least throws on `where: { companyId: undefined }`; 0.3 silently dropped the
-   condition and matched every row.)
-2. **Trusting the parent**: queries that filter only by an id already checked elsewhere, e.g.
-   `CashRegisterService` loads the store by `session.storeId` and the open sessions by `storeId`
-   alone, and `UsersService.findByEmployeeId` has no company filter. These are safe only while the
-   check before them stays in place.
-3. **Ids sent by the client**: a body may carry another company's `categoryId` / `warehouseId` /
-   `productId`. Foreign keys don't look at the company, so every service has to check each id
-   (`assertCategoryUsable`, `assertSupplierUsable`, `checkWarehouse`, ...). Composite keys
-   `(company_id, id)` would make the database refuse it.
-4. **A spread overwriting the scope**: `where: { ...this.scope(actor), id }` in
-   `EmployeesService` (see Scoping rules).
-5. **update / delete by id only**, without the company.
-6. **Raw SQL / QueryBuilder**, where the types don't help at all.
-7. **Tables without `company_id`** (`sales`, `sale_lines`, `store_employees`,
-   `warehouse_employees`) are protected only through their parent rows.
-8. **The app connects as `postgres`** (a superuser), so a bug or an SQL injection reaches every
-   company's data, and so does anything else using that login.
-9. **No automated test** checks that one company can't see another's data.
-
-**Step 1: the optional RLS version** is saved as `docs/rls-optional-version.patch`. Apply it with
-`git apply docs/rls-optional-version.patch` from the repo root. It also adds its own notes to
-CLAUDE.md under Scoping rules and Database.
-- How it works:
-  - `backend/src/database/tenant-scope.ts` holds an `AsyncLocalStorage` scope for each request:
-    `runInRequestScope` in `main.ts`, `scopeTo(user)` in the guard and at login, and
-    `acrossCompanies()` for the login / token lookups, the superuser bootstrap and `freeUsername`.
-  - `database/row-level-security.ts` patches TypeORM's `PostgresQueryRunner.query` so that the
-    connection runs `set_config('app.company_id' / 'app.all_companies')` first.
-  - `prepareDatabase` (which runs as the owner) syncs the tables, turns RLS on, adds the policy
-    `company_isolation` to every table with `company_id` (19), and grants row rights to the app role.
-- It is active only when `DB_APP_USERNAME` / `DB_APP_PASSWORD` are set in `backend/.env`.
-  Otherwise the app connects as the owner, and the owner bypasses RLS. `data:export` / `data:import`
-  always use the owner.
-- The role has to exist first, created by hand as `postgres` on each machine:
-  `CREATE ROLE webapp_app LOGIN PASSWORD '...' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;`
-  (pick a local password and put it only in `backend/.env`).
-
-**Step 2: the "right way"**, so that it works on every machine, in CI and in production without
-manual SQL. Steps 1–4 below were built and tested once (fresh database + missing role → role
-created, 19 tables under RLS, three fail-fast cases), then thrown away by a `git restore`:
-1. `prepareDatabase` creates the role if it is missing:
-   - check `pg_roles`;
-   - build the statement with `SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB
-     NOCREATEROLE NOBYPASSRLS', $1::text, $2::text)` and run the result;
-   - it takes `appPassword`;
-   - it refuses an app user equal to `DB_USERNAME` (the owner bypasses RLS) and a missing password.
-2. `.env.example` gets working dev defaults, `DB_APP_USERNAME=webapp_app` and
-   `DB_APP_PASSWORD=webapp_app_dev`, so RLS is on for every developer (dev = prod).
-3. The `NODE_ENV=production` check in `main.ts` also requires `DB_APP_USERNAME` and `DB_APP_PASSWORD`.
-4. In `.github/workflows/deploy-test.yml`, the smoke test passes
-   `-e DB_APP_USERNAME=webapp_app -e DB_APP_PASSWORD=smoke-app`.
-5. Before pushing step 3:
-   - add both keys to the Kubernetes secret `webappone-secrets`;
-   - check that the backend chart passes them through;
-   - check that the cluster's database owner may `CREATE ROLE`.
-6. Later:
-   - a cross-company test in CI: throwaway companies A and B, where B must not see, change or
-     delete A's rows;
-   - real migrations instead of `synchronize`.
-
-**Test data for the study** (created 2026-10-30 through the API on the first laptop's database,
-so it exists only there unless that database is exported and imported):
-- *Risk Test A* (WMS: 2 WMS admins, 3 managers, 5 warehouses, 12 products, receipts and transfers
-  in every state) and *Risk Test B*, a smaller neighbour with obviously "secret" names.
-- Logins are in `risk test logins.txt` in the repo root.
-- These are deliberate exceptions to "clean up throwaway companies".
+**Test data** (created 2026-10-30 through the API on the first laptop's database, so it exists only
+there unless that database is exported and imported): *Risk Test A* (WMS: 2 WMS admins, 3 managers,
+5 warehouses, 12 products, receipts and transfers in every state) and *Risk Test B*, a smaller
+neighbour with obviously "secret" names. Logins are in `risk test logins.txt` in the repo root. These
+are deliberate exceptions to "clean up throwaway companies".
 
 ## Excel import / export
 
@@ -492,7 +477,7 @@ browser in localStorage). **English text is the key**: there are no message ids.
 
 ## Verifying changes and known gaps
 
-- There is no automated test suite. Access rules were verified with throwaway scripts: create a
+- The only automated test is the cross-company test (see Tenant isolation). Other access rules were verified with throwaway scripts: create a
   temporary company through the superuser API (`superuser`/`superuser`), build the people you need
   by following the hierarchy, call the API as each role, then delete the company. Never use the
   seeded or real test companies (Apple, Demo Company) for that, and clean up anything you add.
@@ -621,16 +606,38 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
 ## Database
 
 - Local PostgreSQL 16 (apt install, not Docker), running on `127.0.0.1:5432`.
-- The backend connects as the `postgres` superuser (password set by the user; it lives only in
-  `backend/.env`, which is git-ignored — never write it into `.env.example`, CLAUDE.md or code).
+- The owner login is the `postgres` superuser (password set by the user; it lives only in
+  `backend/.env`, which is git-ignored — never write it into `.env.example`, CLAUDE.md or code). The
+  backend uses it only during startup; requests run as `webapp_app`.
 - Database: `webapp1`, owned by `postgres`. The old `salesapp` role was deleted (its databases,
   `webapp1` and the other project's `salesapp_backend`, were handed to `postgres` first). The only
   other role is `omniretail`, which belongs to a different project — leave it alone.
+- `webapp_app`: LOGIN, not a superuser, no BYPASSRLS; may only read / insert / update / delete rows,
+  so RLS applies to it. The backend creates it at startup if it is missing (see Row-Level Security).
 - This session can't use `sudo`, so anything needing the OS-level `postgres` account
   (e.g. `sudo -u postgres psql`) has to be run by the user.
-- `synchronize: true` is set on the TypeORM connection (auto-creates/updates tables from
-  entities) — convenient for this early stage, but switch to real migrations before this matters
-  in any shared/production environment.
+- **Migrations, not `synchronize`** (since 2026-11-06). Changing an entity no longer changes the
+  database: the change needs a migration (`backend/src/database/migrations/`, run in order at every
+  startup by `migrateDatabase` in `database/schema.ts`, recorded in the `migrations` table, which the
+  limited role can't touch and snapshots skip). Workflow: change the entity, preview the SQL with
+  `npm run migration:check` (writes nothing), then
+  `npm run migration:generate -- src/database/migrations/<WhatChanged>` (compares the entities with
+  **your local database**, so it must be up to date). **`start:dev` restarts as soon as the file
+  appears, so the migration runs at once**: to edit it first (a rename comes out as DROP + ADD:
+  rewrite it as `RENAME COLUMN` to keep the data; add any data backfill by hand), stop the dev
+  server, generate, edit, start again.
+  `npm run migration:check` says whether entities and database differ (CI runs it in the smoke test
+  against a fresh database, so a forgotten migration fails the build); `npm run migration:revert`
+  undoes the last one. The first migration (`…-Baseline`) creates today's whole schema; TypeORM
+  generated `CREATE TYPE "app_module"` twice (`employees` and `users` share that enum) and the
+  duplicate was removed by hand: watch for that when two entities share an `enumName`. If you delete
+  a migration file, delete its `.js` in `dist/` too (`tsc` doesn't remove it; `start:dev` does).
+  **Adopting old databases**: a database built by `synchronize` (has `companies`, no rows in
+  `migrations`) is brought up to date once more with backfill + `synchronize` and every migration is
+  marked done without running (`fake`). This laptop's database was adopted on 2026-11-06 (backup
+  before it: `pg_dump` in the session scratchpad); the test cluster's database and other laptops
+  adopt themselves at their next startup. Delete that path (and `company-id-backfill.ts`) once every
+  database has a `migrations` table with rows.
 
 ## Running It
 
@@ -639,6 +646,9 @@ cd backend && npm run start:dev    # NestJS API, port 3000
 cd frontend && npm start           # Angular dev server, port 4200
 cd backend && npm run data:export  # write the whole database to backend/data/snapshot.json
 cd backend && npm run data:import -- --yes   # DELETE all data in the database, load the snapshot
+cd backend && npm run migration:generate -- src/database/migrations/<WhatChanged>  # after an entity change
+cd backend && npm run migration:check        # do entities and the database match?
+cd backend && npm run test:e2e               # companies can't reach each other's data
 ```
 
 **Moving data between machines** (`backend/src/data-snapshot.ts`; the committed `backend/data/snapshot.json` was deleted — run `data:export` to make a fresh one):
@@ -667,10 +677,12 @@ the WebappOne commit.
 - `GET /health` (public) checks the database; the probes use it. Backend `replicaCount: 1` on
   purpose (in-memory RS cache, superuser auto-creation).
 - With `NODE_ENV=production` (set in the image) the backend refuses to start without
-  `AUTH_SECRET` and `SUPERUSER_PASSWORD`. Secrets come from the hand-made Kubernetes secret
+  `AUTH_SECRET`, `SUPERUSER_PASSWORD` and `DB_PASSWORD`. The database login `DB_USERNAME` must be
+  allowed to create and alter roles; otherwise create the role by hand and set `DB_APP_USERNAME` /
+  `DB_APP_PASSWORD` (not yet checked against `apps/webappone-postgres`). Secrets come from the hand-made Kubernetes secret
   `webappone-secrets`, never from git. `SECRETS_KEY` must never change once RS connections exist.
-- Still `synchronize` (`DB_SYNCHRONIZE`, default true): no migrations yet. Fine for test; needed
-  before production.
+- Migrations run at backend startup (see Database → Migrations); `DB_SYNCHRONIZE` is gone (ignored
+  if still set). The test database adopts itself at the first startup of this version.
 - The image compiles with `tsc -p tsconfig.build.json`, not `nest build` (that hung in Docker).
 - Live at **https://one-test.webapp.ge** (2026-10-25): Cloudflare tunnel `sentry` (cloudflared on
   the test server, outside Kubernetes) → ingress-nginx `10.201.238.234:80` → the frontend's Ingress.

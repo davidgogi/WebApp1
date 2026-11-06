@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AppModuleName } from '../companies/app-module.enum.js';
+import { acrossCompanies } from '../database/tenant-scope.js';
 import { generatePassword, hashPassword } from './password.js';
 import { UserRole } from './user-role.enum.js';
 import { User } from './user.entity.js';
@@ -66,14 +67,16 @@ export class UsersService {
     }[params.role];
     const base = `${kind}.${company}`;
 
-    if (params.role === UserRole.SYSTEM_ADMIN && !(await this.usersRepository.existsBy({ username: base }))) {
-      return base;
-    }
-    for (;;) {
-      const username = `${base}.${String(Math.floor(1000 + Math.random() * 9000))}`;
-      if (!(await this.usersRepository.existsBy({ username }))) {
-        return username;
+    return acrossCompanies(async () => {
+      if (params.role === UserRole.SYSTEM_ADMIN && !(await this.usersRepository.existsBy({ username: base }))) {
+        return base;
       }
-    }
+      for (;;) {
+        const username = `${base}.${String(Math.floor(1000 + Math.random() * 9000))}`;
+        if (!(await this.usersRepository.existsBy({ username }))) {
+          return username;
+        }
+      }
+    });
   }
 }

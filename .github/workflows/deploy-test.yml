@@ -1,7 +1,3 @@
-# Every push to main: build both images, test them together, push them to Docker Hub and point
-# the TEST environment at them (webapp-infra apps/webappone-*/values_test.yaml; Argo CD deploys).
-# Pull requests only build and test. Same pattern as BeautyCloud.
-# Repository / organization secrets: DOCKER_USERNAME, DOCKER_PASSWORD, ACTIONS_TOKEN (write access to webapp-infra).
 name: Build and deploy test
 
 on:
@@ -19,7 +15,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  tenant-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: e2e
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Check that companies can't reach each other's data
+        run: npm run test:e2e
+
   build:
+    needs: tenant-isolation
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -81,6 +118,9 @@ jobs:
           }
           test "$(login smoke-pw)" = 201 || test "$(login smoke-pw)" = 200
           test "$(login superuser)" = 401
+
+          docker exec smoke-api node node_modules/typeorm/cli.js migration:generate --check \
+            -d dist/database/data-source.js dist/database/migrations/Check
 
           # Angular routes fall back to index.html.
           curl --fail --silent http://127.0.0.1:8080/wms/products | grep --quiet '<app-root'

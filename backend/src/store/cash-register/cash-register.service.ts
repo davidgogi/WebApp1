@@ -6,6 +6,7 @@ import { AuditService } from '../../audit/audit.service.js';
 import { AuthUser } from '../../auth/auth-user.js';
 import { UserRole } from '../../auth/user-role.enum.js';
 import { Employee } from '../../hr/employees/employee.entity.js';
+import { StoreEmployee } from '../stores/store-employee.entity.js';
 import { Store } from '../stores/store.entity.js';
 import { RegisterSession } from './register-session.entity.js';
 import { Sale } from './sale.entity.js';
@@ -39,6 +40,8 @@ export class CashRegisterService {
     private readonly salesRepository: Repository<Sale>,
     @InjectRepository(Store)
     private readonly storesRepository: Repository<Store>,
+    @InjectRepository(StoreEmployee)
+    private readonly storeEmployeesRepository: Repository<StoreEmployee>,
     @InjectRepository(Employee)
     private readonly employeesRepository: Repository<Employee>,
     private readonly audit: AuditService,
@@ -51,7 +54,7 @@ export class CashRegisterService {
       order: { openedAt: 'DESC' },
       take: 100,
     });
-    return this.withTotals(sessions);
+    return this.withTotals(actor, sessions);
   }
 
   async findOne(actor: AuthUser, id: string): Promise<SessionDetail> {
@@ -65,11 +68,11 @@ export class CashRegisterService {
     }
 
     const sales = await this.salesRepository.find({
-      where: { sessionId: id },
+      where: { companyId: actor.companyId!, sessionId: id },
       relations: { lines: true },
       order: { number: 'ASC' },
     });
-    const [view] = await this.withTotals([session]);
+    const [view] = await this.withTotals(actor, [session]);
     return { ...view, sales };
   }
 
@@ -79,7 +82,7 @@ export class CashRegisterService {
       return null;
     }
     session.store = (await this.storesRepository.findOneByOrFail({ id: session.storeId }));
-    return (await this.withTotals([session]))[0];
+    return (await this.withTotals(actor, [session]))[0];
   }
 
   async registers(actor: AuthUser, storeId: string): Promise<{ no: number; inUseBy: string | null }[]> {
@@ -127,19 +130,23 @@ export class CashRegisterService {
     }
     session.store = store;
     await this.audit.record(actor, 'register.open', `${actor.displayName} opened register ${dto.registerNo} in ${store.name}`);
-    return (await this.withTotals([session]))[0];
+    return (await this.withTotals(actor, [session]))[0];
   }
 
   private async storeIWorkIn(actor: AuthUser, storeId: string): Promise<Store> {
     const store = await this.storesRepository.findOne({
       where: { id: storeId, companyId: actor.companyId! },
-      relations: { members: true },
     });
     const allowed =
       store &&
       (actor.role === UserRole.MANAGER
         ? store.managerId === actor.employeeId
-        : store.members.some((member) => member.id === actor.employeeId));
+        : !!actor.employeeId &&
+          (await this.storeEmployeesRepository.existsBy({
+            companyId: actor.companyId!,
+            storeId: store.id,
+            employeeId: actor.employeeId,
+          })));
     if (!store || !allowed) {
       throw new ForbiddenException('You do not work in that store');
     }
@@ -165,7 +172,7 @@ export class CashRegisterService {
     session.closingCash = dto.closingCash;
     await this.sessionsRepository.save(session);
     await this.audit.record(actor, 'register.close', `${actor.displayName} closed register ${session.registerNo} in ${session.store.name}`);
-    return (await this.withTotals([session]))[0];
+    return (await this.withTotals(actor, [session]))[0];
   }
 
   findOpenSession(actor: AuthUser): Promise<RegisterSession | null> {
@@ -192,7 +199,7 @@ export class CashRegisterService {
     return where;
   }
 
-  private async withTotals(sessions: RegisterSession[]): Promise<SessionView[]> {
+  private async withTotals(actor: AuthUser, sessions: RegisterSession[]): Promise<SessionView[]> {
     const totals = new Map<string, { count: number; total: number }>();
 
     if (sessions.length > 0) {
@@ -201,7 +208,8 @@ export class CashRegisterService {
         .select('sale.session_id', 'sessionId')
         .addSelect('COUNT(*)', 'count')
         .addSelect('COALESCE(SUM(sale.total), 0)', 'total')
-        .where('sale.session_id IN (:...ids)', { ids: sessions.map((s) => s.id) })
+        .where('sale.company_id = :companyId', { companyId: actor.companyId })
+        .andWhere('sale.session_id IN (:...ids)', { ids: sessions.map((s) => s.id) })
         .groupBy('sale.session_id')
         .getRawMany<{ sessionId: string; count: string; total: string }>();
       for (const row of rows) {

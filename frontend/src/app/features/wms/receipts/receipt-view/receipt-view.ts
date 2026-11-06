@@ -42,6 +42,9 @@ export class ReceiptView implements OnInit {
     const role = this.auth.user()?.role;
     return role === 'module_admin' || role === 'manager';
   });
+  protected readonly unlinkedCount = computed(
+    () => this.receipt()?.lines?.filter((line) => !line.product).length ?? 0,
+  );
   protected readonly canOpenProducts = computed(() => {
     const role = this.auth.user()?.role;
     return role === 'system_admin' || role === 'module_admin';

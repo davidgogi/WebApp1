@@ -14,7 +14,9 @@ import { UserRole } from '../../auth/user-role.enum.js';
 import { User } from '../../auth/user.entity.js';
 import { AppModuleName } from '../../companies/app-module.enum.js';
 import { isUniqueViolation } from '../../common/is-unique-violation.js';
+import { StoreEmployee } from '../../store/stores/store-employee.entity.js';
 import { Store } from '../../store/stores/store.entity.js';
+import { WarehouseEmployee } from '../../wms/warehouses/warehouse-employee.entity.js';
 import { Warehouse } from '../../wms/warehouses/warehouse.entity.js';
 import { Employee } from './employee.entity.js';
 import { EmployeeRole } from './employee-role.enum.js';
@@ -40,6 +42,10 @@ export class EmployeesService {
     private readonly storesRepository: Repository<Store>,
     @InjectRepository(Warehouse)
     private readonly warehousesRepository: Repository<Warehouse>,
+    @InjectRepository(StoreEmployee)
+    private readonly storeEmployeesRepository: Repository<StoreEmployee>,
+    @InjectRepository(WarehouseEmployee)
+    private readonly warehouseEmployeesRepository: Repository<WarehouseEmployee>,
     private readonly users: UsersService,
     private readonly audit: AuditService,
   ) {}
@@ -201,20 +207,17 @@ export class EmployeesService {
     if (actor.role !== UserRole.MANAGER) {
       return null;
     }
-    const where = { companyId: actor.companyId!, managerId: actor.employeeId! };
-    const workplaces =
+    const companyId = actor.companyId!;
+    const managerId = actor.employeeId!;
+    const links =
       actor.module === AppModuleName.WMS
-        ? await this.warehousesRepository.find({
-            where,
-            relations: { members: true },
+        ? await this.warehouseEmployeesRepository.find({
+            where: { companyId, warehouse: { managerId } },
           })
-        : await this.storesRepository.find({
-            where,
-            relations: { members: true },
+        : await this.storeEmployeesRepository.find({
+            where: { companyId, store: { managerId } },
           });
-    return workplaces.flatMap((workplace) =>
-      workplace.members.map((member) => member.id),
-    );
+    return links.map((link) => link.employeeId);
   }
 
   private async prepareWorkplaces(
@@ -235,35 +238,36 @@ export class EmployeesService {
     };
 
     if (actor.module === AppModuleName.WMS) {
-      const warehouses = await this.warehousesRepository.find({
-        where,
-        relations: { members: true },
-      });
+      const warehouses = await this.warehousesRepository.find({ where });
       if (warehouses.length !== uniqueIds.length) {
         throw new BadRequestException(
           'You can only pick warehouses that you manage',
         );
       }
+
       return async (person) => {
-        for (const warehouse of warehouses) {
-          warehouse.members = [...warehouse.members, person];
-        }
-        await this.warehousesRepository.save(warehouses);
+        await this.warehouseEmployeesRepository.save(
+          warehouses.map((warehouse) => ({
+            companyId: person.companyId,
+            warehouseId: warehouse.id,
+            employeeId: person.id,
+          })),
+        );
       };
     }
 
-    const stores = await this.storesRepository.find({
-      where,
-      relations: { members: true },
-    });
+    const stores = await this.storesRepository.find({ where });
     if (stores.length !== uniqueIds.length) {
       throw new BadRequestException('You can only pick stores that you manage');
     }
     return async (person) => {
-      for (const store of stores) {
-        store.members = [...store.members, person];
-      }
-      await this.storesRepository.save(stores);
+      await this.storeEmployeesRepository.save(
+        stores.map((store) => ({
+          companyId: person.companyId,
+          storeId: store.id,
+          employeeId: person.id,
+        })),
+      );
     };
   }
 

@@ -891,4 +891,7 @@ export const RU: Record<string, string> = {
   "{module} {role}": "{module}: {role}",
   "{name} was added to Products, but it is Not active, so it can't be moved.": "{name} добавлен в Продукты, но он неактивен, поэтому его нельзя переместить.",
   "{name} was added to Suppliers and chosen for this receipt.": "{name} добавлен в Поставщики и выбран для этой приёмки.",
+  "Link every line to a product first": "Сначала свяжите каждую строку с продуктом",
+  "{p0} lines are not linked to your products yet. Open Edit and pick your product for each line in the \"Your product\" column, or create it with + New product. Then post.": "Строк, ещё не связанных с вашими продуктами: {p0}. Нажмите «Изменить» и для каждой строки выберите продукт в столбце «Ваш продукт» или создайте его кнопкой «+ Новый продукт». Затем проведите.",
+  "Link the products": "Связать продукты",
 };

@@ -14,7 +14,9 @@ interface Snapshot {
 async function tablesInInsertOrder(dataSource: DataSource): Promise<string[]> {
   const names: string[] = (
     await dataSource.query<{ tablename: string }[]>(`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`)
-  ).map((row) => row.tablename);
+  )
+    .map((row) => row.tablename)
+    .filter((name) => name !== 'migrations');
   const links = await dataSource.query<{ child: string; parent: string }[]>(
     `SELECT conrelid::regclass::text AS child, confrelid::regclass::text AS parent
        FROM pg_constraint WHERE contype = 'f' AND connamespace = 'public'::regnamespace`,
@@ -134,6 +136,7 @@ async function main() {
     console.log('Usage: node dist/data-snapshot.js export | import [--yes]');
     return;
   }
+  process.env.DB_CONNECT_AS_OWNER = 'true';
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
   try {
     const dataSource = app.get(DataSource);

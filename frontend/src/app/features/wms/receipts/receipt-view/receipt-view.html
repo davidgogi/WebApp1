@@ -28,7 +28,15 @@
             {{ 'Delete' | t }}
           </button>
           <a class="button button--outline" [routerLink]="['/wms/receipts', receipt.id, 'edit']">{{ 'Edit' | t }}</a>
-          <button type="button" class="button button--dark" [disabled]="isBusy()" (click)="post()">{{ 'Post' | t }}</button>
+          <button
+            type="button"
+            class="button button--dark"
+            [disabled]="isBusy() || unlinkedCount() > 0"
+            [title]="unlinkedCount() > 0 ? ('Link every line to a product first' | t) : ''"
+            (click)="post()"
+          >
+            {{ 'Post' | t }}
+          </button>
         }
         @if (canWrite() && receipt.status === 'posted') {
           <button type="button" class="button button--secondary" [disabled]="isBusy()" (click)="cancel()">
@@ -42,6 +50,15 @@
 
   @if (errorMessage()) {
     <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  @if (receipt(); as receipt) {
+    @if (canWrite() && receipt.status === 'draft' && unlinkedCount() > 0) {
+      <p class="field-error">
+        {{ '{p0} lines are not linked to your products yet. Open Edit and pick your product for each line in the "Your product" column, or create it with + New product. Then post.' | t: { p0: unlinkedCount() } }}
+        <a [routerLink]="['/wms/receipts', receipt.id, 'edit']">{{ 'Link the products' | t }}</a>
+      </p>
+    }
   }
 
   @if (receipt(); as receipt) {

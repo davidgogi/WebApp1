@@ -12,6 +12,7 @@ import { AuthUser, SessionUser, toSessionUser } from './auth-user.js';
 import { hashPassword, verifyPassword } from './password.js';
 import { signToken, verifyToken } from './token.js';
 import { CompanyStatus } from '../companies/company-status.enum.js';
+import { acrossCompanies, scopeTo } from '../database/tenant-scope.js';
 import { UserRole } from './user-role.enum.js';
 import { User } from './user.entity.js';
 
@@ -26,7 +27,11 @@ export class AuthService implements OnModuleInit {
     private readonly config: ConfigService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): Promise<void> {
+    return acrossCompanies(() => this.ensureSuperuser());
+  }
+
+  private async ensureSuperuser(): Promise<void> {
     if (await this.usersRepository.existsBy({ role: UserRole.SUPERUSER })) {
       return;
     }
@@ -55,10 +60,12 @@ export class AuthService implements OnModuleInit {
     password: string,
     superuser: boolean,
   ): Promise<{ token: string; user: SessionUser }> {
-    const user = await this.usersRepository.findOne({
-      where: { username: username.trim() },
-      relations: { company: true, employee: true },
-    });
+    const user = await acrossCompanies(() =>
+      this.usersRepository.findOne({
+        where: { username: username.trim() },
+        relations: { company: true, employee: true },
+      }),
+    );
     const passwordOk = !!user && verifyPassword(password, user.passwordHash);
     const authUser = user && passwordOk ? this.toAuthUser(user) : null;
 
@@ -78,6 +85,7 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Wrong username or password');
     }
 
+    scopeTo(authUser);
     await this.audit.record(
       authUser,
       'auth.login',
@@ -96,10 +104,12 @@ export class AuthService implements OnModuleInit {
     if (!userId) {
       return null;
     }
-    const user = await this.usersRepository.findOne({
-      where: { id: userId },
-      relations: { company: true, employee: true },
-    });
+    const user = await acrossCompanies(() =>
+      this.usersRepository.findOne({
+        where: { id: userId },
+        relations: { company: true, employee: true },
+      }),
+    );
     return user ? this.toAuthUser(user) : null;
   }
 

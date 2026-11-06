@@ -11,6 +11,7 @@ import { AuthService } from './auth.service.js';
 import { AuthUser } from './auth-user.js';
 import { ACCESS_MODULE, AccessModule, IS_PUBLIC, ROLES } from './decorators.js';
 import { UserRole } from './user-role.enum.js';
+import { scopeTo } from '../database/tenant-scope.js';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -38,6 +39,7 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Please log in');
     }
     request.user = user;
+    scopeTo(user);
 
     const roles = this.reflector.getAllAndOverride<UserRole[] | undefined>(
       ROLES,

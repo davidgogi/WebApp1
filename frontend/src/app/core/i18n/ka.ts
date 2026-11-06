@@ -891,4 +891,7 @@ export const KA: Record<string, string> = {
   "{module} {role}": "{module} {role}",
   "{name} was added to Products, but it is Not active, so it can't be moved.": "{name} დაემატა პროდუქტებს, მაგრამ არააქტიურია, ამიტომ მისი გადაადგილება შეუძლებელია.",
   "{name} was added to Suppliers and chosen for this receipt.": "{name} დაემატა მომწოდებლებს და აირჩა ამ მიღებისთვის.",
+  "Link every line to a product first": "ჯერ ყველა ხაზი დაუკავშირეთ პროდუქტს",
+  "{p0} lines are not linked to your products yet. Open Edit and pick your product for each line in the \"Your product\" column, or create it with + New product. Then post.": "{p0} ხაზი ჯერ არ არის დაკავშირებული თქვენს პროდუქტებთან. დააჭირეთ „რედაქტირებას“ და თითოეული ხაზისთვის სვეტში „თქვენი პროდუქტი“ აირჩიეთ პროდუქტი, ან შექმენით ის ღილაკით „+ ახალი პროდუქტი“. შემდეგ გაატარეთ.",
+  "Link the products": "პროდუქტების დაკავშირება",
 };

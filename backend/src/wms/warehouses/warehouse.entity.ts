@@ -3,8 +3,6 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
-  JoinTable,
-  ManyToMany,
   ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
@@ -17,6 +15,7 @@ import { WarehouseType } from './warehouse-type.enum.js';
 
 @Entity({ name: 'warehouses' })
 @Unique(['companyId', 'code'])
+@Unique(['companyId', 'id'])
 export class Warehouse extends TenantEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -54,14 +53,6 @@ export class Warehouse extends TenantEntity {
   @ManyToOne(() => Employee, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'manager_id' })
   manager!: Pick<Employee, 'id' | 'firstName' | 'lastName'> | null;
-
-  @ManyToMany(() => Employee, { onDelete: 'CASCADE' })
-  @JoinTable({
-    name: 'warehouse_employees',
-    joinColumn: { name: 'warehouse_id' },
-    inverseJoinColumn: { name: 'employee_id' },
-  })
-  members!: Employee[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

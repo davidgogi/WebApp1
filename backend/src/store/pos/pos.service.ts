@@ -76,6 +76,7 @@ export class PosService {
     const lines = products.map((product) => {
       const quantity = quantities.get(product.id)!;
       return {
+        companyId: actor.companyId!,
         productName: product.name,
         unitPrice: product.price,
         quantity,
@@ -84,10 +85,14 @@ export class PosService {
     });
     const total = round(lines.reduce((sum, line) => sum + line.lineTotal, 0));
     const number =
-      (await this.salesRepository.countBy({ sessionId: session.id })) + 1;
+      (await this.salesRepository.countBy({
+        companyId: actor.companyId!,
+        sessionId: session.id,
+      })) + 1;
 
     const sale = await this.salesRepository.save(
       this.salesRepository.create({
+        companyId: actor.companyId!,
         sessionId: session.id,
         number,
         total,

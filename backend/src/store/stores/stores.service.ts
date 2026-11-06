@@ -118,7 +118,7 @@ export class StoresService {
     if (actor.role === UserRole.MANAGER) {
       query.andWhere('store.managerId = :employeeId', { employeeId: actor.employeeId });
     } else if (actor.role === UserRole.CASHIER) {
-      query.andWhere('store.id IN (SELECT store_id FROM store_employees WHERE employee_id = :employeeId)', {
+      query.andWhere('store.id IN (SELECT store_id FROM store_employees WHERE company_id = :companyId AND employee_id = :employeeId)', {
         employeeId: actor.employeeId,
       });
     }

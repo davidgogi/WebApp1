@@ -16,6 +16,7 @@ import { EmployeeStatus } from './employee-status.enum.js';
 
 @Entity({ name: 'employees' })
 @Unique(['companyId', 'personalId'])
+@Unique(['companyId', 'id'])
 export class Employee extends TenantEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

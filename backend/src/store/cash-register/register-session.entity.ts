@@ -7,6 +7,7 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  Unique,
   type Relation,
 } from 'typeorm';
 import { decimalTransformer } from '../../common/decimal.transformer.js';
@@ -16,6 +17,7 @@ import { Sale } from './sale.entity.js';
 
 @Index('UQ_open_register_session', ['storeId', 'registerNo'], { unique: true, where: '"closed_at" IS NULL' })
 @Entity({ name: 'register_sessions' })
+@Unique(['companyId', 'id'])
 export class RegisterSession extends TenantEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

@@ -3,15 +3,15 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
-  JoinTable,
-  ManyToMany,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Unique,
 } from 'typeorm';
 import { TenantEntity } from '../../companies/tenant.entity.js';
 import { Employee } from '../../hr/employees/employee.entity.js';
 
 @Entity({ name: 'stores' })
+@Unique(['companyId', 'id'])
 export class Store extends TenantEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -31,14 +31,6 @@ export class Store extends TenantEntity {
   @ManyToOne(() => Employee, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'manager_id' })
   manager!: Employee | null;
-
-  @ManyToMany(() => Employee, { onDelete: 'CASCADE' })
-  @JoinTable({
-    name: 'store_employees',
-    joinColumn: { name: 'store_id' },
-    inverseJoinColumn: { name: 'employee_id' },
-  })
-  members!: Employee[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

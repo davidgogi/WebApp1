@@ -6,14 +6,17 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  Unique,
   type Relation,
 } from 'typeorm';
 import { decimalTransformer } from '../../common/decimal.transformer.js';
+import { TenantEntity } from '../../companies/tenant.entity.js';
 import { RegisterSession } from './register-session.entity.js';
 import { SaleLine } from './sale-line.entity.js';
 
 @Entity({ name: 'sales' })
-export class Sale {
+@Unique(['companyId', 'id'])
+export class Sale extends TenantEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -21,7 +24,10 @@ export class Sale {
   sessionId!: string;
 
   @ManyToOne(() => RegisterSession, (session) => session.sales, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'session_id' })
+  @JoinColumn([
+    { name: 'company_id', referencedColumnName: 'companyId' },
+    { name: 'session_id', referencedColumnName: 'id' },
+  ])
   session!: Relation<RegisterSession>;
 
   @Column({ type: 'int' })
