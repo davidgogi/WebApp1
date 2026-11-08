@@ -38,6 +38,10 @@ export interface Transfer {
   rsWaybillId: string | null;
   waybillNumber: string | null;
   rsClosedAt: string | null;
+  rsIssued: boolean;
+  driverName: string | null;
+  driverId: string | null;
+  carNumber: string | null;
   lineCount: number;
   lines?: TransferLine[];
   createdByName: string;
@@ -55,5 +59,8 @@ export interface TransferPayload {
   toWarehouseId: string;
   date: string;
   note: string | null;
+  driverName: string | null;
+  driverId: string | null;
+  carNumber: string | null;
   lines: { productId: string | null; quantity: number }[];
 }

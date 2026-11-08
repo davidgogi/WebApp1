@@ -71,7 +71,9 @@ export class SupplierForm implements OnInit {
       status: this.status(),
     };
     const id = this.supplier()?.id;
-    const request = id ? this.supplierService.update(id, payload) : this.supplierService.create(payload);
+    const request = id
+      ? this.supplierService.update(id, payload)
+      : this.supplierService.create(payload);
     this.isSaving.set(true);
     this.formError.set('');
     request.subscribe({

@@ -894,4 +894,13 @@ export const KA: Record<string, string> = {
   "Link every line to a product first": "ჯერ ყველა ხაზი დაუკავშირეთ პროდუქტს",
   "{p0} lines are not linked to your products yet. Open Edit and pick your product for each line in the \"Your product\" column, or create it with + New product. Then post.": "{p0} ხაზი ჯერ არ არის დაკავშირებული თქვენს პროდუქტებთან. დააჭირეთ „რედაქტირებას“ და თითოეული ხაზისთვის სვეტში „თქვენი პროდუქტი“ აირჩიეთ პროდუქტი, ან შექმენით ის ღილაკით „+ ახალი პროდუქტი“. შემდეგ გაატარეთ.",
   "Link the products": "პროდუქტების დაკავშირება",
+  "Driver and car (for the RS waybill)": "მძღოლი და მანქანა (RS ზედნადებისთვის)",
+  "Driver name": "მძღოლის სახელი",
+  "Driver's personal ID": "მძღოლის პირადი ნომერი",
+  "Car number": "მანქანის ნომერი",
+  "Needed to send the transfer when RS is connected: they go on the RS waybill that is issued when you send. The driver must have an 11-digit Georgian personal ID.": "საჭიროა გადაადგილების გასაგზავნად, როცა RS დაკავშირებულია: ისინი გადადის RS ზედნადებზე, რომელიც გაგზავნისას გამოიწერება. მძღოლს უნდა ჰქონდეს საქართველოს 11-ციფრიანი პირადი ნომერი.",
+  "Send this transfer? The goods leave the source warehouse now. If RS is connected, the waybill is issued in RS.": "გავგზავნოთ გადაადგილება? საქონელი წყარო საწყობიდან ახლავე გავა. თუ RS დაკავშირებულია, ზედნადები RS-ში გამოიწერება.",
+  "Cancel this transfer? The waybill is cancelled in RS and the goods go back into the source warehouse.": "გავაუქმოთ გადაადგილება? ზედნადები RS-შიც გაუქმდება და საქონელი წყარო საწყობში დაბრუნდება.",
+  "issued from here": "აქედან გამოწერილი",
+  "The driver's personal ID is 11 digits.": "მძღოლის პირადი ნომერი 11 ციფრია.",
 };

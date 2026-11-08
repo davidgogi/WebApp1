@@ -57,6 +57,29 @@
     </div>
   </div>
 
+  @if (!rsWaybillId()) {
+    <div class="page-card">
+      <h2 class="card-title">{{ 'Driver and car (for the RS waybill)' | t }}</h2>
+      <div class="form-grid">
+        <div class="field">
+          <label for="transferDriverName">{{ 'Driver name' | t }}</label>
+          <input id="transferDriverName" class="text-input" type="text" [(ngModel)]="driverName" />
+        </div>
+        <div class="field">
+          <label for="transferDriverId">{{ "Driver's personal ID" | t }}</label>
+          <input id="transferDriverId" class="text-input" type="text" inputmode="numeric" maxlength="11" [(ngModel)]="driverId" />
+        </div>
+        <div class="field">
+          <label for="transferCar">{{ 'Car number' | t }}</label>
+          <input id="transferCar" class="text-input" type="text" maxlength="20" [(ngModel)]="carNumber" />
+        </div>
+      </div>
+      <p class="field-hint">
+        {{ 'Needed to send the transfer when RS is connected: they go on the RS waybill that is issued when you send. The driver must have an 11-digit Georgian personal ID.' | t }}
+      </p>
+    </div>
+  }
+
   @if (rsWaybillId()) {
   <div class="page-card">
     <h2 class="card-title">

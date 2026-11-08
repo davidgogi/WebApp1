@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger } from '@nestjs/common';
 
 const RS_URL = process.env.RS_WAYBILL_SERVICE_URL ?? 'https://services.rs.ge/WayBillService/WayBillService.asmx';
 const TIMEOUT_MS = 30_000;
@@ -63,6 +63,23 @@ const ERRORS: Record<string, string> = {
   '-1': 'RS could not find the waybill',
 };
 
+const REFUSALS: Record<string, string> = {
+  ...ERRORS,
+  '-1007': 'RS: an address is too long',
+  '-1010': 'RS: an address is too long',
+  '-1009': 'RS: the start address is required',
+  '-1011': 'RS: the end address is required',
+  '-1012': 'RS: the driver is required',
+  '-1014': "RS: the driver's personal ID is not valid",
+  '-1026': 'RS: the car number is not valid',
+  '-1040': 'RS: the car number is required',
+  '-1002': 'RS: the transport type is not valid',
+  '-1038': 'RS: the start time is more than 3 days ahead',
+  '-1045': 'RS: an empty waybill cannot be activated',
+  '-1061': 'RS: you have an unread important message. Open RS, read it, and try again',
+  '-23': 'RS: this service user may not do that',
+};
+
 const decode = (text: string) =>
   text
     .replace(/&lt;/g, '<')
@@ -103,7 +120,9 @@ function rsDate(value: string | null): string | null {
   return /^\d{4}-\d{2}-\d{2}/.test(value) && !value.startsWith('0001-') ? value : null;
 }
 
-function tbilisiDateTime(value: Date): string {
+export const escapeXml = escape;
+
+export function tbilisiDateTime(value: Date): string {
   const parts = new Map(
     new Intl.DateTimeFormat('sv-SE', {
       timeZone: 'Asia/Tbilisi',
@@ -207,8 +226,52 @@ export class RsClient {
     return tag(body, 'close_waybill_vdResult') ?? '';
   }
 
+  /** Saves a new waybill (status "saved", not yet visible to the buyer) and returns its RS id. */
+  async saveWaybill(credentials: RsCredentials, waybillXml: string): Promise<string> {
+    const body = await this.call('save_waybill', credentials, `<waybill>${waybillXml}</waybill>`);
+    const raw = body.match(/<save_waybillResult>([\s\S]*)<\/save_waybillResult>/)?.[1] ?? '';
+    const result = raw.includes('&lt;') ? decode(raw) : raw;
+    const status = tag(result, 'STATUS');
+    const id = tag(result, 'ID');
+    if (status !== '0' || !id) {
+      throw new BadRequestException(this.refusal(status ?? ''));
+    }
+    return id;
+  }
+
+  /** Activates a saved waybill (it becomes valid and visible in RS) and returns its waybill number. */
+  async activateWaybill(credentials: RsCredentials, id: string, beginAt: Date): Promise<string> {
+    const body = await this.call(
+      'send_waybil_vd',
+      credentials,
+      `<begin_date>${tbilisiDateTime(beginAt)}</begin_date><waybill_id>${escape(id)}</waybill_id>`,
+    );
+    const number = tag(body, 'send_waybil_vdResult') ?? '';
+    if (!number || number.startsWith('-')) {
+      throw new BadRequestException(this.refusal(number));
+    }
+    return number;
+  }
+
+  /** Cancels an active waybill in RS. */
+  async cancelWaybill(credentials: RsCredentials, id: string): Promise<boolean> {
+    const body = await this.call('ref_waybill', credentials, `<waybill_id>${escape(id)}</waybill_id>`);
+    return ['1', 'true'].includes((tag(body, 'ref_waybillResult') ?? '').toLowerCase());
+  }
+
+  /** Deletes a waybill that was only saved (never activated). */
+  async deleteWaybill(credentials: RsCredentials, id: string): Promise<boolean> {
+    const body = await this.call('del_waybill', credentials, `<waybill_id>${escape(id)}</waybill_id>`);
+    return ['1', 'true'].includes((tag(body, 'del_waybillResult') ?? '').toLowerCase());
+  }
+
   errorText(code: string): string {
     return ERRORS[code] ?? `RS returned ${code || 'nothing'}`;
+  }
+
+  /** The message for a waybill RS refused to save or activate. */
+  refusal(code: string): string {
+    return REFUSALS[code] ?? `RS refused the waybill (code ${code || 'none'})`;
   }
 
   private summary(xml: string, types: Map<number, string>): RsWaybillSummary {

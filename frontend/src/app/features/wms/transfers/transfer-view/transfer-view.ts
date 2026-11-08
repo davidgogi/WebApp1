@@ -78,15 +78,21 @@ export class TransferView implements OnInit {
   }
 
   send(): void {
-    if (this.i18n.confirm('Send this transfer? The goods leave the source warehouse now.')) {
+    const question = this.transfer()?.rsWaybillId
+      ? 'Send this transfer? The goods leave the source warehouse now.'
+      : 'Send this transfer? The goods leave the source warehouse now. If RS is connected, the waybill is issued in RS.';
+    if (this.i18n.confirm(question)) {
       this.run(this.transferService.send(this.id()));
     }
   }
 
   cancel(): void {
-    const question = this.transfer()?.rsWaybillId
-      ? 'Cancel this transfer? This works only after the waybill was cancelled in RS. The goods go back into the source warehouse.'
-      : 'Cancel this transfer? The goods go back into the source warehouse.';
+    const transfer = this.transfer();
+    const question = transfer?.rsIssued
+      ? 'Cancel this transfer? The waybill is cancelled in RS and the goods go back into the source warehouse.'
+      : transfer?.rsWaybillId
+        ? 'Cancel this transfer? This works only after the waybill was cancelled in RS. The goods go back into the source warehouse.'
+        : 'Cancel this transfer? The goods go back into the source warehouse.';
     if (this.i18n.confirm(question)) {
       this.run(this.transferService.cancel(this.id()));
     }

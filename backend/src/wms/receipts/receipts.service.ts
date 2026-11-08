@@ -1,6 +1,18 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, IsNull, Not, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  In,
+  IsNull,
+  Not,
+  Repository,
+} from 'typeorm';
 import { AuditService } from '../../audit/audit.service.js';
 import { AuthUser } from '../../auth/auth-user.js';
 import { UserRole } from '../../auth/user-role.enum.js';
@@ -9,10 +21,17 @@ import { RsWaybillsService } from '../../rs/waybills/waybills.service.js';
 import { Product } from '../products/product.entity.js';
 import { ProductStatus } from '../products/product-status.enum.js';
 import { ProductUnit } from '../products/product-unit.enum.js';
-import { formatDocumentNumber, nextDocumentNumber } from '../stock/document-number.js';
+import {
+  formatDocumentNumber,
+  nextDocumentNumber,
+} from '../stock/document-number.js';
 import { ProductWarehouse } from '../stock/product-warehouse.entity.js';
 import { StockMovementKind } from '../stock/stock-movement-kind.enum.js';
-import { matchRsProducts, rememberRsProducts, rsUnitProblem } from '../stock/rs-matching.js';
+import {
+  matchRsProducts,
+  rememberRsProducts,
+  rsUnitProblem,
+} from '../stock/rs-matching.js';
 import { StockService } from '../stock/stock.service.js';
 import { Supplier } from '../suppliers/supplier.entity.js';
 import { SupplierStatus } from '../suppliers/supplier-status.enum.js';
@@ -36,7 +55,10 @@ export type ReceiptView = Omit<Receipt, 'warehouse' | 'lines' | 'supplier'> & {
   lineCount: number;
   total: number;
   warehouse: Pick<Warehouse, 'id' | 'code' | 'name'>;
-  supplier: Pick<Supplier, 'id' | 'name' | 'identificationCode' | 'status'> | null;
+  supplier: Pick<
+    Supplier,
+    'id' | 'name' | 'identificationCode' | 'status'
+  > | null;
   lines?: (Omit<ReceiptLine, 'product' | 'receipt'> & {
     product: Pick<Product, 'id' | 'name' | 'barcode' | 'unit'> | null;
   })[];
@@ -65,7 +87,10 @@ export class ReceiptsService {
   async findAll(actor: AuthUser): Promise<ReceiptView[]> {
     const scope = await this.warehouseScope(actor);
     const receipts = await this.receiptsRepository.find({
-      where: { companyId: actor.companyId!, ...(scope ? { warehouseId: In([...scope]) } : {}) },
+      where: {
+        companyId: actor.companyId!,
+        ...(scope ? { warehouseId: In([...scope]) } : {}),
+      },
       relations: { warehouse: true, lines: true, supplier: true },
       order: { number: 'DESC' },
     });
@@ -79,9 +104,18 @@ export class ReceiptsService {
   async rsLinks(actor: AuthUser): Promise<RsReceiptLink[]> {
     const receipts = await this.receiptsRepository.find({
       select: { id: true, number: true, status: true, rsWaybillId: true },
-      where: { companyId: actor.companyId!, rsWaybillId: Not(IsNull()), status: Not(ReceiptStatus.CANCELLED) },
+      where: {
+        companyId: actor.companyId!,
+        rsWaybillId: Not(IsNull()),
+        status: Not(ReceiptStatus.CANCELLED),
+      },
     });
-    return receipts.map((r) => ({ rsWaybillId: r.rsWaybillId!, receiptId: r.id, code: this.code(r), status: r.status }));
+    return receipts.map((r) => ({
+      rsWaybillId: r.rsWaybillId!,
+      receiptId: r.id,
+      code: this.code(r),
+      status: r.status,
+    }));
   }
 
   async create(actor: AuthUser, dto: SaveReceiptDto): Promise<ReceiptView> {
@@ -93,7 +127,12 @@ export class ReceiptsService {
       const receipt = manager.create(Receipt, {
         ...this.fields(dto),
         companyId: actor.companyId!,
-        number: await nextDocumentNumber(manager, Receipt, actor.companyId!, 'receipt'),
+        number: await nextDocumentNumber(
+          manager,
+          Receipt,
+          actor.companyId!,
+          'receipt',
+        ),
         status: ReceiptStatus.DRAFT,
         createdByName: actor.displayName,
         lines: this.lines(actor, dto),
@@ -101,13 +140,23 @@ export class ReceiptsService {
       return (await manager.save(receipt)).id;
     });
     const view = await this.findOne(actor, id);
-    await this.audit.record(actor, 'receipt.create', `Created draft receipt ${view.code} (${view.warehouse.code})`);
+    await this.audit.record(
+      actor,
+      'receipt.create',
+      `Created draft receipt ${view.code} (${view.warehouse.code})`,
+    );
     return view;
   }
 
-  async createFromRs(actor: AuthUser, waybillId: string, dto: CreateReceiptFromRsDto): Promise<ReceiptView> {
+  async createFromRs(
+    actor: AuthUser,
+    waybillId: string,
+    dto: CreateReceiptFromRsDto,
+  ): Promise<ReceiptView> {
     if (actor.role !== UserRole.MODULE_ADMIN) {
-      throw new BadRequestException('Only the WMS admin creates receipts from RS waybills');
+      throw new BadRequestException(
+        'Only the WMS admin creates receipts from RS waybills',
+      );
     }
     await this.checkWarehouse(actor, dto.warehouseId, true);
     const existing = await this.activeReceiptFor(actor, waybillId);
@@ -118,16 +167,29 @@ export class ReceiptsService {
       });
     }
 
-    const waybill = await this.rsClient.waybill(await this.rsWaybills.companyCredentials(actor), waybillId);
+    const waybill = await this.rsClient.waybill(
+      await this.rsWaybills.companyCredentials(actor),
+      waybillId,
+    );
     this.assertReceivable(waybill);
     const sellerTin = waybill.sellerTin?.trim() || null;
     const supplier = await this.supplierFor(actor, sellerTin);
-    const products = await matchRsProducts(this.dataSource, actor.companyId!, sellerTin ?? '', waybill.goods);
+    const products = await matchRsProducts(
+      this.dataSource,
+      actor.companyId!,
+      sellerTin ?? '',
+      waybill.goods,
+    );
 
     const id = await this.dataSource.transaction(async (manager) => {
       const receipt = manager.create(Receipt, {
         companyId: actor.companyId!,
-        number: await nextDocumentNumber(manager, Receipt, actor.companyId!, 'receipt'),
+        number: await nextDocumentNumber(
+          manager,
+          Receipt,
+          actor.companyId!,
+          'receipt',
+        ),
         status: ReceiptStatus.DRAFT,
         warehouseId: dto.warehouseId,
         supplierId: supplier?.id ?? null,
@@ -136,7 +198,11 @@ export class ReceiptsService {
         waybillNumber: waybill.number,
         rsWaybillId: waybill.id,
         rsConfirmedAt: waybill.confirmation === 'accepted' ? new Date() : null,
-        date: (waybill.activatedAt ?? waybill.createdAt ?? new Date().toISOString()).slice(0, 10),
+        date: (
+          waybill.activatedAt ??
+          waybill.createdAt ??
+          new Date().toISOString()
+        ).slice(0, 10),
         note: waybill.comment,
         createdByName: actor.displayName,
         lines: waybill.goods.map((goods, position) => ({
@@ -175,14 +241,21 @@ export class ReceiptsService {
     const credentials = await this.rsWaybills.companyCredentials(actor);
     const waybill = await this.rsClient.waybill(credentials, waybillId);
     if (waybill.confirmation === 'rejected') {
-      throw new BadRequestException(`Waybill ${waybill.number} is already rejected in RS`);
+      throw new BadRequestException(
+        `Waybill ${waybill.number} is already rejected in RS`,
+      );
     }
     if (!(await this.rsClient.rejectWaybill(credentials, waybillId))) {
-      throw new BadRequestException(`RS did not reject waybill ${waybill.number}. Nothing was changed.`);
+      throw new BadRequestException(
+        `RS did not reject waybill ${waybill.number}. Nothing was changed.`,
+      );
     }
     this.rsWaybills.forgetLists(actor);
     if (existing) {
-      await this.receiptsRepository.delete({ id: existing.id, companyId: actor.companyId! });
+      await this.receiptsRepository.delete({
+        id: existing.id,
+        companyId: actor.companyId!,
+      });
     }
     await this.audit.record(
       actor,
@@ -191,7 +264,11 @@ export class ReceiptsService {
     );
   }
 
-  async update(actor: AuthUser, id: string, dto: SaveReceiptDto): Promise<ReceiptView> {
+  async update(
+    actor: AuthUser,
+    id: string,
+    dto: SaveReceiptDto,
+  ): Promise<ReceiptView> {
     const receipt = await this.load(actor, id);
     this.assertDraft(receipt);
     await this.checkWarehouse(actor, dto.warehouseId);
@@ -199,19 +276,34 @@ export class ReceiptsService {
       return this.updateFromRsDraft(actor, receipt, dto);
     }
     const supplierId = this.requireSupplier(dto);
-    await this.checkSupplier(actor, supplierId, supplierId !== receipt.supplierId);
+    await this.checkSupplier(
+      actor,
+      supplierId,
+      supplierId !== receipt.supplierId,
+    );
     this.requireProducts(dto.lines);
     await this.dataSource.transaction(async (manager) => {
       await this.checkProducts(manager, actor, dto, false);
-      await manager.delete(ReceiptLine, { receiptId: id, companyId: actor.companyId! });
-      await manager.update(Receipt, { id, companyId: actor.companyId! }, this.fields(dto));
+      await manager.delete(ReceiptLine, {
+        receiptId: id,
+        companyId: actor.companyId!,
+      });
+      await manager.update(
+        Receipt,
+        { id, companyId: actor.companyId! },
+        this.fields(dto),
+      );
       await manager.save(
         ReceiptLine,
         this.lines(actor, dto).map((line) => ({ ...line, receiptId: id })),
       );
     });
     const view = await this.findOne(actor, id);
-    await this.audit.record(actor, 'receipt.update', `Updated draft receipt ${view.code}`);
+    await this.audit.record(
+      actor,
+      'receipt.update',
+      `Updated draft receipt ${view.code}`,
+    );
     return view;
   }
 
@@ -220,7 +312,11 @@ export class ReceiptsService {
     this.assertDraft(receipt);
     await this.checkWarehouse(actor, receipt.warehouseId);
     await this.receiptsRepository.delete({ id, companyId: actor.companyId! });
-    await this.audit.record(actor, 'receipt.delete', `Deleted draft receipt ${this.code(receipt)}`);
+    await this.audit.record(
+      actor,
+      'receipt.delete',
+      `Deleted draft receipt ${this.code(receipt)}`,
+    );
   }
 
   async post(actor: AuthUser, id: string): Promise<ReceiptView> {
@@ -237,7 +333,9 @@ export class ReceiptsService {
       this.assertDraft(receipt);
       await this.checkWarehouse(actor, receipt.warehouseId, true);
       if (receipt.lines.length === 0) {
-        throw new BadRequestException('Add at least one product before posting');
+        throw new BadRequestException(
+          'Add at least one product before posting',
+        );
       }
       const products = await this.checkProducts(manager, actor, receipt, true);
       await this.updateAverageCosts(manager, actor, receipt.lines, products);
@@ -249,16 +347,28 @@ export class ReceiptsService {
           warehouseId: receipt.warehouseId,
           quantity: line.quantity,
         })),
-        { kind: StockMovementKind.RECEIPT, documentId: receipt.id, note: this.code(receipt) },
+        {
+          kind: StockMovementKind.RECEIPT,
+          documentId: receipt.id,
+          note: this.code(receipt),
+        },
       );
-      await manager.update(Receipt, { id }, {
-        status: ReceiptStatus.POSTED,
-        postedByName: actor.displayName,
-        postedAt: new Date(),
-      });
+      await manager.update(
+        Receipt,
+        { id },
+        {
+          status: ReceiptStatus.POSTED,
+          postedByName: actor.displayName,
+          postedAt: new Date(),
+        },
+      );
     });
     const view = await this.findOne(actor, id);
-    await this.audit.record(actor, 'receipt.post', `Posted receipt ${view.code}: ${view.lineCount} lines, ₾${view.total.toFixed(2)} into ${view.warehouse.code}`);
+    await this.audit.record(
+      actor,
+      'receipt.post',
+      `Posted receipt ${view.code}: ${view.lineCount} lines, ₾${view.total.toFixed(2)} into ${view.warehouse.code}`,
+    );
     return view;
   }
 
@@ -277,22 +387,40 @@ export class ReceiptsService {
           warehouseId: receipt.warehouseId,
           quantity: -line.quantity,
         })),
-        { kind: StockMovementKind.RECEIPT_CANCEL, documentId: receipt.id, note: `Cancelled ${this.code(receipt)}` },
+        {
+          kind: StockMovementKind.RECEIPT_CANCEL,
+          documentId: receipt.id,
+          note: `Cancelled ${this.code(receipt)}`,
+        },
       );
-      await manager.update(Receipt, { id }, {
-        status: ReceiptStatus.CANCELLED,
-        cancelledByName: actor.displayName,
-        cancelledAt: new Date(),
-      });
+      await manager.update(
+        Receipt,
+        { id },
+        {
+          status: ReceiptStatus.CANCELLED,
+          cancelledByName: actor.displayName,
+          cancelledAt: new Date(),
+        },
+      );
     });
     const view = await this.findOne(actor, id);
-    await this.audit.record(actor, 'receipt.cancel', `Cancelled receipt ${view.code}`);
+    await this.audit.record(
+      actor,
+      'receipt.cancel',
+      `Cancelled receipt ${view.code}`,
+    );
     return view;
   }
 
-  private async updateFromRsDraft(actor: AuthUser, receipt: Receipt, dto: SaveReceiptDto): Promise<ReceiptView> {
+  private async updateFromRsDraft(
+    actor: AuthUser,
+    receipt: Receipt,
+    dto: SaveReceiptDto,
+  ): Promise<ReceiptView> {
     if (dto.lines.length !== receipt.lines.length) {
-      throw new BadRequestException("A receipt from an RS waybill keeps the waybill's lines; only their products can change");
+      throw new BadRequestException(
+        "A receipt from an RS waybill keeps the waybill's lines; only their products can change",
+      );
     }
     const productIds = dto.lines.map((line) => line.productId ?? null);
     const supplierId = dto.supplierId ?? receipt.supplierId;
@@ -303,7 +431,12 @@ export class ReceiptsService {
       await this.checkProducts(
         manager,
         actor,
-        { lines: receipt.lines.map((line, i) => ({ productId: productIds[i], quantity: line.quantity })) },
+        {
+          lines: receipt.lines.map((line, i) => ({
+            productId: productIds[i],
+            quantity: line.quantity,
+          })),
+        },
         false,
       );
       await manager.update(
@@ -313,7 +446,11 @@ export class ReceiptsService {
       );
       for (const [i, line] of receipt.lines.entries()) {
         if (line.productId !== productIds[i]) {
-          await manager.update(ReceiptLine, { id: line.id }, { productId: productIds[i] });
+          await manager.update(
+            ReceiptLine,
+            { id: line.id },
+            { productId: productIds[i] },
+          );
         }
       }
       await rememberRsProducts(
@@ -325,7 +462,11 @@ export class ReceiptsService {
       );
     });
     const view = await this.findOne(actor, receipt.id);
-    await this.audit.record(actor, 'receipt.update', `Updated draft receipt ${view.code} (from RS)`);
+    await this.audit.record(
+      actor,
+      'receipt.update',
+      `Updated draft receipt ${view.code} (from RS)`,
+    );
     return view;
   }
 
@@ -346,13 +487,20 @@ export class ReceiptsService {
       return;
     }
     const credentials = await this.rsWaybills.companyCredentials(actor);
-    const waybill = await this.rsClient.waybill(credentials, receipt.rsWaybillId!);
+    const waybill = await this.rsClient.waybill(
+      credentials,
+      receipt.rsWaybillId!,
+    );
     this.assertReceivable(waybill);
     const changed =
       waybill.goods.length !== receipt.lines.length ||
       waybill.goods.some((goods, i) => {
         const line = receipt.lines[i];
-        return round3(goods.quantity) !== line.quantity || round2(goods.price) !== line.unitCost || goods.name !== line.rsName;
+        return (
+          round3(goods.quantity) !== line.quantity ||
+          round2(goods.price) !== line.unitCost ||
+          goods.name !== line.rsName
+        );
       });
     if (changed) {
       throw new BadRequestException(
@@ -361,13 +509,22 @@ export class ReceiptsService {
     }
     if (waybill.confirmation !== 'accepted') {
       if (!(await this.rsClient.confirmWaybill(credentials, waybill.id))) {
-        throw new BadRequestException(`RS did not confirm waybill ${waybill.number}. Nothing was posted.`);
+        throw new BadRequestException(
+          `RS did not confirm waybill ${waybill.number}. Nothing was posted.`,
+        );
       }
     }
-    await this.receiptsRepository.update({ id: receipt.id }, { rsConfirmedAt: new Date() });
+    await this.receiptsRepository.update(
+      { id: receipt.id },
+      { rsConfirmedAt: new Date() },
+    );
     receipt.rsConfirmedAt = new Date();
     this.rsWaybills.forgetLists(actor);
-    await this.audit.record(actor, 'rs.confirm', `Confirmed RS waybill ${waybill.number} for ${this.code(receipt)}`);
+    await this.audit.record(
+      actor,
+      'rs.confirm',
+      `Confirmed RS waybill ${waybill.number} for ${this.code(receipt)}`,
+    );
   }
 
   private assertReceivable(waybill: RsWaybillDetail): void {
@@ -376,43 +533,71 @@ export class ReceiptsService {
         `Waybill ${waybill.number} is ${waybill.typeName ?? 'of another type'}, not a purchase, so it doesn't become a receipt`,
       );
     }
-    if (waybill.status === null || !RS_RECEIVABLE_STATUSES.has(waybill.status)) {
-      throw new BadRequestException(`Waybill ${waybill.number} is not active in RS (it was saved only, deleted or cancelled)`);
+    if (
+      waybill.status === null ||
+      !RS_RECEIVABLE_STATUSES.has(waybill.status)
+    ) {
+      throw new BadRequestException(
+        `Waybill ${waybill.number} is not active in RS (it was saved only, deleted or cancelled)`,
+      );
     }
     if (waybill.confirmation === 'rejected') {
-      throw new BadRequestException(`Waybill ${waybill.number} was rejected in RS`);
+      throw new BadRequestException(
+        `Waybill ${waybill.number} was rejected in RS`,
+      );
     }
     if (waybill.goods.length === 0) {
-      throw new BadRequestException(`Waybill ${waybill.number} has no goods lines`);
+      throw new BadRequestException(
+        `Waybill ${waybill.number} has no goods lines`,
+      );
     }
   }
 
-  private async supplierFor(actor: AuthUser, sellerTin: string | null): Promise<Supplier | null> {
+  private async supplierFor(
+    actor: AuthUser,
+    sellerTin: string | null,
+  ): Promise<Supplier | null> {
     if (!sellerTin) {
       return null;
     }
     const supplier = await this.dataSource
       .getRepository(Supplier)
-      .findOneBy({ companyId: actor.companyId!, identificationCode: sellerTin });
+      .findOneBy({
+        companyId: actor.companyId!,
+        identificationCode: sellerTin,
+      });
     if (supplier && supplier.status !== SupplierStatus.ACTIVE) {
-      throw new BadRequestException(`The supplier ${supplier.name} (${sellerTin}) is inactive. Reactivate it in Products → Suppliers first.`);
+      throw new BadRequestException(
+        `The supplier ${supplier.name} (${sellerTin}) is inactive. Reactivate it in Products → Suppliers first.`,
+      );
     }
     return supplier;
   }
 
-  private async linkRsSupplier(actor: AuthUser, supplierId: string, sellerTin: string | null): Promise<void> {
+  private async linkRsSupplier(
+    actor: AuthUser,
+    supplierId: string,
+    sellerTin: string | null,
+  ): Promise<void> {
     await this.checkSupplier(actor, supplierId, true);
-    const supplier = (await this.dataSource.getRepository(Supplier).findOneBy({ id: supplierId, companyId: actor.companyId! }))!;
+    const supplier = (await this.dataSource
+      .getRepository(Supplier)
+      .findOneBy({ id: supplierId, companyId: actor.companyId! }))!;
     if (!sellerTin) {
       return;
     }
-    if (supplier.identificationCode && supplier.identificationCode !== sellerTin) {
+    if (
+      supplier.identificationCode &&
+      supplier.identificationCode !== sellerTin
+    ) {
       throw new BadRequestException(
         `${supplier.name} has identification code ${supplier.identificationCode}, but the seller on the waybill is ${sellerTin}`,
       );
     }
     if (!supplier.identificationCode && /^(\d{9}|\d{11})$/.test(sellerTin)) {
-      await this.suppliersService.update(actor, supplier.id, { identificationCode: sellerTin });
+      await this.suppliersService.update(actor, supplier.id, {
+        identificationCode: sellerTin,
+      });
     }
   }
 
@@ -423,7 +608,10 @@ export class ReceiptsService {
     return dto.supplierId;
   }
 
-  private activeReceiptFor(actor: AuthUser, waybillId: string): Promise<Receipt | null> {
+  private activeReceiptFor(
+    actor: AuthUser,
+    waybillId: string,
+  ): Promise<Receipt | null> {
     return this.receiptsRepository.findOneBy({
       companyId: actor.companyId!,
       rsWaybillId: waybillId,
@@ -431,13 +619,21 @@ export class ReceiptsService {
     });
   }
 
-  private async checkSupplier(actor: AuthUser, supplierId: string, mustBeActive: boolean): Promise<void> {
-    const supplier = await this.dataSource.getRepository(Supplier).findOneBy({ id: supplierId, companyId: actor.companyId! });
+  private async checkSupplier(
+    actor: AuthUser,
+    supplierId: string,
+    mustBeActive: boolean,
+  ): Promise<void> {
+    const supplier = await this.dataSource
+      .getRepository(Supplier)
+      .findOneBy({ id: supplierId, companyId: actor.companyId! });
     if (!supplier) {
       throw new BadRequestException('Choose a supplier from the list');
     }
     if (mustBeActive && supplier.status !== SupplierStatus.ACTIVE) {
-      throw new BadRequestException(`The supplier ${supplier.name} is inactive`);
+      throw new BadRequestException(
+        `The supplier ${supplier.name} is inactive`,
+      );
     }
   }
 
@@ -457,10 +653,15 @@ export class ReceiptsService {
       .createQueryBuilder(ProductWarehouse, 'pw')
       .select('pw.product_id', 'productId')
       .addSelect('SUM(pw.quantity)', 'quantity')
-      .where({ companyId: actor.companyId!, productId: In([...products.keys()]) })
+      .where({
+        companyId: actor.companyId!,
+        productId: In([...products.keys()]),
+      })
       .groupBy('pw.product_id')
       .getRawMany<{ productId: string; quantity: string }>();
-    const quantities = new Map(onHand.map((row) => [row.productId, Math.max(0, Number(row.quantity))]));
+    const quantities = new Map(
+      onHand.map((row) => [row.productId, Math.max(0, Number(row.quantity))]),
+    );
 
     for (const product of products.values()) {
       let quantity = quantities.get(product.id) ?? 0;
@@ -485,9 +686,18 @@ export class ReceiptsService {
     if (requireAll) {
       this.requireProducts(source.lines);
     }
-    const ids = [...new Set(source.lines.flatMap((line) => (line.productId ? [line.productId] : [])))];
+    const ids = [
+      ...new Set(
+        source.lines.flatMap((line) =>
+          line.productId ? [line.productId] : [],
+        ),
+      ),
+    ];
     const products = ids.length
-      ? await manager.findBy(Product, { id: In(ids), companyId: actor.companyId! })
+      ? await manager.findBy(Product, {
+          id: In(ids),
+          companyId: actor.companyId!,
+        })
       : [];
     if (products.length !== ids.length) {
       throw new BadRequestException('One or more products do not exist');
@@ -501,18 +711,33 @@ export class ReceiptsService {
       if (product.status !== ProductStatus.ACTIVE) {
         throw new BadRequestException(`${product.name} is Not active`);
       }
-      if (product.unit === ProductUnit.PCS && !Number.isInteger(line.quantity)) {
-        throw new BadRequestException(`${product.name} is counted in pcs, so its quantity must be whole`);
+      if (
+        product.unit === ProductUnit.PCS &&
+        !Number.isInteger(line.quantity)
+      ) {
+        throw new BadRequestException(
+          `${product.name} is counted in pcs, so its quantity must be whole`,
+        );
       }
     }
     return byId;
   }
 
-  private async checkWarehouse(actor: AuthUser, warehouseId: string, mustBeActive = false): Promise<void> {
-    if (actor.role !== UserRole.MODULE_ADMIN && actor.role !== UserRole.MANAGER) {
+  private async checkWarehouse(
+    actor: AuthUser,
+    warehouseId: string,
+    mustBeActive = false,
+  ): Promise<void> {
+    if (
+      actor.role !== UserRole.MODULE_ADMIN &&
+      actor.role !== UserRole.MANAGER
+    ) {
       throw new NotFoundException('Receipt not found');
     }
-    const warehouse = await this.dataSource.manager.findOneBy(Warehouse, { id: warehouseId, companyId: actor.companyId! });
+    const warehouse = await this.dataSource.manager.findOneBy(Warehouse, {
+      id: warehouseId,
+      companyId: actor.companyId!,
+    });
     const scope = await this.warehouseScope(actor);
     if (!warehouse || (scope && !scope.has(warehouse.id))) {
       throw new BadRequestException('Pick one of your warehouses');
@@ -523,7 +748,9 @@ export class ReceiptsService {
   }
 
   private async warehouseScope(actor: AuthUser): Promise<Set<string> | null> {
-    return actor.role === UserRole.MANAGER ? this.stockService.managedWarehouseIds(actor) : null;
+    return actor.role === UserRole.MANAGER
+      ? this.stockService.managedWarehouseIds(actor)
+      : null;
   }
 
   private async load(actor: AuthUser, id: string): Promise<Receipt> {
@@ -539,7 +766,11 @@ export class ReceiptsService {
     return receipt;
   }
 
-  private async lockForChange(manager: EntityManager, actor: AuthUser, id: string): Promise<Receipt> {
+  private async lockForChange(
+    manager: EntityManager,
+    actor: AuthUser,
+    id: string,
+  ): Promise<Receipt> {
     const locked = await manager.findOne(Receipt, {
       where: { id, companyId: actor.companyId! },
       lock: { mode: 'pessimistic_write' },
@@ -547,7 +778,10 @@ export class ReceiptsService {
     if (!locked) {
       throw new NotFoundException(`Receipt ${id} not found`);
     }
-    locked.lines = await manager.find(ReceiptLine, { where: { receiptId: id }, order: { position: 'ASC' } });
+    locked.lines = await manager.find(ReceiptLine, {
+      where: { receiptId: id },
+      order: { position: 'ASC' },
+    });
     const scope = await this.warehouseScope(actor);
     if (scope && !scope.has(locked.warehouseId)) {
       throw new NotFoundException(`Receipt ${id} not found`);
@@ -557,7 +791,9 @@ export class ReceiptsService {
 
   private assertDraft(receipt: Receipt): void {
     if (receipt.status !== ReceiptStatus.DRAFT) {
-      throw new BadRequestException(`${this.code(receipt)} is ${receipt.status}, so it can't be changed`);
+      throw new BadRequestException(
+        `${this.code(receipt)} is ${receipt.status}, so it can't be changed`,
+      );
     }
   }
 
@@ -591,17 +827,33 @@ export class ReceiptsService {
       ...rest,
       code: this.code(receipt),
       lineCount: lines.length,
-      total: round2(lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0)),
-      warehouse: { id: warehouse!.id, code: warehouse!.code, name: warehouse!.name },
+      total: round2(
+        lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0),
+      ),
+      warehouse: {
+        id: warehouse!.id,
+        code: warehouse!.code,
+        name: warehouse!.name,
+      },
       supplier: supplier
-        ? { id: supplier.id, name: supplier.name, identificationCode: supplier.identificationCode, status: supplier.status }
+        ? {
+            id: supplier.id,
+            name: supplier.name,
+            identificationCode: supplier.identificationCode,
+            status: supplier.status,
+          }
         : null,
       ...(withLines
         ? {
             lines: lines.map(({ product, receipt: _receipt, ...line }) => ({
               ...line,
               product: product
-                ? { id: product.id, name: product.name, barcode: product.barcode, unit: product.unit }
+                ? {
+                    id: product.id,
+                    name: product.name,
+                    barcode: product.barcode,
+                    unit: product.unit,
+                  }
                 : null,
             })),
           }

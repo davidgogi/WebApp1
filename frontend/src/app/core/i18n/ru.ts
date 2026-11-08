@@ -894,4 +894,13 @@ export const RU: Record<string, string> = {
   "Link every line to a product first": "Сначала свяжите каждую строку с продуктом",
   "{p0} lines are not linked to your products yet. Open Edit and pick your product for each line in the \"Your product\" column, or create it with + New product. Then post.": "Строк, ещё не связанных с вашими продуктами: {p0}. Нажмите «Изменить» и для каждой строки выберите продукт в столбце «Ваш продукт» или создайте его кнопкой «+ Новый продукт». Затем проведите.",
   "Link the products": "Связать продукты",
+  "Driver and car (for the RS waybill)": "Водитель и автомобиль (для накладной RS)",
+  "Driver name": "Имя водителя",
+  "Driver's personal ID": "Личный номер водителя",
+  "Car number": "Номер автомобиля",
+  "Needed to send the transfer when RS is connected: they go on the RS waybill that is issued when you send. The driver must have an 11-digit Georgian personal ID.": "Нужны, чтобы отправить перемещение, когда подключён RS: они попадают в накладную RS, которая выписывается при отправке. У водителя должен быть 11-значный грузинский личный номер.",
+  "Send this transfer? The goods leave the source warehouse now. If RS is connected, the waybill is issued in RS.": "Отправить перемещение? Товар сейчас уйдёт со склада-источника. Если RS подключён, накладная выписывается в RS.",
+  "Cancel this transfer? The waybill is cancelled in RS and the goods go back into the source warehouse.": "Отменить перемещение? Накладная будет отменена и в RS, а товар вернётся на склад-источник.",
+  "issued from here": "выписана отсюда",
+  "The driver's personal ID is 11 digits.": "Личный номер водителя — 11 цифр.",
 };

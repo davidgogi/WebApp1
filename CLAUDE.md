@@ -207,6 +207,31 @@ submodules are planned, so keep to the structure below.
   (`close_waybill_vd` with the Tbilisi delivery time; `1` = OK, already closed is fine); if RS
   refuses, nothing is received. **Cancel** while in transit is allowed only after the waybill was
   cancelled / deleted in RS. `GET /wms/transfers/rs-links` feeds the RS page's Document column.
+  **Transfer issued from the app** (2026-11-08; a colleague of the user said the transfer should be
+  made here and then show up in RS, not the other way round; the import path above stays for waybills
+  somebody else issued). When the company has an RS connection, **Send** on a transfer made here
+  issues an internal waybill in RS; without a connection it sends as before, with no waybill. The
+  editor has a "Driver and car" card (`driver_name`, `driver_id` = 11-digit Georgian personal ID,
+  `car_number`; required to send when RS is connected, **simple on purpose**: no vehicle list, road
+  transport only, `TRANS_ID` 1). The waybill's start / end addresses are the two warehouses'
+  addresses, prices are the products' cost prices, begin time is now, `CHEK_DRIVER_TIN` is 1 so RS
+  checks the driver against its registry (and replaces the name we typed with the registered one).
+  Order inside `TransfersService.send`: stock leaves first, **RS last, all inside the database
+  transaction**, so not enough stock never calls RS and an RS refusal rolls the stock back. RS calls:
+  `save_waybill`, then `send_waybil_vd` (RS's own spelling); if activation fails the saved waybill is
+  deleted (`del_waybill`), and if the commit fails after RS accepted, it is cancelled (`ref_waybill`).
+  `transfers.rs_issued` marks these (`rs_waybill_id` / `waybill_number` are filled at Send, so a
+  draft never has them). **Receive** closes the waybill like for imported ones (in full only);
+  **Cancel** while in transit cancels the waybill in RS itself (an imported waybill still has to be
+  cancelled in RS first). Code: `rs-client.ts` (`saveWaybill`, `activateWaybill`, `cancelWaybill`,
+  `deleteWaybill`, `refusal` = RS error codes in English), `wms/transfers/rs-transfer-waybill.ts` (the
+  XML, modelled on RetailApp's `buildRsTransferWaybillXml`, only the fields), `RsWaybillsService.issuer`
+  (service user + the `un_id` / `s_user_id` RS gave at the connection check). Tested 2026-11-08
+  against RS's test company with the Demo company's saved connection: issued, received (closed) and
+  cancelled, plus a refusal and not-enough-stock; that left waybills 1020332851 (closed) and
+  1020332897 (cancelled) in RS's shared test company, and TR-000001 / TR-000002 in Demo Company.
+  Not covered: transport by something other than road, a foreign driver, transport cost, and
+  issuing for a manager's warehouses was not tried (it uses the same code).
 - **Who does documents**: the WMS admin everything; a WMS manager only for warehouses he runs (receipts
   into them; transfers: prepares / sends / cancels from his warehouse, receives into his warehouse,
   sees transfers touching his warehouses); the system admin read-only. Pickers use
@@ -247,8 +272,8 @@ submodules are planned, so keep to the structure below.
   transfers from internal waybills (close in RS); see WMS → Receipts / Transfers. The page's
   Document column links each waybill to its receipt or transfer. In the shared test company,
   purchases come from სატესტოk სატესტოk (12345678910) and internal transfers from სატესტო კოდი1
-  (206322102, the company itself, usually ₾0.00). Not built yet: the app issuing its own waybills
-  (save / activate in RS), sales waybills (see RetailApp's `src/rs-waybill/`). RS dates come in two formats
+  (206322102, the company itself, usually ₾0.00). Internal-transfer waybills are now also issued by the
+  app (see WMS → Transfers). Not built yet: sales waybills (see RetailApp's `src/rs-waybill/`). RS dates come in two formats
   (`2026-10-22T14:04:39` and `22-OCT-26`); `rsDate` in `rs-client.ts` turns both into ISO.
 - **Store** → **Stores**, **Cash register**, **POS**, **Recording an expense**.
   - *Stores* (CRUD by the **Store admin only**; the system admin sees all stores read-only): name,

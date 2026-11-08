@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsNumber, IsOptional, IsString, IsUUID, Matches, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
 
 const blankToNull = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() || null : value;
@@ -28,6 +28,23 @@ export class SaveTransferDto {
   @Transform(blankToNull)
   @IsString()
   note?: string | null;
+
+  @IsOptional()
+  @Transform(blankToNull)
+  @IsString()
+  @MaxLength(120)
+  driverName?: string | null;
+
+  @IsOptional()
+  @Transform(blankToNull)
+  @Matches(/^\d{11}$/, { message: "driverId must be the driver's 11-digit personal ID" })
+  driverId?: string | null;
+
+  @IsOptional()
+  @Transform(blankToNull)
+  @IsString()
+  @MaxLength(20)
+  carNumber?: string | null;
 
   @IsArray()
   @ValidateNested({ each: true })

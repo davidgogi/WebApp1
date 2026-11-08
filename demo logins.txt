@@ -1,0 +1,37 @@
+Demo company logins (localhost dev data, created 2026-10-31)
+
+Demo  System admin                                   admin.demo                           w33xp9dyuj
+(The earlier WMS admin Sandro Meladze, wms-admin.demo.2240, is not listed: his password was not recorded.)
+Demo  WMS admin Lasha Bakradze                       wms-admin.demo.1320                  gcv4bc69gq
+Demo  WMS admin Irakli Maisuradze                    wms-admin.demo.5507                  tpzgtjx8a9
+Demo  Store admin Lasha Lomidze                      store-admin.demo.3781                4c3n983n36
+Demo  Store admin Nino Chkheidze                     store-admin.demo.3640                n2ex3rk859
+Demo  WMS manager Mariam Dolidze                     wms-manager.demo.9752                8q6yn9x8te
+Demo  WMS manager Davit Svanidze                     wms-manager.demo.5187                4kwcqna8mg
+Demo  WMS manager Maia Gogiashvili                   wms-manager.demo.9788                j7eaq47vye
+Demo  Store manager Irakli Chkheidze                 store-manager.demo.9395              uvsc59n4sr
+Demo  Store manager Gela Dolidze                     store-manager.demo.3899              6ge25t7wqb
+Demo  Store manager Eka Tabatadze                    store-manager.demo.4368              26jnex7ke8
+Demo  Cashier Lika Abashidze                         cashier.demo.6217                    95f8rk6z76
+Demo  Cashier Tamar Tsiklauri                        cashier.demo.6047                    arh4hkvyca
+Demo  Cashier Giorgi Chkheidze                       cashier.demo.4881                    buhksqxpyn
+Demo  Cashier Nana Abashidze                         cashier.demo.8138                    wf8gv2k44s
+Demo  Cashier Nino Maisuradze                        cashier.demo.2069                    44uw9u6vuz
+Demo  Cashier Irakli Kapanadze                       cashier.demo.4005                    mwvm2q79qv
+Demo  Cashier Otar Tsereteli                         cashier.demo.9185                    4c9wnvmucq
+Demo  Cashier Giorgi Beridze                         cashier.demo.5884                    zpmqz79bdz
+
+People without a role (no login, no access to the app): 13
+  Nikoloz Gamsakhurdia (Accountant)
+  Gela Jorbenadze (HR specialist)
+  Mzia Jorbenadze (Driver)
+  Tamar Svanidze (Courier)
+  Lasha Tsiklauri (Warehouse worker)
+  Lika Zedginidze (Loader)
+  Sopo Lomidze (Stock clerk)
+  Nikoloz Maisuradze (Stock clerk)
+  Temur Zedginidze (Merchandiser)
+  Ana Maisuradze (Cleaner)
+  Mikheil Mgaloblishvili (Shelf stocker)
+  Eka Chikovani (Baker)
+  Natia Japaridze (Baker)

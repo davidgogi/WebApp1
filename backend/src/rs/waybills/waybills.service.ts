@@ -124,6 +124,26 @@ export class RsWaybillsService {
     return this.credentials(await this.requireConnection(actor));
   }
 
+  async isConnected(actor: AuthUser): Promise<boolean> {
+    return !!(await this.findConnection(actor));
+  }
+
+  /** What RS wants to know about the company that issues a waybill (its ids come from the service user check). */
+  async issuer(actor: AuthUser): Promise<{ credentials: RsCredentials; sellerUnId: number; serviceUserId: number }> {
+    const connection = await this.requireConnection(actor);
+    const credentials = this.credentials(connection);
+    if (connection.rsUnId === null || connection.rsUserId === null) {
+      const check = await this.client.checkServiceUser(credentials);
+      if (!check.ok || check.unId === null || check.userId === null) {
+        throw new BadRequestException('RS did not accept the saved service user. Check it under RS → RS connection.');
+      }
+      connection.rsUnId = check.unId;
+      connection.rsUserId = check.userId;
+      await this.connectionsRepository.save(connection);
+    }
+    return { credentials, sellerUnId: connection.rsUnId, serviceUserId: connection.rsUserId };
+  }
+
   forgetLists(actor: AuthUser): void {
     for (const key of [...this.listCache.keys()]) {
       if (key.startsWith(`${actor.companyId}:`)) {

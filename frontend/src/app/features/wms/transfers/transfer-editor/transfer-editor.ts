@@ -81,6 +81,9 @@ export class TransferEditor implements OnInit {
   protected readonly toWarehouseId = signal('');
   protected readonly date = signal(today());
   protected readonly note = signal('');
+  protected readonly driverName = signal('');
+  protected readonly driverId = signal('');
+  protected readonly carNumber = signal('');
   protected readonly lines = signal<EditableLine[]>([]);
   protected readonly rsWaybillId = signal<string | null>(null);
   protected readonly waybillNumber = signal('');
@@ -241,7 +244,7 @@ export class TransferEditor implements OnInit {
       !this.i18n.confirm(
         this.rsWaybillId()
           ? 'Send this transfer? The goods leave the source warehouse now. The RS waybill is already active, so nothing changes in RS.'
-          : 'Send this transfer? The goods leave the source warehouse now.',
+          : 'Send this transfer? The goods leave the source warehouse now. If RS is connected, the waybill is issued in RS.',
       )
     ) {
       return;
@@ -285,6 +288,9 @@ export class TransferEditor implements OnInit {
       toWarehouseId: this.toWarehouseId(),
       date: this.date(),
       note: this.note().trim() || null,
+      driverName: this.driverName().trim() || null,
+      driverId: this.driverId().trim() || null,
+      carNumber: this.carNumber().trim() || null,
       lines: this.lines().map((line) => ({ productId: line.productId, quantity: Number(line.quantity) || 0 })),
     };
   }
@@ -295,6 +301,9 @@ export class TransferEditor implements OnInit {
     }
     if (andSend && payload.lines.length === 0) {
       return 'Add at least one product before sending.';
+    }
+    if (payload.driverId && !/^\d{11}$/.test(payload.driverId)) {
+      return "The driver's personal ID is 11 digits.";
     }
     if (this.rsWaybillId()) {
       if (!andSend) {
@@ -347,6 +356,9 @@ export class TransferEditor implements OnInit {
     this.toWarehouseId.set(transfer.toWarehouseId);
     this.date.set(transfer.date);
     this.note.set(transfer.note ?? '');
+    this.driverName.set(transfer.driverName ?? '');
+    this.driverId.set(transfer.driverId ?? '');
+    this.carNumber.set(transfer.carNumber ?? '');
     this.rsWaybillId.set(transfer.rsWaybillId);
     this.waybillNumber.set(transfer.waybillNumber ?? '');
     this.lines.set(

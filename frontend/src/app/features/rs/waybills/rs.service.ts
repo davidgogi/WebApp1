@@ -54,11 +54,18 @@ export class RsService {
     return this.http.get<RsTransferLink[]>(`${API_BASE_URL}/wms/transfers/rs-links`);
   }
 
-  createTransfer(waybillId: string, fromWarehouseId: string, toWarehouseId: string): Observable<{ id: string; code: string }> {
-    return this.http.post<{ id: string; code: string }>(`${API_BASE_URL}/wms/transfers/from-rs/${waybillId}`, {
-      fromWarehouseId,
-      toWarehouseId,
-    });
+  createTransfer(
+    waybillId: string,
+    fromWarehouseId: string,
+    toWarehouseId: string,
+  ): Observable<{ id: string; code: string }> {
+    return this.http.post<{ id: string; code: string }>(
+      `${API_BASE_URL}/wms/transfers/from-rs/${waybillId}`,
+      {
+        fromWarehouseId,
+        toWarehouseId,
+      },
+    );
   }
 
   warehouses(): Observable<RsWarehouseChoice[]> {
@@ -66,7 +73,9 @@ export class RsService {
   }
 
   createReceipt(waybillId: string, warehouseId: string): Observable<{ id: string; code: string }> {
-    return this.http.post<{ id: string; code: string }>(`${RECEIPTS_URL}/from-rs/${waybillId}`, { warehouseId });
+    return this.http.post<{ id: string; code: string }>(`${RECEIPTS_URL}/from-rs/${waybillId}`, {
+      warehouseId,
+    });
   }
 
   reject(waybillId: string): Observable<void> {

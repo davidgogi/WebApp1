@@ -1,10 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 import { AuditService } from '../../audit/audit.service.js';
 import { AuthUser } from '../../auth/auth-user.js';
 import { UserRole } from '../../auth/user-role.enum.js';
-import { RsClient, RsWaybillDetail } from '../../rs/waybills/rs-client.js';
+import { RsClient, RsCredentials, RsWaybillDetail } from '../../rs/waybills/rs-client.js';
 import { RsWaybillsService } from '../../rs/waybills/waybills.service.js';
 import { Product } from '../products/product.entity.js';
 import { ProductUnit } from '../products/product-unit.enum.js';
@@ -15,13 +15,13 @@ import { StockService } from '../stock/stock.service.js';
 import { Warehouse } from '../warehouses/warehouse.entity.js';
 import { WarehouseStatus } from '../warehouses/warehouse-status.enum.js';
 import { CreateTransferFromRsDto, ReceiveTransferDto, SaveTransferDto } from './dto/transfer.dto.js';
+import { internalWaybillXml, RS_INTERNAL_TYPE } from './rs-transfer-waybill.js';
 import { Transfer } from './transfer.entity.js';
 import { TransferLine } from './transfer-line.entity.js';
 import { TransferStatus } from './transfer-status.enum.js';
 
 const PREFIX = 'TR';
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
-const RS_INTERNAL_TYPE = 1;
 const RS_ACTIVE = 1;
 const RS_CLOSED = 2;
 
@@ -48,6 +48,8 @@ type Side = 'from' | 'to';
 
 @Injectable()
 export class TransfersService {
+  private readonly logger = new Logger(TransfersService.name);
+
   constructor(
     @InjectRepository(Transfer)
     private readonly transfersRepository: Repository<Transfer>,
@@ -195,31 +197,63 @@ export class TransfersService {
     if (draft.rsWaybillId && draft.status === TransferStatus.DRAFT) {
       await this.checkRsBeforeSend(actor, draft);
     }
-    await this.dataSource.transaction(async (manager) => {
-      const transfer = await this.lockForChange(manager, actor, id);
-      this.assertStatus(transfer, TransferStatus.DRAFT);
-      await this.assertSide(actor, transfer, 'from');
-      if (transfer.lines.length === 0) {
-        throw new BadRequestException('Add at least one product before sending');
-      }
-      await this.checkWarehouses(actor, transfer, true);
-      await this.stockService.post(
-        manager,
-        actor,
-        transfer.lines.map((line) => ({
-          productId: line.productId!,
-          warehouseId: transfer.fromWarehouseId,
-          quantity: -line.quantity,
-        })),
-        { kind: StockMovementKind.TRANSFER_OUT, documentId: transfer.id, note: this.code(transfer) },
-      );
-      await manager.update(Transfer, { id }, {
-        status: TransferStatus.IN_TRANSIT,
-        sentByName: actor.displayName,
-        sentAt: new Date(),
+    // A transfer made here (not from an RS waybill) is issued in RS when the company has RS connected.
+    const issuer =
+      !draft.rsWaybillId && draft.status === TransferStatus.DRAFT && (await this.rsWaybills.isConnected(actor))
+        ? await this.rsWaybills.issuer(actor)
+        : null;
+    if (issuer) {
+      this.assertCanIssue(draft);
+    }
+    const rs: { issued?: { id: string; number: string } } = {};
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const transfer = await this.lockForChange(manager, actor, id);
+        this.assertStatus(transfer, TransferStatus.DRAFT);
+        await this.assertSide(actor, transfer, 'from');
+        if (transfer.lines.length === 0) {
+          throw new BadRequestException('Add at least one product before sending');
+        }
+        await this.checkWarehouses(actor, transfer, true);
+        await this.stockService.post(
+          manager,
+          actor,
+          transfer.lines.map((line) => ({
+            productId: line.productId!,
+            warehouseId: transfer.fromWarehouseId,
+            quantity: -line.quantity,
+          })),
+          { kind: StockMovementKind.TRANSFER_OUT, documentId: transfer.id, note: this.code(transfer) },
+        );
+        // RS goes last, so a refusal (or not enough stock above) leaves nothing half done.
+        if (issuer) {
+          rs.issued = await this.issueInRs(manager, actor, issuer, draft, transfer);
+        }
+        await manager.update(Transfer, { id }, {
+          status: TransferStatus.IN_TRANSIT,
+          sentByName: actor.displayName,
+          sentAt: new Date(),
+          ...(rs.issued ? { rsWaybillId: rs.issued.id, waybillNumber: rs.issued.number, rsIssued: true } : {}),
+        });
       });
-    });
+    } catch (error) {
+      if (rs.issued && issuer) {
+        const { id: waybillId, number } = rs.issued;
+        await this.rsClient.cancelWaybill(issuer.credentials, waybillId).catch((cancelError: Error) =>
+          this.logger.error(`Waybill ${number} was issued in RS but the transfer could not be saved, and cancelling it failed: ${cancelError.message}`),
+        );
+      }
+      throw error;
+    }
     const view = await this.findOne(actor, id);
+    if (rs.issued) {
+      this.rsWaybills.forgetLists(actor);
+      await this.audit.record(
+        actor,
+        'rs.issue',
+        `Issued RS waybill ${rs.issued.number} for ${view.code} (${view.fromWarehouse.code} → ${view.toWarehouse.code})`,
+      );
+    }
     await this.audit.record(actor, 'transfer.send', `Sent transfer ${view.code} (${view.fromWarehouse.code} → ${view.toWarehouse.code})`);
     return view;
   }
@@ -296,8 +330,16 @@ export class TransfersService {
   async cancel(actor: AuthUser, id: string): Promise<TransferView> {
     const current = await this.load(actor, id);
     if (current.rsWaybillId && current.status === TransferStatus.IN_TRANSIT) {
-      const waybill = await this.rsClient.waybill(await this.rsWaybills.companyCredentials(actor), current.rsWaybillId);
-      if (waybill.status === RS_ACTIVE || waybill.status === RS_CLOSED) {
+      const credentials = await this.rsWaybills.companyCredentials(actor);
+      const waybill = await this.rsClient.waybill(credentials, current.rsWaybillId);
+      if (waybill.status === RS_ACTIVE && current.rsIssued) {
+        // We issued this waybill, so cancelling the transfer cancels it in RS too.
+        if (!(await this.rsClient.cancelWaybill(credentials, waybill.id))) {
+          throw new BadRequestException(`RS did not cancel waybill ${waybill.number}. Nothing was changed.`);
+        }
+        this.rsWaybills.forgetLists(actor);
+        await this.audit.record(actor, 'rs.cancel', `Cancelled RS waybill ${waybill.number} for ${this.code(current)}`);
+      } else if (waybill.status === RS_ACTIVE || waybill.status === RS_CLOSED) {
         throw new BadRequestException(
           `Waybill ${waybill.number} is still ${waybill.status === RS_ACTIVE ? 'active' : 'closed'} in RS. Cancel it in RS first; then the goods can go back here.`,
         );
@@ -326,6 +368,51 @@ export class TransfersService {
     const view = await this.findOne(actor, id);
     await this.audit.record(actor, 'transfer.cancel', `Cancelled transfer ${view.code}`);
     return view;
+  }
+
+  private assertCanIssue(transfer: Transfer): void {
+    if (!transfer.driverName || !transfer.driverId || !transfer.carNumber) {
+      throw new BadRequestException("Fill in the driver's name and personal ID and the car number first: they go on the RS waybill");
+    }
+    if (!transfer.fromWarehouse?.address || !transfer.toWarehouse?.address) {
+      throw new BadRequestException('Both warehouses need an address: they are the start and end of the RS waybill');
+    }
+  }
+
+  private async issueInRs(
+    manager: EntityManager,
+    actor: AuthUser,
+    issuer: { credentials: RsCredentials; sellerUnId: number; serviceUserId: number },
+    draft: Transfer,
+    transfer: Transfer,
+  ): Promise<{ id: string; number: string }> {
+    const products = await manager.findBy(Product, {
+      id: In(transfer.lines.map((line) => line.productId!)),
+      companyId: actor.companyId!,
+    });
+    const now = new Date();
+    const xml = internalWaybillXml({
+      sellerUnId: issuer.sellerUnId,
+      serviceUserId: issuer.serviceUserId,
+      startAddress: draft.fromWarehouse!.address,
+      endAddress: draft.toWarehouse!.address,
+      driverId: transfer.driverId!,
+      driverName: transfer.driverName!,
+      carNumber: transfer.carNumber!,
+      beginAt: now,
+      comment: transfer.note,
+      goods: transfer.lines.map((line) => {
+        const product = products.find((p) => p.id === line.productId)!;
+        return { name: product.name, barcode: product.barcode, unit: product.unit, quantity: line.quantity, price: product.costPrice };
+      }),
+    });
+    const id = await this.rsClient.saveWaybill(issuer.credentials, xml);
+    try {
+      return { id, number: await this.rsClient.activateWaybill(issuer.credentials, id, now) };
+    } catch (error) {
+      await this.rsClient.deleteWaybill(issuer.credentials, id).catch(() => undefined);
+      throw error;
+    }
   }
 
   private async updateFromRsDraft(actor: AuthUser, transfer: Transfer, dto: SaveTransferDto): Promise<TransferView> {
@@ -529,6 +616,9 @@ export class TransfersService {
       toWarehouseId: dto.toWarehouseId,
       date: dto.date,
       note: dto.note ?? null,
+      driverName: dto.driverName ?? null,
+      driverId: dto.driverId ?? null,
+      carNumber: dto.carNumber ?? null,
     };
   }
 

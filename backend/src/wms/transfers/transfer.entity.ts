@@ -64,6 +64,18 @@ export class Transfer extends TenantEntity {
   @Column({ name: 'rs_closed_at', type: 'timestamptz', nullable: true })
   rsClosedAt!: Date | null;
 
+  @Column({ name: 'rs_issued', default: false })
+  rsIssued!: boolean;
+
+  @Column({ name: 'driver_name', type: 'varchar', nullable: true })
+  driverName!: string | null;
+
+  @Column({ name: 'driver_id', type: 'varchar', nullable: true })
+  driverId!: string | null;
+
+  @Column({ name: 'car_number', type: 'varchar', nullable: true })
+  carNumber!: string | null;
+
   @OneToMany(() => TransferLine, (line) => line.transfer, { cascade: true })
   lines!: Relation<TransferLine>[];
 

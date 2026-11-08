@@ -30,11 +30,22 @@ import { TranslatePipe } from '../../../../core/i18n/t.pipe';
 import { I18nService } from '../../../../core/i18n/i18n.service';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+const daysAgo = (days: number) =>
+  new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 
 @Component({
   selector: 'app-rs-waybills',
-  imports: [TranslatePipe, DatePipe, DecimalPipe, FormsModule, LucideAngularModule, Modal, Pager, RouterLink, RsTabs],
+  imports: [
+    TranslatePipe,
+    DatePipe,
+    DecimalPipe,
+    FormsModule,
+    LucideAngularModule,
+    Modal,
+    Pager,
+    RouterLink,
+    RsTabs,
+  ],
   templateUrl: './rs-waybills.html',
   styleUrl: './rs-waybills.css',
 })
@@ -47,7 +58,11 @@ export class RsWaybills implements OnInit {
   protected readonly isSystemAdmin = computed(() => this.auth.user()?.role === 'system_admin');
   protected readonly canSeeReceipts = computed(() => {
     const user = this.auth.user();
-    return !!user && canAccessModule(user, 'wms') && (user.role === 'system_admin' || user.role === 'module_admin');
+    return (
+      !!user &&
+      canAccessModule(user, 'wms') &&
+      (user.role === 'system_admin' || user.role === 'module_admin')
+    );
   });
   protected readonly canCreateReceipts = computed(
     () => this.auth.user()?.role === 'module_admin' && this.auth.user()?.module === 'wms',
@@ -56,14 +71,18 @@ export class RsWaybills implements OnInit {
   protected readonly transferFor = signal<RsWaybillSummary | null>(null);
   protected readonly fromWarehouseId = signal('');
   protected readonly toWarehouseId = signal('');
-  protected readonly activeWarehouses = computed(() => this.warehouses().filter((w) => w.status === 'active'));
+  protected readonly activeWarehouses = computed(() =>
+    this.warehouses().filter((w) => w.status === 'active'),
+  );
 
   protected readonly receiptFor = signal<RsWaybillSummary | null>(null);
   protected readonly warehouses = signal<RsWarehouseChoice[]>([]);
   protected readonly warehouseId = signal('');
   protected readonly isCreating = signal(false);
   protected readonly createError = signal('');
-  protected readonly myWarehouses = computed(() => this.warehouses().filter((w) => w.mine && w.status === 'active'));
+  protected readonly myWarehouses = computed(() =>
+    this.warehouses().filter((w) => w.mine && w.status === 'active'),
+  );
   protected readonly statusLabels = RS_STATUS_LABELS;
   protected readonly statusBadges = RS_STATUS_BADGES;
   protected readonly confirmationLabels = RS_CONFIRMATION_LABELS;
@@ -83,7 +102,9 @@ export class RsWaybills implements OnInit {
   protected readonly to = signal(todayIso());
   protected readonly loadedPeriod = signal<{ from: string; to: string } | null>(null);
   protected readonly activeQuickPeriod = computed(
-    () => this.quickPeriods.find((p) => this.to() === todayIso() && this.from() === daysAgo(p.days))?.days ?? null,
+    () =>
+      this.quickPeriods.find((p) => this.to() === todayIso() && this.from() === daysAgo(p.days))
+        ?.days ?? null,
   );
   protected readonly waybills = signal<RsWaybillSummary[]>([]);
   protected readonly fetchedAt = signal<string | null>(null);
@@ -96,10 +117,14 @@ export class RsWaybills implements OnInit {
   protected readonly confirmationFilter = signal<'all' | RsConfirmation>('all');
 
   protected readonly types = computed(() =>
-    [...new Set(this.waybills().map((w) => w.typeName ?? 'Unknown'))].sort((a, b) => a.localeCompare(b)),
+    [...new Set(this.waybills().map((w) => w.typeName ?? 'Unknown'))].sort((a, b) =>
+      a.localeCompare(b),
+    ),
   );
   protected readonly statuses = computed(() =>
-    [...new Set(this.waybills().map((w) => String(w.status)))].sort((a, b) => Number(b) - Number(a)),
+    [...new Set(this.waybills().map((w) => String(w.status)))].sort(
+      (a, b) => Number(b) - Number(a),
+    ),
   );
   protected readonly hasFilters = computed(
     () =>
@@ -119,16 +144,32 @@ export class RsWaybills implements OnInit {
         (status === 'all' || String(w.status) === status) &&
         (confirmation === 'all' || w.confirmation === confirmation) &&
         (!query ||
-          [w.number, w.sellerName, w.sellerTin, w.startAddress, w.endAddress, w.carNumber, w.driverName].some(
-            (value) => (value ?? '').toLowerCase().includes(query),
-          )),
+          [
+            w.number,
+            w.sellerName,
+            w.sellerTin,
+            w.startAddress,
+            w.endAddress,
+            w.carNumber,
+            w.driverName,
+          ].some((value) => (value ?? '').toLowerCase().includes(query))),
     );
   });
-  protected readonly totalAmount = computed(() => this.filtered().reduce((sum, w) => sum + w.amount, 0));
-  protected readonly waiting = computed(() => this.waybills().filter((w) => w.confirmation === 'pending').length);
+  protected readonly totalAmount = computed(() =>
+    this.filtered().reduce((sum, w) => sum + w.amount, 0),
+  );
+  protected readonly waiting = computed(
+    () => this.waybills().filter((w) => w.confirmation === 'pending').length,
+  );
   protected readonly pages = new Pagination(
     () => this.filtered(),
-    () => [this.search(), this.typeFilter(), this.statusFilter(), this.confirmationFilter(), this.waybills()],
+    () => [
+      this.search(),
+      this.typeFilter(),
+      this.statusFilter(),
+      this.confirmationFilter(),
+      this.waybills(),
+    ],
   );
 
   protected readonly detail = signal<RsWaybillDetail | null>(null);
@@ -176,7 +217,9 @@ export class RsWaybills implements OnInit {
       error: (error: HttpErrorResponse) => {
         this.isLoading.set(false);
         const message = error.error?.message;
-        this.errorMessage.set(typeof message === 'string' ? message : 'Could not load the waybills from RS.');
+        this.errorMessage.set(
+          typeof message === 'string' ? message : 'Could not load the waybills from RS.',
+        );
       },
     });
   }
@@ -232,21 +275,25 @@ export class RsWaybills implements OnInit {
     }
     this.isCreating.set(true);
     this.createError.set('');
-    this.rsService.createTransfer(waybill.id, this.fromWarehouseId(), this.toWarehouseId()).subscribe({
-      next: (transfer) => {
-        this.isCreating.set(false);
-        void this.router.navigate(['/wms/transfers', transfer.id, 'edit']);
-      },
-      error: (error: HttpErrorResponse) => {
-        this.isCreating.set(false);
-        const body = error.error ?? {};
-        if (error.status === 409 && body.transferId) {
-          void this.router.navigate(['/wms/transfers', body.transferId]);
-        } else {
-          this.createError.set(typeof body.message === 'string' ? body.message : 'Could not create the transfer.');
-        }
-      },
-    });
+    this.rsService
+      .createTransfer(waybill.id, this.fromWarehouseId(), this.toWarehouseId())
+      .subscribe({
+        next: (transfer) => {
+          this.isCreating.set(false);
+          void this.router.navigate(['/wms/transfers', transfer.id, 'edit']);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.isCreating.set(false);
+          const body = error.error ?? {};
+          if (error.status === 409 && body.transferId) {
+            void this.router.navigate(['/wms/transfers', body.transferId]);
+          } else {
+            this.createError.set(
+              typeof body.message === 'string' ? body.message : 'Could not create the transfer.',
+            );
+          }
+        },
+      });
   }
 
   protected linkRoute(link: RsDocumentLink): string[] {
@@ -300,7 +347,9 @@ export class RsWaybills implements OnInit {
         if (error.status === 409 && body.receiptId) {
           void this.router.navigate(['/wms/receipts', body.receiptId]);
         } else {
-          this.createError.set(typeof body.message === 'string' ? body.message : 'Could not create the receipt.');
+          this.createError.set(
+            typeof body.message === 'string' ? body.message : 'Could not create the receipt.',
+          );
         }
       },
     });
@@ -309,7 +358,10 @@ export class RsWaybills implements OnInit {
   reject(waybill: RsWaybillSummary): void {
     const link = this.linkFor(waybill);
     const question =
-      this.i18n.t('Reject waybill {number} from {value} in RS (უარყოფილი)?', { number: waybill.number, value: waybill.sellerName ?? waybill.sellerTin }) +
+      this.i18n.t('Reject waybill {number} from {value} in RS (უარყოფილი)?', {
+        number: waybill.number,
+        value: waybill.sellerName ?? waybill.sellerTin,
+      }) +
       (link ? this.i18n.t(' The draft {code} is deleted.', { code: link.code }) : '') +
       this.i18n.t(' Do this only if the goods were not delivered or the waybill is wrong.');
     if (!this.i18n.confirm(question)) {
@@ -322,7 +374,9 @@ export class RsWaybills implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         const message = error.error?.message;
-        this.detailError.set(typeof message === 'string' ? message : 'Could not reject the waybill in RS.');
+        this.detailError.set(
+          typeof message === 'string' ? message : 'Could not reject the waybill in RS.',
+        );
       },
     });
   }
@@ -343,11 +397,23 @@ export class RsWaybills implements OnInit {
           new Map<string, RsDocumentLink>([
             ...receipts.map((r): [string, RsDocumentLink] => [
               r.rsWaybillId,
-              { kind: 'receipt', id: r.receiptId, code: r.code, statusLabel: labels[r.status], posted: r.status !== 'draft' },
+              {
+                kind: 'receipt',
+                id: r.receiptId,
+                code: r.code,
+                statusLabel: labels[r.status],
+                posted: r.status !== 'draft',
+              },
             ]),
             ...transfers.map((t): [string, RsDocumentLink] => [
               t.rsWaybillId,
-              { kind: 'transfer', id: t.transferId, code: t.code, statusLabel: labels[t.status], posted: t.status !== 'draft' },
+              {
+                kind: 'transfer',
+                id: t.transferId,
+                code: t.code,
+                statusLabel: labels[t.status],
+                posted: t.status !== 'draft',
+              },
             ]),
           ]),
         ),
@@ -369,7 +435,9 @@ export class RsWaybills implements OnInit {
       next: (detail) => this.detail.set(detail),
       error: (error: HttpErrorResponse) => {
         const message = error.error?.message;
-        this.detailError.set(typeof message === 'string' ? message : 'Could not load the waybill from RS.');
+        this.detailError.set(
+          typeof message === 'string' ? message : 'Could not load the waybill from RS.',
+        );
       },
     });
   }
@@ -380,7 +448,9 @@ export class RsWaybills implements OnInit {
   }
 
   protected statusLabel(status: number | null): string {
-    return this.statusLabels[String(status)] ?? this.i18n.t('Status {value}', { value: status ?? '?' });
+    return (
+      this.statusLabels[String(status)] ?? this.i18n.t('Status {value}', { value: status ?? '?' })
+    );
   }
 
   protected statusBadge(status: number | null): string {

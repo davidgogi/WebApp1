@@ -77,9 +77,18 @@
             <dt>{{ 'RS waybill' | t }}</dt>
             <dd>
               {{ transfer.waybillNumber }}
-              <br /><span class="muted">{{ transfer.rsClosedAt ? ('Closed in RS {date}' | t: { date: transfer.rsClosedAt | date: 'dd.MM.yyyy HH:mm' }) : ('Active in RS' | t) }}</span>
+              <br /><span class="muted">{{ transfer.rsClosedAt ? ('Closed in RS {date}' | t: { date: transfer.rsClosedAt | date: 'dd.MM.yyyy HH:mm' }) : ('Active in RS' | t) }}@if (transfer.rsIssued) { · {{ 'issued from here' | t }}}</span>
             </dd>
           </div>
+        }
+        @if (transfer.driverName) {
+          <div>
+            <dt>{{ 'Driver' | t }}</dt>
+            <dd>{{ transfer.driverName }}<br /><span class="muted">{{ transfer.driverId }}</span></dd>
+          </div>
+        }
+        @if (transfer.carNumber) {
+          <div><dt>{{ 'Car number' | t }}</dt><dd>{{ transfer.carNumber }}</dd></div>
         }
         <div><dt>{{ 'Created by' | t }}</dt><dd>{{ transfer.createdByName }}</dd></div>
         @if (transfer.sentAt) {

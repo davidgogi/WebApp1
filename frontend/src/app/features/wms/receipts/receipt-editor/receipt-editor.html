@@ -2,16 +2,27 @@
   <div class="page-header">
     <div>
       <p class="page-eyebrow">{{ 'WMS · Receipts' | t }}</p>
-      <h1 class="page-title">{{ id() ? ('Edit {name}' | t: { name: code() }) : ('New receipt' | t) }}</h1>
+      <h1 class="page-title">
+        {{ id() ? ('Edit {name}' | t: { name: code() }) : ('New receipt' | t) }}
+      </h1>
       <p class="page-description">
         @if (rsWaybillId()) {
-          {{ 'Made from RS waybill {p0}. Quantities and prices come from the waybill and can\'t be changed; link each line to one of your products. Posting confirms the waybill in RS and adds the goods to the warehouse.' | t: { p0: waybillNumber() } }}
+          {{
+            "Made from RS waybill {p0}. Quantities and prices come from the waybill and can't be changed; link each line to one of your products. Posting confirms the waybill in RS and adds the goods to the warehouse."
+              | t: { p0: waybillNumber() }
+          }}
         } @else {
-          {{ 'Goods that arrived from a supplier. Save it as a draft while you check the delivery; post it when everything matches.' | t }}
+          {{
+            'Goods that arrived from a supplier. Save it as a draft while you check the delivery; post it when everything matches.'
+              | t
+          }}
         }
       </p>
     </div>
-    <a class="button button--secondary" [routerLink]="id() ? ['/wms/receipts', id()] : '/wms/receipts'">
+    <a
+      class="button button--secondary"
+      [routerLink]="id() ? ['/wms/receipts', id()] : '/wms/receipts'"
+    >
       {{ 'Cancel' | t }}
     </a>
   </div>
@@ -36,7 +47,9 @@
               <span>{{ supplier.name }}</span>
               <span class="muted">
                 {{ supplier.identificationCode }}
-                <button type="button" class="link-button" (click)="supplierId.set('')">{{ 'Change' | t }}</button>
+                <button type="button" class="link-button" (click)="supplierId.set('')">
+                  {{ 'Change' | t }}
+                </button>
               </span>
             </div>
           } @else {
@@ -48,11 +61,16 @@
             />
             @if (rsSeller(); as seller) {
               <span class="field-hint">
-                {{ 'On the waybill: {p0}' | t: { p0: (seller.name ?? '') + (seller.tin ? ' (' + seller.tin + ')' : '') } }}
+                {{
+                  'On the waybill: {p0}'
+                    | t: { p0: (seller.name ?? '') + (seller.tin ? ' (' + seller.tin + ')' : '') }
+                }}
               </span>
             }
             @if (canCreateProducts()) {
-              <button type="button" class="link-button" (click)="isSupplierFormOpen.set(true)">{{ '+ New supplier' | t }}</button>
+              <button type="button" class="link-button" (click)="isSupplierFormOpen.set(true)">
+                {{ '+ New supplier' | t }}
+              </button>
             }
           }
           @if (supplierNotice()) {
@@ -66,16 +84,27 @@
             placeholder="Choose a supplier"
           />
           @if (suppliers().length === 0) {
-            <span class="field-hint">{{ 'No active suppliers yet. The WMS admin adds them in Products → Suppliers.' | t }}</span>
+            <span class="field-hint">{{
+              'No active suppliers yet. The WMS admin adds them in Products → Suppliers.' | t
+            }}</span>
           }
         }
       </div>
       <div class="field">
         <label for="receiptWaybill">{{ 'Waybill / invoice no.' | t }}</label>
         @if (rsWaybillId()) {
-          <div class="read-only-value" id="receiptWaybill"><code class="code-tag">{{ waybillNumber() }}</code> <span class="muted">{{ 'RS' | t }}</span></div>
+          <div class="read-only-value" id="receiptWaybill">
+            <code class="code-tag">{{ waybillNumber() }}</code>
+            <span class="muted">{{ 'RS' | t }}</span>
+          </div>
         } @else {
-          <input id="receiptWaybill" class="text-input" type="text" [(ngModel)]="waybillNumber" [placeholder]="'Optional' | t" />
+          <input
+            id="receiptWaybill"
+            class="text-input"
+            type="text"
+            [(ngModel)]="waybillNumber"
+            [placeholder]="'Optional' | t"
+          />
         }
       </div>
       <div class="field">
@@ -88,7 +117,13 @@
       </div>
       <div class="field">
         <label for="receiptNote">{{ 'Note' | t }}</label>
-        <input id="receiptNote" class="text-input" type="text" [(ngModel)]="note" [placeholder]="'Optional' | t" />
+        <input
+          id="receiptNote"
+          class="text-input"
+          type="text"
+          [(ngModel)]="note"
+          [placeholder]="'Optional' | t"
+        />
       </div>
     </div>
   </div>
@@ -98,7 +133,9 @@
       <h2 class="card-title">
         {{ 'Goods on the waybill' | t }}
         @if (unlinkedCount()) {
-          <span class="card-title__note short">{{ '{p0} not linked to a product yet' | t: { p0: unlinkedCount() } }}</span>
+          <span class="card-title__note short">{{
+            '{p0} not linked to a product yet' | t: { p0: unlinkedCount() }
+          }}</span>
         } @else {
           <span class="card-title__note">{{ 'all linked' | t }}</span>
         }
@@ -123,46 +160,55 @@
                   @switch (column.key) {
                     @case ('onTheWaybill') {
                       <td>
-                      <div class="cell-strong">{{ line.rs?.name }}</div>
-                      <div class="muted">
-                        @if (line.rs?.barcode; as rsBarcode) {
-                          <code class="code-tag">{{ rsBarcode }}</code>
-                        }
-                        {{ line.rs?.unit }}
-                      </div>
-                    </td>
+                        <div class="cell-strong">{{ line.rs?.name }}</div>
+                        <div class="muted">
+                          @if (line.rs?.barcode; as rsBarcode) {
+                            <code class="code-tag">{{ rsBarcode }}</code>
+                          }
+                          {{ line.rs?.unit }}
+                        </div>
+                      </td>
                     }
                     @case ('yourProduct') {
                       <td class="rs-product-cell">
-                      @if (line.productId) {
-                        <div class="cell-strong">{{ line.name }}</div>
-                        <div class="muted">
-                          <code class="code-tag">{{ line.barcode }}</code> {{ line.unit | t }}
-                          <button type="button" class="link-button" (click)="unlinkProduct(i)">{{ 'Change' | t }}</button>
-                        </div>
-                        @if (unitProblem(line); as problem) {
-                          <div class="field-error">{{ problem | t }}</div>
+                        @if (line.productId) {
+                          <div class="cell-strong">{{ line.name }}</div>
+                          <div class="muted">
+                            <code class="code-tag">{{ line.barcode }}</code> {{ line.unit | t }}
+                            <button type="button" class="link-button" (click)="unlinkProduct(i)">
+                              {{ 'Change' | t }}
+                            </button>
+                          </div>
+                          @if (unitProblem(line); as problem) {
+                            <div class="field-error">{{ problem | t }}</div>
+                          }
+                        } @else {
+                          <app-product-picker
+                            [products]="products()"
+                            [placeholder]="'Find your product: name or barcode' | t"
+                            (picked)="linkProduct(i, $event)"
+                          />
+                          @if (canCreateProducts()) {
+                            <button type="button" class="link-button" (click)="openProductForm(i)">
+                              {{ '+ New product' | t }}
+                            </button>
+                          }
                         }
-                      } @else {
-                        <app-product-picker
-                          [products]="products()"
-                          [placeholder]="'Find your product: name or barcode' | t"
-                          (picked)="linkProduct(i, $event)"
-                        />
-                        @if (canCreateProducts()) {
-                          <button type="button" class="link-button" (click)="openProductForm(i)">{{ '+ New product' | t }}</button>
-                        }
-                      }
-                    </td>
+                      </td>
                     }
                     @case ('quantity') {
-                      <td class="cell-figure">{{ line.quantity | number: '1.0-3' }} <span class="muted">{{ line.rs?.unit }}</span></td>
+                      <td class="cell-figure">
+                        {{ line.quantity | number: '1.0-3' }}
+                        <span class="muted">{{ line.rs?.unit }}</span>
+                      </td>
                     }
                     @case ('pricePerUnit') {
                       <td class="cell-figure">₾{{ line.unitCost | number: '1.2-2' }}</td>
                     }
                     @case ('lineTotal') {
-                      <td class="cell-figure">₾{{ line.quantity * line.unitCost | number: '1.2-2' }}</td>
+                      <td class="cell-figure">
+                        ₾{{ line.quantity * line.unitCost | number: '1.2-2' }}
+                      </td>
                     }
                   }
                 }
@@ -172,16 +218,25 @@
         </table>
       </div>
       <p class="field-hint">
-        {{ 'Lines are matched by barcode, or by a link you made before for this supplier. A line you link now is remembered for this supplier\'s next waybills.' | t }}
+        {{
+          "Lines are matched by barcode, or by a link you made before for this supplier. A line you link now is remembered for this supplier's next waybills."
+            | t
+        }}
       </p>
       <div class="doc-total">
         <span>{{ '{p0} lines' | t: { p0: lines().length } }}</span>
-        <span>{{ 'Total' | t }} <strong>₾{{ total() | number: '1.2-2' }}</strong></span>
+        <span
+          >{{ 'Total' | t }} <strong>₾{{ total() | number: '1.2-2' }}</strong></span
+        >
       </div>
     } @else {
       <h2 class="card-title">{{ 'Products' | t }}</h2>
       <div class="picker-row">
-        <app-product-picker [products]="products()" [taken]="takenIds()" (picked)="addProduct($event)" />
+        <app-product-picker
+          [products]="products()"
+          [taken]="takenIds()"
+          (picked)="addProduct($event)"
+        />
         @if (canCreateProducts()) {
           <button type="button" class="button button--outline" (click)="openProductForm(null)">
             <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
@@ -194,7 +249,9 @@
       }
 
       @if (lines().length === 0) {
-        <p class="page-description">{{ 'No products yet. Search above, or scan a barcode and press Enter.' | t }}</p>
+        <p class="page-description">
+          {{ 'No products yet. Search above, or scan a barcode and press Enter.' | t }}
+        </p>
       } @else {
         <app-column-tools [columnOrder]="lineColumns" [alone]="true" [hint]="false" />
         <div class="table-scroll">
@@ -202,7 +259,9 @@
             <thead>
               <tr>
                 @for (column of lineColumns.columns(); track column.key) {
-                  <th [appColumn]="column.key" [columnOrder]="lineColumns">{{ column.label | t }}</th>
+                  <th [appColumn]="column.key" [columnOrder]="lineColumns">
+                    {{ column.label | t }}
+                  </th>
                 }
                 <th></th>
               </tr>
@@ -216,39 +275,43 @@
                         <td class="cell-strong">{{ line.name }}</td>
                       }
                       @case ('barcode') {
-                        <td><code class="code-tag">{{ line.barcode }}</code></td>
+                        <td>
+                          <code class="code-tag">{{ line.barcode }}</code>
+                        </td>
                       }
                       @case ('quantity') {
                         <td>
-                        <input
-                          class="text-input line-input"
-                          type="number"
-                          min="0"
-                          [step]="line.unit === 'kg' ? 0.001 : 1"
-                          [attr.aria-label]="'Quantity of {name}' | t: { name: line.name }"
-                          [ngModel]="line.quantity"
-                          (ngModelChange)="updateLine(i, 'quantity', $event)"
-                        />
-                      </td>
+                          <input
+                            class="text-input line-input"
+                            type="number"
+                            min="0"
+                            [step]="line.unit === 'kg' ? 0.001 : 1"
+                            [attr.aria-label]="'Quantity of {name}' | t: { name: line.name }"
+                            [ngModel]="line.quantity"
+                            (ngModelChange)="updateLine(i, 'quantity', $event)"
+                          />
+                        </td>
                       }
                       @case ('unit') {
                         <td>{{ line.unit | t }}</td>
                       }
                       @case ('pricePerUnit') {
                         <td>
-                        <input
-                          class="text-input line-input"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          [attr.aria-label]="'Price of {name}' | t: { name: line.name }"
-                          [ngModel]="line.unitCost"
-                          (ngModelChange)="updateLine(i, 'unitCost', $event)"
-                        />
-                      </td>
+                          <input
+                            class="text-input line-input"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            [attr.aria-label]="'Price of {name}' | t: { name: line.name }"
+                            [ngModel]="line.unitCost"
+                            (ngModelChange)="updateLine(i, 'unitCost', $event)"
+                          />
+                        </td>
                       }
                       @case ('lineTotal') {
-                        <td class="cell-figure">₾{{ (line.quantity || 0) * (line.unitCost || 0) | number: '1.2-2' }}</td>
+                        <td class="cell-figure">
+                          ₾{{ (line.quantity || 0) * (line.unitCost || 0) | number: '1.2-2' }}
+                        </td>
                       }
                     }
                   }
@@ -270,7 +333,9 @@
         </div>
         <div class="doc-total">
           <span>{{ '{p0} products' | t: { p0: lines().length } }}</span>
-          <span>{{ 'Total' | t }} <strong>₾{{ total() | number: '1.2-2' }}</strong></span>
+          <span
+            >{{ 'Total' | t }} <strong>₾{{ total() | number: '1.2-2' }}</strong></span
+          >
         </div>
       }
     }
@@ -281,32 +346,57 @@
   }
 
   <div class="button-row">
-    <button type="button" class="button button--secondary" [disabled]="isSaving()" (click)="save(false)">
+    <button
+      type="button"
+      class="button button--secondary"
+      [disabled]="isSaving()"
+      (click)="save(false)"
+    >
       {{ 'Save draft' | t }}
     </button>
     <button type="button" class="button button--dark" [disabled]="isSaving()" (click)="save(true)">
-      {{ isSaving() ? ('Saving…' | t) : rsWaybillId() ? ('Save, confirm in RS and post' | t) : ('Save and post' | t) }}
+      {{
+        isSaving()
+          ? ('Saving…' | t)
+          : rsWaybillId()
+            ? ('Save, confirm in RS and post' | t)
+            : ('Save and post' | t)
+      }}
     </button>
   </div>
 </div>
 
-<app-modal [open]="isProductFormOpen()" [title]="'New product' | t" (closed)="isProductFormOpen.set(false)">
+<app-modal
+  [open]="isProductFormOpen()"
+  [title]="'New product' | t"
+  (closed)="isProductFormOpen.set(false)"
+>
   @if (isProductFormOpen()) {
     <app-product-form
       [known]="products()"
       [initial]="newProductDraft()"
-      [hint]="'It is added to Products and to this receipt. Its stock and cost come from the receipt when you post it.' | t"
+      [hint]="
+        'It is added to Products and to this receipt. Its stock and cost come from the receipt when you post it.'
+          | t
+      "
       (saved)="onProductCreated($event)"
       (cancelled)="isProductFormOpen.set(false)"
     />
   }
 </app-modal>
 
-<app-modal [open]="isSupplierFormOpen()" [title]="'New supplier' | t" (closed)="isSupplierFormOpen.set(false)">
+<app-modal
+  [open]="isSupplierFormOpen()"
+  [title]="'New supplier' | t"
+  (closed)="isSupplierFormOpen.set(false)"
+>
   @if (isSupplierFormOpen()) {
     <app-supplier-form
       [initial]="newSupplierDraft()"
-      [hint]="'Filled in from the waybill\'s seller. It is added to Suppliers and chosen for this receipt; its identification code makes the next waybills from this seller find it by themselves.' | t"
+      [hint]="
+        'Filled in from the waybill\'s seller. It is added to Suppliers and chosen for this receipt; its identification code makes the next waybills from this seller find it by themselves.'
+          | t
+      "
       (saved)="onSupplierCreated($event)"
       (cancelled)="isSupplierFormOpen.set(false)"
     />
