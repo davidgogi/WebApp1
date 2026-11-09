@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
+import ExcelJS from 'exceljs';
 import { DataSource, type QueryRunner } from 'typeorm';
 
 if (existsSync('.env')) {
@@ -477,6 +478,36 @@ describe('tenant isolation', () => {
     expect((await call('GET', '/parameters/partners', b.wmsAdmin)).text).toContain(
       b.supplierId,
     );
+  });
+
+  it("a partners import isn't affected by the other company's partners", async () => {
+    const name = `${b.secret} imported`;
+    const code = digits(9);
+    await ok('POST', '/parameters/partners', b.wmsAdmin, {
+      name,
+      type: 'company',
+      isSupplier: true,
+      isClient: false,
+      identificationCode: code,
+    });
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Partners');
+    sheet.addRow(['Name', 'Type', 'Role', 'Identification code']);
+    sheet.addRow([name, 'Company', 'Client', code]);
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([(await workbook.xlsx.writeBuffer()) as ArrayBuffer]),
+      'partners.xlsx',
+    );
+    const response = await fetch(`${baseUrl}/parameters/partners/import/check`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${a.wmsAdmin}` },
+      body: form,
+    });
+    const report = await response.json();
+    expect(report.errors).toEqual([]);
+    expect(report.validRows).toBe(1);
   });
 
   it("nobody can issue a login for the other company's people", async () => {

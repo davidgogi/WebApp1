@@ -17,6 +17,21 @@ import { Partner } from './partner.entity.js';
 import { PartnerStatus } from './partner-status.enum.js';
 import { PartnerType } from './partner-type.enum.js';
 
+export type NewPartner = Pick<
+  Partner,
+  | 'name'
+  | 'type'
+  | 'isSupplier'
+  | 'isClient'
+  | 'identificationCode'
+  | 'vatPayer'
+  | 'contactPerson'
+  | 'phone'
+  | 'email'
+  | 'address'
+  | 'status'
+>;
+
 @Injectable()
 export class PartnersService {
   constructor(
@@ -98,6 +113,40 @@ export class PartnersService {
       `Created partner ${saved.name}`,
     );
     return Object.assign(saved, { productCount: 0, receiptCount: 0 });
+  }
+
+  async createMany(actor: AuthUser, rows: NewPartner[]): Promise<Partner[]> {
+    const saved = await this.partnersRepository.manager.transaction(
+      async (manager) => {
+        const created: Partner[] = [];
+        for (const row of rows) {
+          try {
+            created.push(
+              await manager.save(
+                manager.create(Partner, {
+                  ...row,
+                  companyId: actor.companyId!,
+                }),
+              ),
+            );
+          } catch (error) {
+            if (isUniqueViolation(error)) {
+              throw new ConflictException(
+                `Identification code ${row.identificationCode} is already used by another partner`,
+              );
+            }
+            throw error;
+          }
+        }
+        return created;
+      },
+    );
+    await this.audit.record(
+      actor,
+      'partner.import',
+      `Imported ${saved.length} partners`,
+    );
+    return saved;
   }
 
   async update(

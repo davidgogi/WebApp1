@@ -5,11 +5,12 @@ import { Product } from '../../wms/products/product.entity.js';
 import { Partner } from './partner.entity.js';
 import { PartnersController } from './partners.controller.js';
 import { PartnersService } from './partners.service.js';
+import { PartnerExcelService } from './partner-excel.service.js';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Partner, Product, Receipt])],
   controllers: [PartnersController],
-  providers: [PartnersService],
+  providers: [PartnersService, PartnerExcelService],
   exports: [PartnersService],
 })
 export class PartnersModule {}
