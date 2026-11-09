@@ -20,9 +20,8 @@ export class UpdateProductDto {
   categoryId?: string;
 
   @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  group?: string;
+  @IsUUID()
+  groupId?: string | null;
 
   @IsOptional()
   @IsUUID()

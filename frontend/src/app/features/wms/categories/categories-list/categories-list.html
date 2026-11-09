@@ -46,7 +46,7 @@
             type="search"
             [aria-label]="'Search categories' | t"
             [(ngModel)]="search"
-            [placeholder]="'Category or description' | t"
+            [placeholder]="'Category, group or description' | t"
           />
         </div>
         <select class="text-select" [aria-label]="'Status' | t" [(ngModel)]="statusFilter">
@@ -84,7 +84,21 @@
               @for (column of columnOrder.columns(); track column.key) {
                   @switch (column.key) {
                     @case ('category') {
-                      <td class="cell-strong">{{ category.name }}</td>
+                      <td class="cell-strong">
+                        <button
+                          type="button"
+                          class="category-toggle"
+                          [attr.aria-expanded]="expanded().has(category.id)"
+                          [attr.aria-label]="'Show groups' | t"
+                          (click)="toggle(category)"
+                        >
+                          <lucide-icon [img]="expanded().has(category.id) ? CollapseIcon : ExpandIcon" [size]="14"></lucide-icon>
+                        </button>
+                        {{ category.name }}
+                      </td>
+                    }
+                    @case ('groups') {
+                      <td class="cell-figure">{{ category.groups.length }}</td>
                     }
                     @case ('description') {
                       <td>
@@ -122,7 +136,7 @@
                     <button
                       type="button"
                       class="icon-action icon-action--danger"
-                      [disabled]="!canManage() || category.productCount > 0"
+                      [disabled]="!canManage()"
                       [title]="deleteTitle(category) | t"
                       [attr.aria-label]="'Delete {name}' | t: { name: category.name }"
                       (click)="deleteCategory(category)"
@@ -132,9 +146,55 @@
                   </div>
                 </td>
               </tr>
+              @if (expanded().has(category.id)) {
+                <tr class="category-groups">
+                  <td [attr.colspan]="columnOrder.columns().length + 1">
+                    <div class="category-groups__list">
+                      @for (group of category.groups; track group.id) {
+                        <div class="category-groups__row">
+                          <span class="category-groups__name">{{ group.name }}</span>
+                          <span class="muted">{{ '{p0} products' | t: { p0: group.productCount } }}</span>
+                          <span class="badge" [class]="group.status === 'active' ? 'badge--active' : 'badge--inactive'">
+                            {{ group.status === 'active' ? ('Active' | t) : ('Inactive' | t) }}
+                          </span>
+                          @if (canManage()) {
+                            <div class="icon-actions">
+                              <button
+                                type="button"
+                                class="icon-action"
+                                [title]="'Edit' | t"
+                                [attr.aria-label]="'Edit {name}' | t: { name: group.name }"
+                                (click)="openGroupForm(category, group)"
+                              >
+                                <lucide-icon [img]="EditIcon" [size]="18"></lucide-icon>
+                              </button>
+                              <button
+                                type="button"
+                                class="icon-action icon-action--danger"
+                                [title]="'Delete' | t"
+                                [attr.aria-label]="'Delete {name}' | t: { name: group.name }"
+                                (click)="deleteGroup(category, group)"
+                              >
+                                <lucide-icon [img]="DeleteIcon" [size]="18"></lucide-icon>
+                              </button>
+                            </div>
+                          }
+                        </div>
+                      } @empty {
+                        <span class="muted">{{ 'No groups yet.' | t }}</span>
+                      }
+                    </div>
+                    @if (canManage()) {
+                      <button type="button" class="link-button" (click)="openGroupForm(category, null)">
+                        {{ '+ New group' | t }}
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
             } @empty {
               <tr>
-                <td class="muted" colspan="5">{{ 'No categories match the search and filters.' | t }}</td>
+                <td class="muted" colspan="6">{{ 'No categories match the search and filters.' | t }}</td>
               </tr>
             }
           </tbody>
@@ -200,6 +260,105 @@
         }
       </button>
       <button type="button" class="button button--secondary" (click)="isFormOpen.set(false)">{{ 'Cancel' | t }}</button>
+    </div>
+  </form>
+</app-modal>
+
+<app-modal
+  [open]="groupFormCategory() !== null"
+  [title]="editingGroup() ? ('Edit group' | t) : ('Add group' | t)"
+  (closed)="groupFormCategory.set(null)"
+>
+  <form class="page-stack" (ngSubmit)="saveGroup()">
+    <div class="form-grid">
+      <div class="field">
+        <label for="groupName">{{ 'Group' | t }}</label>
+        <input
+          id="groupName"
+          class="text-input"
+          type="text"
+          name="groupName"
+          [(ngModel)]="groupName"
+          [placeholder]="'e.g. Chocolate' | t"
+          required
+        />
+        <span class="field-hint">{{ 'Category' | t }}: {{ groupFormCategory()?.name }}</span>
+      </div>
+
+      <div class="field">
+        <label for="groupStatus">{{ 'Status' | t }}</label>
+        <select id="groupStatus" class="text-select" name="groupStatus" [(ngModel)]="groupStatus">
+          <option value="active">{{ 'Active' | t }}</option>
+          <option value="inactive">{{ 'Inactive' | t }}</option>
+        </select>
+        <span class="field-hint">{{ 'Inactive groups can\'t be chosen for new products.' | t }}</span>
+      </div>
+    </div>
+
+    @if (groupFormError()) {
+      <p class="field-error">{{ groupFormError() | t }}</p>
+    }
+
+    <div class="button-row">
+      <button type="submit" class="button button--dark" [disabled]="isSavingGroup()">
+        @if (editingGroup()) {
+          {{ isSavingGroup() ? ('Saving…' | t) : ('Save changes' | t) }}
+        } @else {
+          {{ isSavingGroup() ? ('Adding…' | t) : ('Add group' | t) }}
+        }
+      </button>
+      <button type="button" class="button button--secondary" (click)="groupFormCategory.set(null)">{{ 'Cancel' | t }}</button>
+    </div>
+  </form>
+</app-modal>
+
+<app-modal
+  [open]="deleting() !== null"
+  [title]="'Delete {name}' | t: { name: deleting()?.group?.name ?? deleting()?.category?.name ?? '' }"
+  (closed)="deleting.set(null)"
+>
+  <form class="page-stack" (ngSubmit)="confirmDelete()">
+    <p class="page-description">
+      {{ 'It has {p0} products. Choose where to move them. The products themselves are not deleted.' | t: { p0: deletingCount() } }}
+    </p>
+    <div class="form-grid">
+      @if (!deleting()?.group) {
+        <div class="field">
+          <label for="moveCategory">{{ 'Move products to' | t }}</label>
+          <select
+            id="moveCategory"
+            class="text-select"
+            name="moveCategory"
+            [ngModel]="moveCategoryId()"
+            (ngModelChange)="changeMoveCategory($event)"
+          >
+            <option value="">{{ '— Choose a category —' | t }}</option>
+            @for (option of moveCategories(); track option.id) {
+              <option [value]="option.id">{{ option.name }}</option>
+            }
+          </select>
+        </div>
+      }
+      <div class="field">
+        <label for="moveGroup">{{ (deleting()?.group ? 'Move products to' : 'Group (optional)') | t }}</label>
+        <select id="moveGroup" class="text-select" name="moveGroup" [(ngModel)]="moveGroupId">
+          <option value="">{{ 'No group' | t }}</option>
+          @for (option of moveGroups(); track option.id) {
+            <option [value]="option.id">{{ option.name }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    @if (deleteError()) {
+      <p class="field-error">{{ deleteError() | t }}</p>
+    }
+
+    <div class="button-row">
+      <button type="submit" class="button button--dark" [disabled]="isDeleting()">
+        {{ isDeleting() ? ('Deleting…' | t) : ('Move and delete' | t) }}
+      </button>
+      <button type="button" class="button button--secondary" (click)="deleting.set(null)">{{ 'Cancel' | t }}</button>
     </div>
   </form>
 </app-modal>

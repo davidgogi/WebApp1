@@ -9,9 +9,9 @@ import { Modal } from '../../../../shared/modal/modal';
 import { ProductForm } from '../../products/product-form/product-form';
 import { Product, ProductOption, ProductUnit } from '../../products/product.model';
 import { ProductService } from '../../products/product.service';
-import { SupplierForm } from '../../suppliers/supplier-form/supplier-form';
-import { Supplier, SupplierPayload } from '../../suppliers/supplier.model';
-import { SupplierService } from '../../suppliers/supplier.service';
+import { PartnerForm } from '../../../../shared/partners/partner-form/partner-form';
+import { Partner, PartnerPayload } from '../../../../shared/partners/partner.model';
+import { PartnerService } from '../../../../shared/partners/partner.service';
 import { PickableProduct, ProductPicker } from '../../stock/product-picker/product-picker';
 import { WarehouseOption } from '../../warehouses/warehouse.model';
 import { WarehouseService } from '../../warehouses/warehouse.service';
@@ -57,7 +57,7 @@ const today = () => new Date().toLocaleDateString('sv-SE');
     ProductPicker,
     Modal,
     ProductForm,
-    SupplierForm,
+    PartnerForm,
   ],
   templateUrl: './receipt-editor.html',
   styleUrl: './receipt-editor.css',
@@ -82,7 +82,7 @@ export class ReceiptEditor implements OnInit {
   private readonly receiptService = inject(ReceiptService);
   private readonly productService = inject(ProductService);
   private readonly warehouseService = inject(WarehouseService);
-  private readonly supplierService = inject(SupplierService);
+  private readonly partnerService = inject(PartnerService);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
 
@@ -118,7 +118,7 @@ export class ReceiptEditor implements OnInit {
   protected readonly linkedSupplier = computed(
     () => this.suppliers().find((s) => s.id === this.supplierId()) ?? null,
   );
-  protected readonly newSupplierDraft = computed<Partial<SupplierPayload> | null>(() => {
+  protected readonly newSupplierDraft = computed<Partial<PartnerPayload> | null>(() => {
     const seller = this.rsSeller();
     if (!seller) {
       return null;
@@ -161,7 +161,7 @@ export class ReceiptEditor implements OnInit {
       },
       error: () => this.errorMessage.set('Could not load warehouses.'),
     });
-    this.supplierService.options().subscribe({
+    this.partnerService.supplierOptions().subscribe({
       next: (suppliers) =>
         this.suppliers.update((current) => [
           ...suppliers,
@@ -257,7 +257,7 @@ export class ReceiptEditor implements OnInit {
       : null;
   });
 
-  onSupplierCreated(supplier: Supplier): void {
+  onSupplierCreated(supplier: Partner): void {
     this.isSupplierFormOpen.set(false);
     this.suppliers.update((list) => [
       ...list,
@@ -265,7 +265,7 @@ export class ReceiptEditor implements OnInit {
     ]);
     this.supplierId.set(supplier.id);
     this.supplierNotice.set(
-      this.i18n.t('{name} was added to Suppliers and chosen for this receipt.', {
+      this.i18n.t('{name} was added to Partners and chosen for this receipt.', {
         name: supplier.name,
       }),
     );

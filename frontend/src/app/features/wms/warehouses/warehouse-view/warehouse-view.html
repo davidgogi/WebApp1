@@ -119,7 +119,7 @@
                         <td>{{ row.product.category.name }}</td>
                       }
                       @case ('group') {
-                        <td>{{ row.product.group }}</td>
+                        <td>{{ row.product.group?.name ?? '—' }}</td>
                       }
                       @case ('quantity') {
                         <td class="cell-figure">{{ row.quantity | number: '1.0-3' }}</td>

@@ -16,6 +16,7 @@ import { StoreModule } from './store/store.module.js';
 import { SuperadminModule } from './superadmin/superadmin.module.js';
 import { WmsModule } from './wms/wms.module.js';
 import { RsModule } from './rs/rs.module.js';
+import { ParametersModule } from './parameters/parameters.module.js';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { RsModule } from './rs/rs.module.js';
     SuperadminModule,
     HrModule,
     RsModule,
+    ParametersModule,
     WmsModule,
     StoreModule,
   ],

@@ -1,6 +1,6 @@
 import { ImportReport } from '../../../shared/xlsx-import/xlsx-import.model';
 import { Category } from '../categories/category.model';
-import { Supplier } from '../suppliers/supplier.model';
+import { Partner } from '../../../shared/partners/partner.model';
 import { Warehouse } from '../warehouses/warehouse.model';
 
 export type ProductStatus = 'active' | 'inactive';
@@ -25,9 +25,10 @@ export interface Product {
   barcode: string;
   categoryId: string;
   category: Pick<Category, 'id' | 'name' | 'status'>;
-  group: string;
+  groupId: string | null;
+  group: { id: string; name: string; status: 'active' | 'inactive' } | null;
   supplierId: string;
-  supplier: Pick<Supplier, 'id' | 'name' | 'status'>;
+  supplier: Pick<Partner, 'id' | 'name' | 'status'>;
   status: ProductStatus;
   usage: ProductUsage;
   posStatus: ProductPosStatus;
@@ -53,7 +54,7 @@ export type ProductOption = Pick<
 
 export type ProductPayload = Omit<
   Product,
-  'id' | 'category' | 'supplier' | 'quantity' | 'stocks' | 'createdAt' | 'updatedAt'
+  'id' | 'category' | 'group' | 'supplier' | 'quantity' | 'stocks' | 'createdAt' | 'updatedAt'
 >;
 
 export interface ProductPreviewRow {

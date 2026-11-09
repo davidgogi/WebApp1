@@ -286,6 +286,45 @@
           }
         </div>
       }
+
+      @if (showParameters()) {
+        <div class="shell-nav__group">
+          <button
+            type="button"
+            class="shell-nav__button"
+            [class.shell-nav__button--active]="isParametersActive()"
+            (click)="toggleParametersMenu()"
+          >
+            <span class="shell-nav__main">
+              <lucide-icon [img]="ParametersIcon" class="shell-nav__icon" [size]="18"></lucide-icon>
+              @if (isSidebarOpen()) {
+                <span class="shell-nav__label">{{ 'Parameters' | t }}</span>
+              }
+            </span>
+            @if (isSidebarOpen()) {
+              <span class="shell-nav__caret">
+                @if (isParametersExpanded()) {
+                  <lucide-icon [img]="ChevronDownIcon" [size]="14"></lucide-icon>
+                } @else {
+                  <lucide-icon [img]="ChevronRightIcon" [size]="14"></lucide-icon>
+                }
+              </span>
+            }
+          </button>
+
+          @if (isSidebarOpen() && isParametersExpanded()) {
+            <div class="shell-nav__submenu">
+              <a
+                class="shell-nav__subitem"
+                routerLink="/parameters/partners"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                {{ 'Partners' | t }}
+              </a>
+            </div>
+          }
+        </div>
+      }
     </nav>
 
     <div class="shell-user" [class.shell-user--collapsed]="!isSidebarOpen()">

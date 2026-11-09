@@ -1,9 +1,9 @@
 <form class="page-stack" (ngSubmit)="save()">
   <div class="form-grid">
     <div class="field">
-      <label for="supplierName">{{ 'Supplier' | t }}</label>
+      <label for="partnerName">{{ 'Name' | t }}</label>
       <input
-        id="supplierName"
+        id="partnerName"
         class="text-input"
         type="text"
         name="name"
@@ -14,17 +14,36 @@
     </div>
 
     <div class="field">
-      <label for="supplierType">{{ 'Type' | t }}</label>
-      <select id="supplierType" class="text-select" name="type" [(ngModel)]="type">
+      <label for="partnerType">{{ 'Type' | t }}</label>
+      <select id="partnerType" class="text-select" name="type" [(ngModel)]="type">
         <option value="company">{{ 'Company' | t }}</option>
         <option value="individual">{{ 'Individual' | t }}</option>
       </select>
     </div>
 
     <div class="field">
-      <label for="supplierCode">{{ 'Identification code (optional)' | t }}</label>
+      <span class="field-label">{{ 'Role' | t }}</span>
+      <div class="chip-list">
+        <label class="check-chip" [class.check-chip--on]="isSupplier()">
+          <input
+            type="checkbox"
+            name="isSupplier"
+            [(ngModel)]="isSupplier"
+            [disabled]="supplierOnly()"
+          />
+          {{ 'Supplier' | t }}
+        </label>
+        <label class="check-chip" [class.check-chip--on]="isClient()">
+          <input type="checkbox" name="isClient" [(ngModel)]="isClient" />
+          {{ 'Client' | t }}
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="partnerCode">{{ 'Identification code (optional)' | t }}</label>
       <input
-        id="supplierCode"
+        id="partnerCode"
         class="text-input"
         type="text"
         inputmode="numeric"
@@ -35,17 +54,17 @@
     </div>
 
     <div class="field">
-      <label for="supplierVat">{{ 'VAT' | t }}</label>
-      <select id="supplierVat" class="text-select" name="vatPayer" [(ngModel)]="vatPayer">
+      <label for="partnerVat">{{ 'VAT' | t }}</label>
+      <select id="partnerVat" class="text-select" name="vatPayer" [(ngModel)]="vatPayer">
         <option [ngValue]="true">{{ 'VAT payer' | t }}</option>
         <option [ngValue]="false">{{ 'Not a VAT payer' | t }}</option>
       </select>
     </div>
 
     <div class="field">
-      <label for="supplierContact">{{ 'Contact person (optional)' | t }}</label>
+      <label for="partnerContact">{{ 'Contact person (optional)' | t }}</label>
       <input
-        id="supplierContact"
+        id="partnerContact"
         class="text-input"
         type="text"
         name="contactPerson"
@@ -55,9 +74,9 @@
     </div>
 
     <div class="field">
-      <label for="supplierPhone">{{ 'Phone (optional)' | t }}</label>
+      <label for="partnerPhone">{{ 'Phone (optional)' | t }}</label>
       <input
-        id="supplierPhone"
+        id="partnerPhone"
         class="text-input"
         type="tel"
         name="phone"
@@ -67,9 +86,9 @@
     </div>
 
     <div class="field">
-      <label for="supplierEmail">{{ 'Email (optional)' | t }}</label>
+      <label for="partnerEmail">{{ 'Email (optional)' | t }}</label>
       <input
-        id="supplierEmail"
+        id="partnerEmail"
         class="text-input"
         type="email"
         name="email"
@@ -79,9 +98,9 @@
     </div>
 
     <div class="field">
-      <label for="supplierAddress">{{ 'Address (optional)' | t }}</label>
+      <label for="partnerAddress">{{ 'Address (optional)' | t }}</label>
       <input
-        id="supplierAddress"
+        id="partnerAddress"
         class="text-input"
         type="text"
         name="address"
@@ -91,12 +110,12 @@
     </div>
 
     <div class="field">
-      <label for="supplierStatus">{{ 'Status' | t }}</label>
-      <select id="supplierStatus" class="text-select" name="status" [(ngModel)]="status">
+      <label for="partnerStatus">{{ 'Status' | t }}</label>
+      <select id="partnerStatus" class="text-select" name="status" [(ngModel)]="status">
         <option value="active">{{ 'Active' | t }}</option>
         <option value="inactive">{{ 'Inactive' | t }}</option>
       </select>
-      <span class="field-hint">{{ 'Inactive suppliers can\'t be chosen for new products.' | t }}</span>
+      <span class="field-hint">{{ 'Inactive partners can\'t be chosen for new products or receipts.' | t }}</span>
     </div>
   </div>
 
@@ -106,10 +125,10 @@
 
   <div class="button-row">
     <button type="submit" class="button button--dark" [disabled]="isSaving()">
-      @if (supplier()) {
+      @if (partner()) {
         {{ isSaving() ? ('Saving…' | t) : ('Save changes' | t) }}
       } @else {
-        {{ isSaving() ? ('Adding…' | t) : ('Add supplier' | t) }}
+        {{ isSaving() ? ('Adding…' | t) : ('Add partner' | t) }}
       }
     </button>
     <button type="button" class="button button--secondary" (click)="cancelled.emit()">{{ 'Cancel' | t }}</button>

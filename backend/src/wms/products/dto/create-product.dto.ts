@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsString, IsUUID, Min } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { ProductPosStatus } from '../product-pos-status.enum.js';
 import { ProductStatus } from '../product-status.enum.js';
 import { ProductUnit } from '../product-unit.enum.js';
@@ -16,9 +16,9 @@ export class CreateProductDto {
   @IsUUID()
   categoryId!: string;
 
-  @IsString()
-  @IsNotEmpty()
-  group!: string;
+  @IsOptional()
+  @IsUUID()
+  groupId?: string | null;
 
   @IsUUID()
   supplierId!: string;

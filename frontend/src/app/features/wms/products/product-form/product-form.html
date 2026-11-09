@@ -37,7 +37,8 @@
       <app-combobox
         inputId="productCategory"
         [options]="categories()"
-        [(value)]="categoryId"
+        [value]="categoryId()"
+        (valueChange)="changeCategory($event)"
         [placeholder]="allCategories() === null ? 'Loading…' : '— Choose a category —'"
         [invalid]="!!shownErrors().categoryId"
       />
@@ -52,24 +53,42 @@
     </div>
 
     <div class="field">
-      <label for="productGroup">{{ 'Group' | t }}</label>
-      <input
+      <label for="productGroup">{{ 'Group (optional)' | t }}</label>
+      <select
         id="productGroup"
-        class="text-input"
-        type="text"
-        name="group"
-        list="productGroups"
-        [(ngModel)]="group"
-        [placeholder]="'e.g. Chocolate' | t"
-        required
-      />
-      <datalist id="productGroups">
-        @for (option of groups(); track option) {
-          <option [value]="option"></option>
+        class="text-select"
+        name="groupId"
+        [(ngModel)]="groupId"
+        [disabled]="!categoryId()"
+      >
+        <option value="">{{ 'No group' | t }}</option>
+        @for (option of groups(); track option.id) {
+          <option [value]="option.id">
+            {{ option.name }}{{ option.status === 'active' ? '' : ' (' + ('inactive' | t) + ')' }}
+          </option>
         }
-      </datalist>
-      @if (shownErrors().group; as message) {
-        <span class="field-error">{{ message | t }}</span>
+      </select>
+      @if (isAddingGroup()) {
+        <div class="button-row">
+          <input
+            class="text-input"
+            type="text"
+            [attr.aria-label]="'New group' | t"
+            [(ngModel)]="newGroupName"
+            [ngModelOptions]="{ standalone: true }"
+            [placeholder]="'e.g. Chocolate' | t"
+            (keydown.enter)="$event.preventDefault(); addGroup()"
+          />
+          <button type="button" class="button button--outline" [disabled]="isSavingGroup()" (click)="addGroup()">
+            {{ 'Add' | t }}
+          </button>
+          <button type="button" class="link-button" (click)="closeNewGroup()">{{ 'Cancel' | t }}</button>
+        </div>
+        @if (groupError()) {
+          <span class="field-error">{{ groupError() | t }}</span>
+        }
+      } @else if (categoryId()) {
+        <button type="button" class="link-button" style="align-self: flex-start" (click)="openNewGroup()">{{ '+ New group' | t }}</button>
       }
     </div>
 
@@ -87,7 +106,7 @@
       }
       @if (allSuppliers() !== null && suppliers().length === 0) {
         <span class="field-hint">{{
-          'No active suppliers yet. Add one in Products → Suppliers.' | t
+          'No active suppliers yet. Add one in Partners.' | t
         }}</span>
       }
     </div>

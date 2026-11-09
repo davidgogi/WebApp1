@@ -33,9 +33,9 @@ import {
   rsUnitProblem,
 } from '../stock/rs-matching.js';
 import { StockService } from '../stock/stock.service.js';
-import { Supplier } from '../suppliers/supplier.entity.js';
-import { SupplierStatus } from '../suppliers/supplier-status.enum.js';
-import { SuppliersService } from '../suppliers/suppliers.service.js';
+import { Partner } from '../../parameters/partners/partner.entity.js';
+import { PartnerStatus } from '../../parameters/partners/partner-status.enum.js';
+import { PartnersService } from '../../parameters/partners/partners.service.js';
 import { Warehouse } from '../warehouses/warehouse.entity.js';
 import { WarehouseStatus } from '../warehouses/warehouse-status.enum.js';
 import { CreateReceiptFromRsDto, SaveReceiptDto } from './dto/receipt.dto.js';
@@ -56,7 +56,7 @@ export type ReceiptView = Omit<Receipt, 'warehouse' | 'lines' | 'supplier'> & {
   total: number;
   warehouse: Pick<Warehouse, 'id' | 'code' | 'name'>;
   supplier: Pick<
-    Supplier,
+    Partner,
     'id' | 'name' | 'identificationCode' | 'status'
   > | null;
   lines?: (Omit<ReceiptLine, 'product' | 'receipt'> & {
@@ -77,7 +77,7 @@ export class ReceiptsService {
     @InjectRepository(Receipt)
     private readonly receiptsRepository: Repository<Receipt>,
     private readonly stockService: StockService,
-    private readonly suppliersService: SuppliersService,
+    private readonly partnersService: PartnersService,
     private readonly rsWaybills: RsWaybillsService,
     private readonly rsClient: RsClient,
     private readonly dataSource: DataSource,
@@ -556,20 +556,23 @@ export class ReceiptsService {
   private async supplierFor(
     actor: AuthUser,
     sellerTin: string | null,
-  ): Promise<Supplier | null> {
+  ): Promise<Partner | null> {
     if (!sellerTin) {
       return null;
     }
     const supplier = await this.dataSource
-      .getRepository(Supplier)
+      .getRepository(Partner)
       .findOneBy({
         companyId: actor.companyId!,
         identificationCode: sellerTin,
       });
-    if (supplier && supplier.status !== SupplierStatus.ACTIVE) {
+    if (supplier && supplier.status !== PartnerStatus.ACTIVE) {
       throw new BadRequestException(
-        `The supplier ${supplier.name} (${sellerTin}) is inactive. Reactivate it in Products → Suppliers first.`,
+        `The supplier ${supplier.name} (${sellerTin}) is inactive. Reactivate it in Partners first.`,
       );
+    }
+    if (supplier) {
+      await this.partnersService.markAsSupplier(actor, supplier);
     }
     return supplier;
   }
@@ -581,7 +584,7 @@ export class ReceiptsService {
   ): Promise<void> {
     await this.checkSupplier(actor, supplierId, true);
     const supplier = (await this.dataSource
-      .getRepository(Supplier)
+      .getRepository(Partner)
       .findOneBy({ id: supplierId, companyId: actor.companyId! }))!;
     if (!sellerTin) {
       return;
@@ -595,7 +598,7 @@ export class ReceiptsService {
       );
     }
     if (!supplier.identificationCode && /^(\d{9}|\d{11})$/.test(sellerTin)) {
-      await this.suppliersService.update(actor, supplier.id, {
+      await this.partnersService.update(actor, supplier.id, {
         identificationCode: sellerTin,
       });
     }
@@ -625,12 +628,12 @@ export class ReceiptsService {
     mustBeActive: boolean,
   ): Promise<void> {
     const supplier = await this.dataSource
-      .getRepository(Supplier)
+      .getRepository(Partner)
       .findOneBy({ id: supplierId, companyId: actor.companyId! });
-    if (!supplier) {
+    if (!supplier?.isSupplier) {
       throw new BadRequestException('Choose a supplier from the list');
     }
-    if (mustBeActive && supplier.status !== SupplierStatus.ACTIVE) {
+    if (mustBeActive && supplier.status !== PartnerStatus.ACTIVE) {
       throw new BadRequestException(
         `The supplier ${supplier.name} is inactive`,
       );

@@ -40,6 +40,8 @@ import { I18nService } from '../../../../core/i18n/i18n.service';
 import { ColumnHeader, ColumnTable } from '../../../../shared/column-order/column-header';
 import { ColumnTools } from '../../../../shared/column-order/column-tools';
 
+const NO_GROUP = '__none__';
+
 @Component({
   selector: 'app-products-list',
   imports: [
@@ -98,6 +100,7 @@ export class ProductsList implements OnInit {
   protected readonly search = signal('');
   protected readonly categoryFilter = signal('all');
   protected readonly groupFilter = signal('all');
+  protected readonly noGroup = NO_GROUP;
   protected readonly supplierFilter = signal('all');
   protected readonly warehouseFilter = signal('all');
   protected readonly usageFilter = signal<'all' | ProductUsage>('all');
@@ -111,7 +114,7 @@ export class ProductsList implements OnInit {
     return this.uniqueSorted(
       this.products()
         .filter((p) => category === 'all' || p.categoryId === category)
-        .map((p) => p.group),
+        .flatMap((p) => (p.group ? [p.group.name] : [])),
     );
   });
 
@@ -149,7 +152,7 @@ export class ProductsList implements OnInit {
     return this.products().filter(
       (p) =>
         matches(this.categoryFilter(), p.categoryId) &&
-        matches(this.groupFilter(), p.group) &&
+        matches(this.groupFilter(), p.group?.name ?? NO_GROUP) &&
         matches(this.supplierFilter(), p.supplierId) &&
         matches(this.usageFilter(), p.usage) &&
         matches(this.posStatusFilter(), p.posStatus) &&
@@ -161,7 +164,7 @@ export class ProductsList implements OnInit {
             : p.stocks.some((s) => s.warehouseId === warehouse))) &&
         (stock === 'all' || (stock === 'in') === p.quantity > 0) &&
         (!query ||
-          [p.name, p.barcode, p.category.name, p.group, p.supplier.name].some((value) =>
+          [p.name, p.barcode, p.category.name, p.group?.name ?? '', p.supplier.name].some((value) =>
             value.toLowerCase().includes(query),
           )),
     );
@@ -203,7 +206,7 @@ export class ProductsList implements OnInit {
   protected readonly importColumns: PreviewColumn<ProductPreviewRow>[] = [
     { label: 'Product', value: (row) => row.name, strong: true },
     { label: 'Barcode', value: (row) => row.barcode },
-    { label: 'Category', value: (row) => `${row.category} / ${row.group}` },
+    { label: 'Category', value: (row) => (row.group ? `${row.category} / ${row.group}` : row.category) },
     { label: 'Supplier', value: (row) => row.supplier },
     { label: 'Unit', value: (row) => row.unit },
     { label: 'Use', value: (row) => PRODUCT_USAGE_LABELS[row.usage] },

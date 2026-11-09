@@ -1,26 +1,16 @@
 <div class="page-stack">
   <div class="page-header">
     <div>
-      <p class="page-eyebrow">{{ 'WMS' | t }}</p>
-      <h1 class="page-title">{{ 'Suppliers' | t }}</h1>
-      <p class="page-description">
-        {{ 'Companies and people the products come from. Every product has one supplier.' | t }}
-        @if (!canManage()) {
-          {{ 'They are added and edited by the WMS admin.' | t }}
-        }
-      </p>
+      <h1 class="page-title">{{ 'Partners' | t }}</h1>
+      <p class="page-description">{{ 'Companies and people this company buys from or sells to.' | t }}</p>
     </div>
-    @if (canManage()) {
-      <div class="button-row page-header__actions">
-        <button type="button" class="button button--dark" (click)="openAddForm()">
-          <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
-          {{ 'Add supplier' | t }}
-        </button>
-      </div>
-    }
+    <div class="button-row page-header__actions">
+      <button type="button" class="button button--dark" (click)="openAddForm()">
+        <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
+        {{ 'Add partner' | t }}
+      </button>
+    </div>
   </div>
-
-  <app-product-tabs />
 
   @if (errorMessage()) {
     <p class="field-error">{{ errorMessage() | t }}</p>
@@ -29,14 +19,8 @@
   <div class="page-card">
     @if (isLoading()) {
       <p class="page-description">{{ 'Loading…' | t }}</p>
-    } @else if (suppliers().length === 0) {
-      <p class="page-description">
-        @if (canManage()) {
-          {{ 'No suppliers yet. Use “Add supplier” to create the first one.' | t }}
-        } @else {
-          {{ 'No suppliers yet. The WMS admin adds them.' | t }}
-        }
-      </p>
+    } @else if (partners().length === 0) {
+      <p class="page-description">{{ 'No partners yet. Use “Add partner” to create the first one.' | t }}</p>
     } @else {
       <div class="table-filters">
         <div class="search-input table-filters__search">
@@ -44,11 +28,16 @@
           <input
             class="text-input"
             type="search"
-            [aria-label]="'Search suppliers' | t"
+            [aria-label]="'Search partners' | t"
             [(ngModel)]="search"
             [placeholder]="'Name, ID code, contact, phone, email or address' | t"
           />
         </div>
+        <select class="text-select" [aria-label]="'Role' | t" [(ngModel)]="roleFilter">
+          <option value="all">{{ 'All roles' | t }}</option>
+          <option value="supplier">{{ 'Supplier' | t }}</option>
+          <option value="client">{{ 'Client' | t }}</option>
+        </select>
         <select class="text-select" [aria-label]="'Type' | t" [(ngModel)]="typeFilter">
           <option value="all">{{ 'All types' | t }}</option>
           <option value="company">{{ 'Company' | t }}</option>
@@ -71,9 +60,9 @@
       <div class="table-toolbar">
         <span>
           @if (hasFilters()) {
-            {{ '{p0} of {p1} suppliers' | t: { p0: filtered().length, p1: suppliers().length } }}
+            {{ '{p0} of {p1} partners' | t: { p0: filtered().length, p1: partners().length } }}
           } @else {
-            {{ '{p0} suppliers' | t: { p0: suppliers().length } }}
+            {{ '{p0} partners' | t: { p0: partners().length } }}
           }
         </span>
         <app-column-tools [columnOrder]="columnOrder" />
@@ -89,38 +78,48 @@
             </tr>
           </thead>
           <tbody>
-            @for (supplier of pages.items(); track supplier.id) {
+            @for (partner of pages.items(); track partner.id) {
               <tr>
                 @for (column of columnOrder.columns(); track column.key) {
                   @switch (column.key) {
-                    @case ('supplier') {
+                    @case ('partner') {
                       <td>
-                      <div class="cell-strong">{{ supplier.name }}</div>
-                      @if (supplier.address) {
-                        <div class="muted">{{ supplier.address }}</div>
+                      <div class="cell-strong">{{ partner.name }}</div>
+                      @if (partner.address) {
+                        <div class="muted">{{ partner.address }}</div>
                       }
                     </td>
                     }
+                    @case ('roles') {
+                      <td>
+                        @if (partner.isSupplier) {
+                          <div>{{ 'Supplier' | t }}</div>
+                        }
+                        @if (partner.isClient) {
+                          <div>{{ 'Client' | t }}</div>
+                        }
+                      </td>
+                    }
                     @case ('type') {
-                      <td>{{ typeLabels[supplier.type] | t }}</td>
+                      <td>{{ typeLabels[partner.type] | t }}</td>
                     }
                     @case ('idCode') {
                       <td>
-                      @if (supplier.identificationCode) {
-                        <code class="code-tag">{{ supplier.identificationCode }}</code>
+                      @if (partner.identificationCode) {
+                        <code class="code-tag">{{ partner.identificationCode }}</code>
                       } @else {
                         <span class="muted">—</span>
                       }
                     </td>
                     }
                     @case ('vat') {
-                      <td>{{ supplier.vatPayer ? ('VAT payer' | t) : ('No' | t) }}</td>
+                      <td>{{ partner.vatPayer ? ('VAT payer' | t) : ('No' | t) }}</td>
                     }
                     @case ('contact') {
                       <td>
-                      @if (supplier.contactPerson || supplier.phone) {
-                        <div>{{ supplier.contactPerson }}</div>
-                        <div class="muted">{{ supplier.phone }}</div>
+                      @if (partner.contactPerson || partner.phone) {
+                        <div>{{ partner.contactPerson }}</div>
+                        <div class="muted">{{ partner.phone }}</div>
                       } @else {
                         <span class="muted">—</span>
                       }
@@ -128,20 +127,20 @@
                     }
                     @case ('email') {
                       <td>
-                      @if (supplier.email) {
-                        {{ supplier.email }}
+                      @if (partner.email) {
+                        {{ partner.email }}
                       } @else {
                         <span class="muted">—</span>
                       }
                     </td>
                     }
                     @case ('products') {
-                      <td class="cell-figure">{{ supplier.productCount }}</td>
+                      <td class="cell-figure">{{ partner.productCount }}</td>
                     }
                     @case ('status') {
                       <td>
-                      <span class="badge" [class]="supplier.status === 'active' ? 'badge--active' : 'badge--inactive'">
-                        {{ supplier.status === 'active' ? ('Active' | t) : ('Inactive' | t) }}
+                      <span class="badge" [class]="partner.status === 'active' ? 'badge--active' : 'badge--inactive'">
+                        {{ partner.status === 'active' ? ('Active' | t) : ('Inactive' | t) }}
                       </span>
                     </td>
                     }
@@ -152,20 +151,19 @@
                     <button
                       type="button"
                       class="icon-action"
-                      [disabled]="!canManage()"
-                      [title]="canManage() ? ('Edit' | t) : ('Only the WMS admin can edit' | t)"
-                      [attr.aria-label]="'Edit {name}' | t: { name: supplier.name }"
-                      (click)="editSupplier(supplier)"
+                      [title]="'Edit' | t"
+                      [attr.aria-label]="'Edit {name}' | t: { name: partner.name }"
+                      (click)="editPartner(partner)"
                     >
                       <lucide-icon [img]="EditIcon" [size]="18"></lucide-icon>
                     </button>
                     <button
                       type="button"
                       class="icon-action icon-action--danger"
-                      [disabled]="!canManage() || supplier.productCount > 0"
-                      [title]="deleteTitle(supplier) | t"
-                      [attr.aria-label]="'Delete {name}' | t: { name: supplier.name }"
-                      (click)="deleteSupplier(supplier)"
+                      [disabled]="isUsed(partner)"
+                      [title]="deleteTitle(partner) | t"
+                      [attr.aria-label]="'Delete {name}' | t: { name: partner.name }"
+                      (click)="deletePartner(partner)"
                     >
                       <lucide-icon [img]="DeleteIcon" [size]="18"></lucide-icon>
                     </button>
@@ -174,7 +172,7 @@
               </tr>
             } @empty {
               <tr>
-                <td class="muted" colspan="9">{{ 'No suppliers match the search and filters.' | t }}</td>
+                <td class="muted" colspan="10">{{ 'No partners match the search and filters.' | t }}</td>
               </tr>
             }
           </tbody>
@@ -187,10 +185,10 @@
 
 <app-modal
   [open]="isFormOpen()"
-  [title]="editing() ? ('Edit supplier' | t) : ('Add supplier' | t)"
+  [title]="editing() ? ('Edit partner' | t) : ('Add partner' | t)"
   (closed)="isFormOpen.set(false)"
 >
   @if (isFormOpen()) {
-    <app-supplier-form [supplier]="editing()" (saved)="onSaved()" (cancelled)="isFormOpen.set(false)" />
+    <app-partner-form [partner]="editing()" (saved)="onSaved()" (cancelled)="isFormOpen.set(false)" />
   }
 </app-modal>

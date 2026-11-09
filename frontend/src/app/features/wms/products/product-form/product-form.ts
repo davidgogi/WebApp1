@@ -3,8 +3,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
-import { Supplier } from '../../suppliers/supplier.model';
-import { SupplierService } from '../../suppliers/supplier.service';
+import { Partner } from '../../../../shared/partners/partner.model';
+import { PartnerService } from '../../../../shared/partners/partner.service';
 import { Product, ProductPosStatus, ProductStatus, ProductUnit, ProductUsage } from '../product.model';
 import { ProductService } from '../product.service';
 import { Combobox, ComboOption } from '../../../../shared/combobox/combobox';
@@ -18,10 +18,9 @@ import { TranslatePipe } from '../../../../core/i18n/t.pipe';
 export class ProductForm implements OnInit {
   private readonly productService = inject(ProductService);
   private readonly categoryService = inject(CategoryService);
-  private readonly supplierService = inject(SupplierService);
+  private readonly partnerService = inject(PartnerService);
 
   readonly product = input<Product | null>(null);
-  readonly known = input<Pick<Product, 'category' | 'group'>[]>([]);
   readonly initial = input<Partial<Pick<Product, 'name' | 'barcode' | 'unit'>> | null>(null);
   readonly hint = input(
     "Quantities aren't typed in here: stock comes in and goes out through stock documents " +
@@ -37,10 +36,14 @@ export class ProductForm implements OnInit {
   protected readonly name = signal('');
   protected readonly barcode = signal('');
   protected readonly categoryId = signal('');
-  protected readonly group = signal('');
+  protected readonly groupId = signal('');
+  protected readonly isAddingGroup = signal(false);
+  protected readonly newGroupName = signal('');
+  protected readonly groupError = signal('');
+  protected readonly isSavingGroup = signal(false);
   protected readonly supplierId = signal('');
   protected readonly allCategories = signal<Category[] | null>(null);
-  protected readonly allSuppliers = signal<Supplier[] | null>(null);
+  protected readonly allSuppliers = signal<Partner[] | null>(null);
   protected readonly status = signal<ProductStatus>('active');
   protected readonly usage = signal<ProductUsage>('sale');
   protected readonly posStatus = signal<ProductPosStatus>('storage');
@@ -62,20 +65,19 @@ export class ProductForm implements OnInit {
       name: required(this.name()),
       barcode: required(this.barcode()),
       categoryId: required(this.categoryId()),
-      group: required(this.group()),
       supplierId: required(this.supplierId()),
       costPrice: price(this.costPrice()),
       salePrice: price(this.salePrice()),
     };
   });
   protected readonly shownErrors = computed(() =>
-    this.submitted() ? this.errors() : { name: '', barcode: '', categoryId: '', group: '', supplierId: '', costPrice: '', salePrice: '' },
+    this.submitted() ? this.errors() : { name: '', barcode: '', categoryId: '', supplierId: '', costPrice: '', salePrice: '' },
   );
 
   protected readonly groups = computed(() => {
-    const categoryId = this.categoryId();
-    const inCategory = this.known().filter((p) => p.category.id === categoryId);
-    return this.uniqueSorted((inCategory.length ? inCategory : this.known()).map((p) => p.group));
+    const category = this.allCategories()?.find((c) => c.id === this.categoryId());
+    const currentId = this.product()?.groupId;
+    return (category?.groups ?? []).filter((group) => group.status === 'active' || group.id === currentId);
   });
 
   ngOnInit(): void {
@@ -83,8 +85,8 @@ export class ProductForm implements OnInit {
       next: (categories) => this.allCategories.set(categories),
       error: () => this.formError.set('Could not load the categories.'),
     });
-    this.supplierService.list().subscribe({
-      next: (suppliers) => this.allSuppliers.set(suppliers),
+    this.partnerService.list().subscribe({
+      next: (partners) => this.allSuppliers.set(partners.filter((partner) => partner.isSupplier)),
       error: () => this.formError.set('Could not load the suppliers.'),
     });
     const product = this.product();
@@ -98,7 +100,7 @@ export class ProductForm implements OnInit {
     this.name.set(product.name);
     this.barcode.set(product.barcode);
     this.categoryId.set(product.categoryId);
-    this.group.set(product.group);
+    this.groupId.set(product.groupId ?? '');
     this.supplierId.set(product.supplierId);
     this.status.set(product.status);
     this.usage.set(product.usage);
@@ -107,6 +109,56 @@ export class ProductForm implements OnInit {
     this.costPrice.set(product.costPrice);
     this.salePrice.set(product.salePrice);
     this.unitLocked.set(product.stocks.some((stock) => stock.quantity !== 0));
+  }
+
+  changeCategory(id: string): void {
+    this.categoryId.set(id);
+    this.groupId.set('');
+    this.closeNewGroup();
+  }
+
+  openNewGroup(): void {
+    this.newGroupName.set('');
+    this.groupError.set('');
+    this.isAddingGroup.set(true);
+  }
+
+  closeNewGroup(): void {
+    this.isAddingGroup.set(false);
+    this.groupError.set('');
+  }
+
+  addGroup(): void {
+    const name = this.newGroupName().trim();
+    const categoryId = this.categoryId();
+    if (!name || !categoryId) {
+      this.groupError.set('The group name is required.');
+      return;
+    }
+    this.isSavingGroup.set(true);
+    this.groupError.set('');
+    this.categoryService.createGroup(categoryId, { name }).subscribe({
+      next: (group) => {
+        this.isSavingGroup.set(false);
+        this.allCategories.update((categories) =>
+          (categories ?? []).map((category) =>
+            category.id === categoryId
+              ? {
+                  ...category,
+                  groups: [...category.groups, group].sort((a, b) => a.name.localeCompare(b.name)),
+                }
+              : category,
+          ),
+        );
+        this.groupId.set(group.id);
+        this.closeNewGroup();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.isSavingGroup.set(false);
+        const message = error.error?.message;
+        this.groupError.set(typeof message === 'string' ? message : 'Could not save the group.');
+      },
+    });
   }
 
   save(): void {
@@ -119,7 +171,7 @@ export class ProductForm implements OnInit {
       name: this.name().trim(),
       barcode: this.barcode().trim(),
       categoryId: this.categoryId(),
-      group: this.group().trim(),
+      groupId: this.groupId() || null,
       supplierId: this.supplierId(),
       status: this.status(),
       usage: this.usage(),
@@ -155,7 +207,4 @@ export class ProductForm implements OnInit {
       .map((item) => ({ value: item.id, label: item.status === 'active' ? item.name : `${item.name} (inactive)` }));
   }
 
-  private uniqueSorted(values: string[]): string[] {
-    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
-  }
 }

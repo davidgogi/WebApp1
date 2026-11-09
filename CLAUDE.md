@@ -78,9 +78,8 @@ submodules are planned, so keep to the structure below.
   Code, Name, Type, Branch, Address, Manager, Status, Products, Stock, Total price.
 - **WMS** → **Products** (CRUD by the **WMS admin only**; the system admin sees them read-only;
   managers don't see this page): name, **barcode** [შტრიხკოდი; text, unique per company],
-  **category** (broad, e.g. Sweets; picked from the Categories list) and **group** (narrower, inside
-  the category, e.g. Chocolate; free text; DB column `product_group` because `group` is an SQL
-  keyword), **supplier** (picked from the Suppliers list), **production status**
+  **category** (broad, e.g. Sweets; picked from the Categories list) and an optional **group** (narrower,
+  inside the category, e.g. Chocolate; picked from that category's groups, `products.group_id`), **supplier** (picked from the Partners marked as supplier), **production status**
   [`active`/`inactive`, shown as Active / Not active], **use** [`sale`/`ingredient`/`both`],
   **POS status** [`storage` = Storage only / `pos` = Available at POS], **unit** [ერთეული:
   `kg`/`pcs`], **cost price** [თვითღირებულება] and **sale price** [გასაყიდი ფასი] (₾ per unit,
@@ -89,13 +88,15 @@ submodules are planned, so keep to the structure below.
   The product form is the **catalogue only**: no quantities (unit is locked while the
   product has stock; a product with stock history can't be deleted, only set Not active). Category
   and supplier are **dropdowns** of the active entries (a product keeps an inactive one, shown
-  "(inactive)"); group is text with suggestions from the chosen category. Top right:
+  "(inactive)"); group is a dropdown of the chosen category's groups with **+ New group** beside it;
+  changing the category clears the group. Top right:
   **Import** (WMS admin), **Export** (system admin + WMS admin) and **+ Add product** (the form is a
   modal, also used
   by Edit). Import / Export (2026-10-21, `products/product-excel.service.ts`): columns Name *,
   Barcode * [Text], Category * and Supplier * (names of active ones, matched like the warehouse
   manager: dropdowns from the template's Categories / Suppliers sheets, anything else is an error
-  that lists the valid names), Group *, Unit * (pcs/kg), Use * (For sale / Ingredient /
+  that lists the valid names), Group (optional; must be an active group of that row's category, see
+  the template's Groups sheet; anything else is an error, never created by the import), Unit * (pcs/kg), Use * (For sale / Ingredient /
   Both), POS status (default Storage only), Production status (default Active), Cost price *, Sale
   price * (≥ 0, 2 decimals, comma or dot); the same rules as the form; name and barcode must not
   repeat existing products or other rows; quantities are never imported. Export adds In stock,
@@ -106,20 +107,26 @@ submodules are planned, so keep to the structure below.
   (`products/product-stock/`): quantity per warehouse, share, value at cost, last change, and what is
   in transit (a `transfer_out` movement with no `transfer_in` / `transfer_cancel` for that document).
   POS status is only stored: the Store POS still sells its own `store_products` catalog.
-- **WMS** → **Products** → tabs **Products / Categories / Suppliers** (2026-10-21, like RetailApp's
-  ინვენტარი / კატეგორიები / მომწოდებლები; `products/product-tabs/`). Frontend
-  `/wms/products/categories` and `/wms/products/suppliers` (so the sidebar keeps Products
-  highlighted; declared before `products/:id`), code in `features/wms/categories/` and
-  `features/wms/suppliers/`, API `/wms/categories` and `/wms/suppliers` (a deliberate exception to
-  "the URL follows the folder": a path under `/wms/products` would collide with `products/:id`).
+- **WMS** → **Products** → tabs **Products / Categories** (2026-10-21; `products/product-tabs/`).
+  Frontend `/wms/products/categories` (so the sidebar keeps Products highlighted; declared before
+  `products/:id`), code in `features/wms/categories/`, API `/wms/categories` (a deliberate exception
+  to "the URL follows the folder": a path under `/wms/products` would collide with `products/:id`).
   Same access as Products: the WMS admin manages, the system admin reads, managers get 403 (they
-  see category / supplier names through `GET /wms/products/options`).
+  see category / supplier names through `GET /wms/products/options`). Suppliers were a third tab
+  until 2026-11-09, now see **Partners**; the old URL redirects there.
   - *Categories* (`product_categories`): name (unique ignoring capitals / spaces), optional
     description, status, product count.
-  - *Suppliers* (`suppliers`): name (unique the same way), type `company` / `individual`, optional
-    identification code (9 digits for a company, the 11-digit personal ID for an individual; unique
-    per company), VAT payer (yes/no), optional contact person, phone, email, address, status,
-    product count.
+  - *Groups* (`product_groups`, 2026-11-09, `categories/product-group.entity.ts`, API
+    `/wms/categories/:categoryId/groups`; free text on the product until then, the 63 distinct texts
+    became rows): belong to one category, name unique within it ignoring capitals (the same name
+    under another category is fine), status, product count, shown by expanding a row on the
+    Categories page. Optional on a product (the user's choice). Products point at them by a
+    composite key `(company_id, group_id)`. An inactive group can't be picked, but a product may keep
+    it. `GET /wms/categories` returns each category's `groups`.
+  - **Deleting** a category or group with products opens a "move them first" dialog and moves them
+    in one transaction (`DELETE /wms/categories/:id?moveToCategoryId=&moveToGroupId=`,
+    `DELETE .../groups/:id?moveToGroupId=` or `?noGroup=true`); without a target the API answers 409.
+    Products are never deleted this way. Deleting an empty category also deletes its groups.
   - Products link to them by `category_id` / `supplier_id` (required, `ON DELETE RESTRICT`); a
     category / supplier with products can't be deleted (set it Inactive); an inactive one can't be
     picked for a new product or a change, but a product may keep it. The API returns
@@ -155,7 +162,7 @@ submodules are planned, so keep to the structure below.
   list, `supplier_id`, required; until 2026-10-22 it was free text, the old texts were linked to
   suppliers and Demo Company got a supplier named "xxx" for its four test receipts), waybill /
   invoice no., date, note; lines: product, quantity, price per unit. The editor's supplier dropdown
-  uses `GET /wms/suppliers/options` (active, managers allowed).
+  uses `GET /parameters/partners/supplier-options` (active suppliers, WMS managers allowed).
   **Receipt from an RS waybill** (2026-10-22): on RS → RS waybills the **WMS admin** clicks "Create
   receipt" on a purchase waybill (RS types 2 / 3 / 6, status active or closed, not rejected; not
   4 = distribution: that is the seller's own document for a loaded van, the buyer receives its
@@ -165,7 +172,7 @@ submodules are planned, so keep to the structure below.
   else left empty like an unlinked line (`receipts.supplier_id` is nullable only for RS drafts; the
   seller is kept as `rs_seller_tin` / `rs_seller_name`; since 2026-10-23, before that a 409
   `SUPPLIER_MISSING` question auto-created it). In the editor the WMS admin picks a supplier or
-  **+ New supplier** (the shared `suppliers/supplier-form/`, pre-filled from the seller); picking one
+  **+ New supplier** (the shared `shared/partners/partner-form/` with `[supplierOnly]`, pre-filled from the seller; a seller already listed only as a client is marked as a supplier too); picking one
   without a code gives it the seller's code, one with a different code is refused. Waybill no. and date from RS, one line per
   goods line with an RS snapshot (`rs_name`, `rs_barcode`, `rs_unit_id`, `rs_unit`) and the
   product matched by a remembered link (`rs_product_links`: seller code + barcode, or the name when
@@ -241,6 +248,23 @@ submodules are planned, so keep to the structure below.
   scan a barcode + Enter); if saving a new draft works but posting / sending fails, the editor moves
   to that draft's edit page instead of creating a second one. Stock history rows link to their
   document. Demo Company has REC-000001 and TR-000001 from the UI test.
+- **Parameters** → **Partners** (`/parameters/partners`; Parameters is the module for company-wide lists, always included; backend `parameters/partners/`,
+  API `/parameters/partners`; frontend page `features/parameters/partners/`, and `shared/partners/` for the model, service and form because WMS uses them;
+  2026-11-09, renamed from WMS Suppliers). The businesses and people **a tenant** buys from or sells
+  to; `partners` in the code because `companies` already means the tenants. One list, each entry a
+  supplier, a client or both (`is_supplier` / `is_client`, at least one, also a DB check): one firm,
+  one row, one identification code. Fields as before: name (unique ignoring capitals / spaces), type
+  `company` / `individual`, optional identification code (9 digits, or the 11-digit personal ID;
+  unique per company), VAT payer, contact person, phone, email, address, status, product count.
+  **Always included, like RS, and not separated by module** (the user's agreement): the system admin
+  and every module admin see and edit all of the company's partners (`@Access('parameters')`); hiding
+  them by module would cause duplicates or "already exists" errors about invisible rows. Managers
+  and cashiers have no page; WMS managers get id + name + code from `GET /parameters/partners/supplier-options`
+  (`@Access(WMS)`). Every change is audited. Products and receipts still use `supplier_id` (only
+  entries marked supplier can be picked); a partner on products or receipts must stay a supplier and
+  can't be deleted (set it Inactive). Clients are **only a list so far**: nothing uses them yet.
+  The partners service reads the WMS `Product` and `Receipt` entities for the counts, and WMS
+  imports `PartnersModule`, a deliberate exception like HR's `Employee`.
 - **RS** → **RS waybills** (its own module since 2026-10-22, first built under WMS the same day;
   backend `rs/rs.module.ts` + submodule `rs/waybills/`, API `/rs/waybills/...`, frontend
   `features/rs/rs.routes.ts` + `features/rs/waybills/`, pages `/rs/waybills` (received) and
@@ -347,7 +371,7 @@ Read this before adding any module, endpoint or page.
   independence. There is no edit form
   for employees yet, so a role can't be changed after creation (remove and re-add).
 - **Scoping rules, enforced in the backend** (the frontend only hides things):
-  - `auth/auth.guard.ts` is a global guard. Controllers declare `@Access('hr' | 'rs' | 'wms' | 'store' |
+  - `auth/auth.guard.ts` is a global guard. Controllers declare `@Access('hr' | 'rs' | 'parameters' | 'wms' | 'store' |
     'restaurant')` (company must have bought the module and the user must work in it, see
     `auth/access.ts`) and optionally `@Roles(...)` (class or method). `@Public()` skips login.
     `@CurrentUser() user: AuthUser` gives the logged-in user.
@@ -362,7 +386,7 @@ Read this before adding any module, endpoint or page.
   - API responses must not leak other people's HR data (managers come back as id + name only).
   - **Row-Level Security** (`database/`) is a second layer under those filters: even a query that
     forgets `companyId` only returns the current company's rows, and writing a row for another company
-    fails. **Keep filtering by `companyId` anyway.** Every table with a `company_id` column (23) has RLS
+    fails. **Keep filtering by `companyId` anyway.** Every table with a `company_id` column (24) has RLS
     on and the policy `company_isolation`: a row is visible when `company_id` = the setting
     `app.company_id`, or when `app.all_companies` = `on`. `main.ts` wraps every request in an
     `AsyncLocalStorage` scope (`tenant-scope.ts`, starts as "no company"), the global guard calls
@@ -425,7 +449,7 @@ companyId-only version and an optional RLS version). Remaining risks and next st
 - **Ids sent by the client**: foreign keys don't look at the company, and they ignore RLS, so a row
   could point at another company's row. Every service still has to check each id
   (`assertCategoryUsable`, `assertSupplierUsable`, `checkWarehouse`, ...). Composite keys
-  `(company_id, id)` make the database refuse it, but only the link tables and sales have them so
+  `(company_id, id)` make the database refuse it, but only the link tables, sales and product groups have them so
   far; the other tables (products → categories, receipts → warehouses, ...) still rely on those checks.
 - **Cross-company test** (2026-11-06): `backend/test/tenant-isolation.e2e-spec.ts`, `npm run
   test:e2e`. It creates its own database `webapp_e2e_<random>` and limited role on the server in
@@ -436,7 +460,7 @@ companyId-only version and an optional RLS version). Remaining risks and next st
   company setting, only A's with it, and can't write B's rows; plus the composite foreign key. It
   drops the database and role afterwards. Shown to catch a permissive RLS policy and a missing
   `companyId` filter (once RLS is also off). CI runs it in its own job (`tenant-isolation`) before
-  the image build, so a failure blocks the deploy. Covers HR and WMS only so far: add Store
+  the image build, so a failure blocks the deploy. Covers HR, Partners and WMS (including groups) only so far: add Store
   (stores, registers, sales) and RS when touching them. It also guards the patch on TypeORM's
   internal `PostgresQueryRunner` against upgrades.
 
@@ -543,7 +567,8 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
   `audit/` (audit log), `superadmin/` (the superuser's `/superadmin/companies` API). HR employees are
   the shared core: other modules may reference the `Employee` entity (managers, cashiers).
 - `rs/` has `waybills/` (RS connection + received waybills; `rs-client.ts` talks SOAP to RS).
-- `wms/` has `warehouses/`, `products/`, `categories/`, `suppliers/`, `stock/` (balances, movement history, `StockService`, document
+- `parameters/` has `partners/` (company-wide lists, always included like HR and RS).
+- `wms/` has `warehouses/`, `products/`, `categories/`, `stock/` (balances, movement history, `StockService`, document
   numbers), `receipts/`, `transfers/` (documents that post through `StockService`).
 - `store/` has `stores/`, `pos/`, `cash-register/` (POS uses the register sessions that Cash register
   opens: same module, so allowed).
@@ -653,13 +678,15 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
   server, generate, edit, start again.
   `npm run migration:check` says whether entities and database differ (CI runs it in the smoke test
   against a fresh database, so a forgotten migration fails the build); `npm run migration:revert`
-  undoes the last one. The first migration (`…-Baseline`) creates today's whole schema; TypeORM
+  undoes the last one. `tsc` skips emitting after `dist/` is deleted unless the `*.tsbuildinfo` goes too. The first migration (`…-Baseline`) creates today's whole schema; TypeORM
   generated `CREATE TYPE "app_module"` twice (`employees` and `users` share that enum) and the
   duplicate was removed by hand: watch for that when two entities share an `enumName`. If you delete
   a migration file, delete its `.js` in `dist/` too (`tsc` doesn't remove it; `start:dev` does).
   **Adopting old databases**: a database built by `synchronize` (has `companies`, no rows in
   `migrations`) is brought up to date once more with backfill + `synchronize` and every migration is
-  marked done without running (`fake`). This laptop's database was adopted on 2026-11-06 (backup
+  marked done without running (`fake`). Migrations that move data (suppliers → partners, group text
+  → `product_groups`) run their `up` first (`runDataMigrations`), because `synchronize` would
+  otherwise lose that data: **add any new data-moving migration to that list.** This laptop's database was adopted on 2026-11-06 (backup
   before it: `pg_dump` in the session scratchpad); the test cluster's database and other laptops
   adopt themselves at their next startup. Delete that path (and `company-id-backfill.ts`) once every
   database has a `migrations` table with rows.

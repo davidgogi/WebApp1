@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { DataSource } from 'typeorm';
 import { PostgresDataSourceOptions } from 'typeorm/driver/postgres/PostgresDataSourceOptions.js';
 import { addMissingCompanyIds } from './company-id-backfill.js';
+import { SuppliersBecomePartners1794225600000 } from './migrations/1794225600000-SuppliersBecomePartners.js';
+import { ProductGroupsBecomeRecords1794312000000 } from './migrations/1794312000000-ProductGroupsBecomeRecords.js';
 
 const compiledRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -36,6 +38,32 @@ async function builtBySynchronize(dataSource: DataSource): Promise<boolean> {
   }
 }
 
+async function runDataMigrations(dataSource: DataSource): Promise<void> {
+  const runner = dataSource.createQueryRunner();
+  try {
+    const pending = [
+      (await runner.hasTable('suppliers'))
+        ? new SuppliersBecomePartners1794225600000()
+        : null,
+      (await runner.hasColumn('products', 'product_group'))
+        ? new ProductGroupsBecomeRecords1794312000000()
+        : null,
+    ].filter((migration) => migration !== null);
+    for (const migration of pending) {
+      await runner.startTransaction();
+      await migration.up(runner);
+      await runner.commitTransaction();
+    }
+  } catch (error) {
+    if (runner.isTransactionActive) {
+      await runner.rollbackTransaction();
+    }
+    throw error;
+  } finally {
+    await runner.release();
+  }
+}
+
 export async function migrateDatabase(
   owner: PostgresDataSourceOptions,
 ): Promise<void> {
@@ -47,6 +75,7 @@ export async function migrateDatabase(
         'Database was built by synchronize: bringing it up to date and marking the migrations as done',
       );
       await addMissingCompanyIds(owner);
+      await runDataMigrations(dataSource);
       await dataSource.synchronize();
       await dataSource.runMigrations({ fake: true });
     }

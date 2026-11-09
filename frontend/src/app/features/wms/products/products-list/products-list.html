@@ -77,6 +77,7 @@
         </select>
         <select class="text-select" [aria-label]="'Group' | t" [(ngModel)]="groupFilter">
           <option value="all">{{ 'All groups' | t }}</option>
+          <option [value]="noGroup">{{ 'No group' | t }}</option>
           @for (option of filterGroups(); track option) {
             <option [value]="option">{{ option }}</option>
           }
@@ -168,7 +169,7 @@
                       <td>{{ product.category.name }}</td>
                     }
                     @case ('group') {
-                      <td>{{ product.group }}</td>
+                      <td>{{ product.group?.name ?? '—' }}</td>
                     }
                     @case ('supplier') {
                       <td>{{ product.supplier.name }}</td>
@@ -276,7 +277,6 @@
   @if (isFormOpen()) {
     <app-product-form
       [product]="editing()"
-      [known]="products()"
       (saved)="onSaved()"
       (cancelled)="closeForm()"
     />

@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { Boxes, Layers, LucideAngularModule, Truck } from 'lucide-angular';
+import { Boxes, Layers, LucideAngularModule } from 'lucide-angular';
 import { TranslatePipe } from '../../../../core/i18n/t.pipe';
 
 @Component({
@@ -26,6 +26,5 @@ export class ProductTabs {
   protected readonly tabs = [
     { link: '/wms/products', label: 'Products', icon: Boxes },
     { link: '/wms/products/categories', label: 'Categories', icon: Layers },
-    { link: '/wms/products/suppliers', label: 'Suppliers', icon: Truck },
   ];
 }

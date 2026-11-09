@@ -6,7 +6,6 @@ import { StockModule } from './stock/stock.module.js';
 import { ReceiptsModule } from './receipts/receipts.module.js';
 import { TransfersModule } from './transfers/transfers.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
-import { SuppliersModule } from './suppliers/suppliers.module.js';
 
 @Module({
   imports: [
@@ -16,7 +15,6 @@ import { SuppliersModule } from './suppliers/suppliers.module.js';
     ReceiptsModule,
     TransfersModule,
     CategoriesModule,
-    SuppliersModule,
     RouterModule.register([
       {
         path: 'wms',
@@ -27,7 +25,6 @@ import { SuppliersModule } from './suppliers/suppliers.module.js';
           ReceiptsModule,
           TransfersModule,
           CategoriesModule,
-          SuppliersModule,
         ],
       },
     ]),

@@ -1,25 +1,44 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
-import { SupplierStatus } from '../supplier-status.enum.js';
-import { SupplierType } from '../supplier-type.enum.js';
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
+import { PartnerStatus } from '../partner-status.enum.js';
+import { PartnerType } from '../partner-type.enum.js';
 
-const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+const trim = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
 const trimOrNull = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() || null : value;
 
-export class CreateSupplierDto {
+export class CreatePartnerDto {
   @Transform(trim)
   @IsString()
   @IsNotEmpty()
   @MaxLength(140)
   name!: string;
 
-  @IsEnum(SupplierType)
-  type!: SupplierType;
+  @IsEnum(PartnerType)
+  type!: PartnerType;
+
+  @IsBoolean()
+  isSupplier!: boolean;
+
+  @IsBoolean()
+  isClient!: boolean;
 
   @IsOptional()
   @Transform(trimOrNull)
-  @Matches(/^(\d{9}|\d{11})$/, { message: 'The identification code has 9 digits (company) or 11 digits (personal ID)' })
+  @Matches(/^(\d{9}|\d{11})$/, {
+    message:
+      'The identification code has 9 digits (company) or 11 digits (personal ID)',
+  })
   identificationCode?: string | null;
 
   @IsOptional()
@@ -49,11 +68,11 @@ export class CreateSupplierDto {
   address?: string | null;
 
   @IsOptional()
-  @IsEnum(SupplierStatus)
-  status?: SupplierStatus;
+  @IsEnum(PartnerStatus)
+  status?: PartnerStatus;
 }
 
-export class UpdateSupplierDto {
+export class UpdatePartnerDto {
   @IsOptional()
   @Transform(trim)
   @IsString()
@@ -62,12 +81,23 @@ export class UpdateSupplierDto {
   name?: string;
 
   @IsOptional()
-  @IsEnum(SupplierType)
-  type?: SupplierType;
+  @IsEnum(PartnerType)
+  type?: PartnerType;
+
+  @IsOptional()
+  @IsBoolean()
+  isSupplier?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isClient?: boolean;
 
   @IsOptional()
   @Transform(trimOrNull)
-  @Matches(/^(\d{9}|\d{11})$/, { message: 'The identification code has 9 digits (company) or 11 digits (personal ID)' })
+  @Matches(/^(\d{9}|\d{11})$/, {
+    message:
+      'The identification code has 9 digits (company) or 11 digits (personal ID)',
+  })
   identificationCode?: string | null;
 
   @IsOptional()
@@ -97,6 +127,6 @@ export class UpdateSupplierDto {
   address?: string | null;
 
   @IsOptional()
-  @IsEnum(SupplierStatus)
-  status?: SupplierStatus;
+  @IsEnum(PartnerStatus)
+  status?: PartnerStatus;
 }

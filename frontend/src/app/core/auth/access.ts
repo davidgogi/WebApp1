@@ -6,7 +6,7 @@ export function canAccessModule(user: SessionUser | null, module: AccessModule):
   if (!user || user.role === 'superuser') {
     return false;
   }
-  if (module === 'rs') {
+  if (module === 'rs' || module === 'parameters') {
     return user.role === 'system_admin' || user.role === 'module_admin';
   }
   if (module !== 'hr' && !user.companyModules.includes(module)) {

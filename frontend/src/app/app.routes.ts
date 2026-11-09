@@ -45,6 +45,11 @@ export const routes: Routes = [
         loadChildren: () => import('./features/rs/rs.routes'),
       },
       {
+        path: 'parameters',
+        canActivate: [accessGuard('parameters')],
+        loadChildren: () => import('./features/parameters/parameters.routes'),
+      },
+      {
         path: 'wms',
         canActivate: [accessGuard('wms')],
         loadChildren: () => import('./features/wms/wms.routes'),

@@ -30,6 +30,7 @@ interface Tenant {
   wmsAdmin: string;
   employeeId: string;
   categoryId: string;
+  groupId: string;
   supplierId: string;
   warehouseId: string;
   productId: string;
@@ -204,9 +205,17 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
   const category = await ok('POST', '/wms/categories', wmsAdmin, {
     name: `${secret} category`,
   });
-  const supplier = await ok('POST', '/wms/suppliers', wmsAdmin, {
+  const group = await ok(
+    'POST',
+    `/wms/categories/${category.id}/groups`,
+    wmsAdmin,
+    { name: `${secret} group` },
+  );
+  const supplier = await ok('POST', '/parameters/partners', wmsAdmin, {
     name: `${secret} supplier`,
     type: 'company',
+    isSupplier: true,
+    isClient: false,
   });
   const warehouse = await ok('POST', '/wms/warehouses', wmsAdmin, {
     name: `${secret} warehouse`,
@@ -217,7 +226,7 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
     name: `${secret} product`,
     barcode: `E2E-${label}-${suffix}`,
     categoryId: category.id,
-    group: 'Group',
+    groupId: group.id,
     supplierId: supplier.id,
     status: 'active',
     usage: 'sale',
@@ -241,6 +250,7 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
     wmsAdmin,
     employeeId: employee.id,
     categoryId: category.id,
+    groupId: group.id,
     supplierId: supplier.id,
     warehouseId: warehouse.id,
     productId: product.id,
@@ -302,7 +312,7 @@ describe('tenant isolation', () => {
     '/wms/warehouses',
     '/wms/products',
     '/wms/categories',
-    '/wms/suppliers',
+    '/parameters/partners',
     '/wms/receipts',
   ];
 
@@ -350,6 +360,14 @@ describe('tenant isolation', () => {
   });
 
   it("the other company's rows cannot be changed", async () => {
+    expectRefused(
+      await call('PATCH', `/wms/categories/${b.categoryId}/groups/${b.groupId}`, a.wmsAdmin, { name: `hacked by ${a.label}` }),
+      b,
+    );
+    expectRefused(
+      await call('PATCH', `/wms/categories/${a.categoryId}/groups/${b.groupId}`, a.wmsAdmin, { name: `hacked by ${a.label}` }),
+      b,
+    );
     const hacked = { name: `hacked by ${a.label}` };
     expectRefused(
       await call(
@@ -374,7 +392,7 @@ describe('tenant isolation', () => {
       b,
     );
     expectRefused(
-      await call('PATCH', `/wms/suppliers/${b.supplierId}`, a.wmsAdmin, hacked),
+      await call('PATCH', `/parameters/partners/${b.supplierId}`, a.wmsAdmin, hacked),
       b,
     );
     expectRefused(
@@ -406,6 +424,15 @@ describe('tenant isolation', () => {
 
   it("the other company's rows cannot be deleted", async () => {
     expectRefused(
+      await call('DELETE', `/wms/categories/${b.categoryId}/groups/${b.groupId}?noGroup=true`, a.wmsAdmin),
+      b,
+    );
+    expectRefused(
+      await call('DELETE', `/wms/categories/${a.categoryId}/groups/${b.groupId}?noGroup=true`, a.wmsAdmin),
+      b,
+    );
+    expect((await call('GET', '/wms/categories', b.wmsAdmin)).text).toContain(b.groupId);
+    expectRefused(
       await call('DELETE', `/wms/receipts/${b.receiptId}`, a.wmsAdmin),
       b,
     );
@@ -422,7 +449,7 @@ describe('tenant isolation', () => {
       b,
     );
     expectRefused(
-      await call('DELETE', `/wms/suppliers/${b.supplierId}`, a.wmsAdmin),
+      await call('DELETE', `/parameters/partners/${b.supplierId}`, a.wmsAdmin),
       b,
     );
     expectRefused(
@@ -447,7 +474,7 @@ describe('tenant isolation', () => {
     expect((await call('GET', '/wms/categories', b.wmsAdmin)).text).toContain(
       b.categoryId,
     );
-    expect((await call('GET', '/wms/suppliers', b.wmsAdmin)).text).toContain(
+    expect((await call('GET', '/parameters/partners', b.wmsAdmin)).text).toContain(
       b.supplierId,
     );
   });
@@ -464,11 +491,23 @@ describe('tenant isolation', () => {
   });
 
   it("the other company's ids cannot be used in your own data", async () => {
+    expectRefused(
+      await call('POST', `/wms/categories/${b.categoryId}/groups`, a.wmsAdmin, { name: 'planted' }),
+      b,
+    );
+    expectRefused(
+      await call('DELETE', `/wms/categories/${a.categoryId}?moveToCategoryId=${b.categoryId}`, a.wmsAdmin),
+      b,
+    );
+    expectRefused(
+      await call('PATCH', `/wms/products/${a.productId}`, a.wmsAdmin, { groupId: b.groupId }),
+      b,
+    );
+    expect((await call('GET', `/wms/products/${a.productId}`, a.wmsAdmin)).body.groupId).toBe(a.groupId);
     const product = {
       name: `${a.secret} borrowed`,
       barcode: `E2E-borrow-${suffix}`,
       categoryId: a.categoryId,
-      group: 'Group',
       supplierId: a.supplierId,
       status: 'active',
       usage: 'sale',
@@ -551,6 +590,7 @@ describe('tenant isolation', () => {
           b.productId,
         ]),
       ).toBe(0);
+      expect(await count('SELECT count(*) FROM product_groups WHERE id = $1', [b.groupId])).toBe(0);
       expect(
         await count('SELECT count(*) FROM employees WHERE id = $1', [
           b.employeeId,
@@ -581,6 +621,9 @@ describe('tenant isolation', () => {
           `INSERT INTO warehouse_employees (company_id, warehouse_id, employee_id) VALUES ($1, $2, $3)`,
           [a.companyId, b.warehouseId, a.employeeId],
         ),
+      ).rejects.toThrow(/foreign key/);
+      await expect(
+        connection.query(`UPDATE products SET group_id = $1 WHERE id = $2`, [b.groupId, a.productId]),
       ).rejects.toThrow(/foreign key/);
     } finally {
       await connection.destroy();

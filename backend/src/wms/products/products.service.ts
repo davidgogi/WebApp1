@@ -13,8 +13,9 @@ import { nameKey, nameKeySql } from '../../common/name-key.js';
 import { Category } from '../categories/category.entity.js';
 import { CategoryStatus } from '../categories/category-status.enum.js';
 import { StockService } from '../stock/stock.service.js';
-import { Supplier } from '../suppliers/supplier.entity.js';
-import { SupplierStatus } from '../suppliers/supplier-status.enum.js';
+import { Partner } from '../../parameters/partners/partner.entity.js';
+import { ProductGroup } from '../categories/product-group.entity.js';
+import { PartnerStatus } from '../../parameters/partners/partner-status.enum.js';
 import { Product } from './product.entity.js';
 import { ProductStatus } from './product-status.enum.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
@@ -37,6 +38,10 @@ function withShortReferences(product: Product): Product {
     const { id, name, status } = product.category;
     product.category = { id, name, status };
   }
+  if (product.group) {
+    const { id, name, status } = product.group;
+    product.group = { id, name, status };
+  }
   if (product.supplier) {
     const { id, name, status } = product.supplier;
     product.supplier = { id, name, status };
@@ -51,8 +56,10 @@ export class ProductsService {
     private readonly productsRepository: Repository<Product>,
     @InjectRepository(Category)
     private readonly categoriesRepository: Repository<Category>,
-    @InjectRepository(Supplier)
-    private readonly suppliersRepository: Repository<Supplier>,
+    @InjectRepository(ProductGroup)
+    private readonly groupsRepository: Repository<ProductGroup>,
+    @InjectRepository(Partner)
+    private readonly suppliersRepository: Repository<Partner>,
     private readonly stockService: StockService,
     private readonly audit: AuditService,
   ) {}
@@ -63,6 +70,7 @@ export class ProductsService {
       relations: {
         stocks: { warehouse: true },
         category: true,
+        group: true,
         supplier: true,
       },
       order: { name: 'ASC', stocks: { warehouse: { code: 'ASC' } } },
@@ -73,7 +81,7 @@ export class ProductsService {
   async options(actor: AuthUser): Promise<ProductOption[]> {
     const products = await this.productsRepository.find({
       where: { companyId: actor.companyId!, status: ProductStatus.ACTIVE },
-      relations: { category: true, supplier: true },
+      relations: { category: true, group: true, supplier: true },
       order: { name: 'ASC' },
     });
     return products.map((product) => {
@@ -89,6 +97,7 @@ export class ProductsService {
       relations: {
         stocks: { warehouse: true },
         category: true,
+        group: true,
         supplier: true,
       },
       order: { stocks: { warehouse: { code: 'ASC' } } },
@@ -104,6 +113,9 @@ export class ProductsService {
   async create(actor: AuthUser, dto: CreateProductDto): Promise<Product> {
     await this.assertNameFree(actor, dto.name);
     await this.assertCategoryUsable(actor, dto.categoryId);
+    if (dto.groupId) {
+      await this.assertGroupUsable(actor, dto.categoryId, dto.groupId);
+    }
     await this.assertSupplierUsable(actor, dto.supplierId);
     const product = this.productsRepository.create({
       ...this.trimmed(dto),
@@ -181,9 +193,21 @@ export class ProductsService {
       await this.assertSupplierUsable(actor, dto.supplierId);
     }
 
-    const { stocks, category, supplier, ...rest } = product;
+    const categoryId = dto.categoryId ?? product.categoryId;
+    const categoryChanged = categoryId !== product.categoryId;
+    const groupId =
+      dto.groupId !== undefined
+        ? dto.groupId
+        : categoryChanged
+          ? null
+          : product.groupId;
+    if (groupId && (groupId !== product.groupId || categoryChanged)) {
+      await this.assertGroupUsable(actor, categoryId, groupId);
+    }
+
+    const { stocks, category, group, supplier, ...rest } = product;
     const saved = await this.save(
-      Object.assign(rest as Product, this.trimmed(dto)),
+      Object.assign(rest as Product, this.trimmed(dto), { groupId }),
     );
     await this.audit.record(
       actor,
@@ -246,6 +270,24 @@ export class ProductsService {
     }
   }
 
+  private async assertGroupUsable(
+    actor: AuthUser,
+    categoryId: string,
+    id: string,
+  ): Promise<void> {
+    const group = await this.groupsRepository.findOneBy({
+      id,
+      categoryId,
+      companyId: actor.companyId!,
+    });
+    if (!group) {
+      throw new BadRequestException('Choose a group from the list');
+    }
+    if (group.status !== CategoryStatus.ACTIVE) {
+      throw new BadRequestException(`The group ${group.name} is inactive`);
+    }
+  }
+
   private async assertSupplierUsable(
     actor: AuthUser,
     id: string,
@@ -254,10 +296,10 @@ export class ProductsService {
       id,
       companyId: actor.companyId!,
     });
-    if (!supplier) {
+    if (!supplier?.isSupplier) {
       throw new BadRequestException('Choose a supplier from the list');
     }
-    if (supplier.status !== SupplierStatus.ACTIVE) {
+    if (supplier.status !== PartnerStatus.ACTIVE) {
       throw new BadRequestException(
         `The supplier ${supplier.name} is inactive`,
       );

@@ -159,7 +159,7 @@ export class StockService {
     await this.checkWarehouse(actor, warehouseId);
     const rows = await this.balancesRepository.find({
       where: { companyId: actor.companyId!, warehouseId },
-      relations: { product: { category: true } },
+      relations: { product: { category: true, group: true } },
       order: { product: { name: 'ASC' } },
     });
     return rows.map(({ productId, quantity, product }) => ({
@@ -170,7 +170,7 @@ export class StockService {
         name: product!.name,
         barcode: product!.barcode,
         category: product!.category ? { id: product!.category.id, name: product!.category.name, status: product!.category.status } : undefined,
-        group: product!.group,
+        group: product!.group ? { id: product!.group.id, name: product!.group.name, status: product!.group.status } : null,
         unit: product!.unit,
         costPrice: product!.costPrice,
         status: product!.status,

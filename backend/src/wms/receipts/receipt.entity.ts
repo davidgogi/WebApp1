@@ -12,7 +12,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { TenantEntity } from '../../companies/tenant.entity.js';
-import { Supplier } from '../suppliers/supplier.entity.js';
+import { Partner } from '../../parameters/partners/partner.entity.js';
 import { Warehouse } from '../warehouses/warehouse.entity.js';
 import { ReceiptLine } from './receipt-line.entity.js';
 import { ReceiptStatus } from './receipt-status.enum.js';
@@ -43,9 +43,9 @@ export class Receipt extends TenantEntity {
   @Column({ name: 'supplier_id', type: 'uuid', nullable: true })
   supplierId!: string | null;
 
-  @ManyToOne(() => Supplier, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Partner, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'supplier_id' })
-  supplier?: Pick<Supplier, 'id' | 'name' | 'identificationCode' | 'status'>;
+  supplier?: Pick<Partner, 'id' | 'name' | 'identificationCode' | 'status'>;
 
   @Column({ name: 'rs_waybill_id', type: 'varchar', nullable: true })
   rsWaybillId!: string | null;

@@ -1,41 +1,46 @@
 import { Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { Supplier, SupplierPayload, SupplierStatus, SupplierType } from '../supplier.model';
-import { SupplierService } from '../supplier.service';
-import { TranslatePipe } from '../../../../core/i18n/t.pipe';
+import { Partner, PartnerPayload, PartnerStatus, PartnerType } from '../partner.model';
+import { PartnerService } from '../partner.service';
+import { TranslatePipe } from '../../../core/i18n/t.pipe';
 
 @Component({
-  selector: 'app-supplier-form',
+  selector: 'app-partner-form',
   imports: [TranslatePipe, FormsModule],
-  templateUrl: './supplier-form.html',
+  templateUrl: './partner-form.html',
 })
-export class SupplierForm implements OnInit {
-  private readonly supplierService = inject(SupplierService);
+export class PartnerForm implements OnInit {
+  private readonly partnerService = inject(PartnerService);
 
-  readonly supplier = input<Supplier | null>(null);
-  readonly initial = input<Partial<SupplierPayload> | null>(null);
+  readonly partner = input<Partner | null>(null);
+  readonly initial = input<Partial<PartnerPayload> | null>(null);
   readonly hint = input('');
-  readonly saved = output<Supplier>();
+  readonly supplierOnly = input(false);
+  readonly saved = output<Partner>();
   readonly cancelled = output<void>();
 
   protected readonly isSaving = signal(false);
   protected readonly formError = signal('');
   protected readonly name = signal('');
-  protected readonly type = signal<SupplierType>('company');
+  protected readonly type = signal<PartnerType>('company');
   protected readonly identificationCode = signal('');
+  protected readonly isSupplier = signal(false);
+  protected readonly isClient = signal(false);
   protected readonly vatPayer = signal(false);
   protected readonly contactPerson = signal('');
   protected readonly phone = signal('');
   protected readonly email = signal('');
   protected readonly address = signal('');
-  protected readonly status = signal<SupplierStatus>('active');
+  protected readonly status = signal<PartnerStatus>('active');
 
   ngOnInit(): void {
-    const values = this.supplier() ?? this.initial();
+    const values = this.partner() ?? this.initial();
     this.name.set(values?.name ?? '');
     this.type.set(values?.type ?? 'company');
     this.identificationCode.set(values?.identificationCode ?? '');
+    this.isSupplier.set(values?.isSupplier ?? this.supplierOnly());
+    this.isClient.set(values?.isClient ?? false);
     this.vatPayer.set(values?.vatPayer ?? false);
     this.contactPerson.set(values?.contactPerson ?? '');
     this.phone.set(values?.phone ?? '');
@@ -47,7 +52,11 @@ export class SupplierForm implements OnInit {
   save(): void {
     const code = this.identificationCode().trim();
     if (!this.name().trim()) {
-      this.formError.set('The supplier name is required.');
+      this.formError.set('The partner name is required.');
+      return;
+    }
+    if (!this.isSupplier() && !this.isClient()) {
+      this.formError.set('Choose at least one: Supplier or Client');
       return;
     }
     const length = this.type() === 'company' ? 9 : 11;
@@ -63,6 +72,8 @@ export class SupplierForm implements OnInit {
       name: this.name().trim(),
       type: this.type(),
       identificationCode: code || null,
+      isSupplier: this.isSupplier(),
+      isClient: this.isClient(),
       vatPayer: this.vatPayer(),
       contactPerson: this.contactPerson().trim() || null,
       phone: this.phone().trim() || null,
@@ -70,16 +81,16 @@ export class SupplierForm implements OnInit {
       address: this.address().trim() || null,
       status: this.status(),
     };
-    const id = this.supplier()?.id;
+    const id = this.partner()?.id;
     const request = id
-      ? this.supplierService.update(id, payload)
-      : this.supplierService.create(payload);
+      ? this.partnerService.update(id, payload)
+      : this.partnerService.create(payload);
     this.isSaving.set(true);
     this.formError.set('');
     request.subscribe({
-      next: (supplier) => {
+      next: (partner) => {
         this.isSaving.set(false);
-        this.saved.emit(supplier);
+        this.saved.emit(partner);
       },
       error: (error: HttpErrorResponse) => {
         this.isSaving.set(false);
@@ -89,7 +100,7 @@ export class SupplierForm implements OnInit {
             ? message.join(', ')
             : typeof message === 'string'
               ? message
-              : 'Could not save the supplier.',
+              : 'Could not save the partner.',
         );
       },
     });

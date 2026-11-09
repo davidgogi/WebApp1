@@ -54,7 +54,7 @@
         </div>
         <div>
           <dt>{{ 'Group' | t }}</dt>
-          <dd>{{ product.group }}</dd>
+          <dd>{{ product.group?.name ?? '—' }}</dd>
         </div>
         <div>
           <dt>{{ 'Supplier' | t }}</dt>

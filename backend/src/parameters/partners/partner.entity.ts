@@ -1,19 +1,28 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, Unique, UpdateDateColumn } from 'typeorm';
+import {
+  Check,
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Unique,
+  UpdateDateColumn,
+} from 'typeorm';
 import { TenantEntity } from '../../companies/tenant.entity.js';
-import { SupplierStatus } from './supplier-status.enum.js';
-import { SupplierType } from './supplier-type.enum.js';
+import { PartnerStatus } from './partner-status.enum.js';
+import { PartnerType } from './partner-type.enum.js';
 
-@Entity({ name: 'suppliers' })
+@Entity({ name: 'partners' })
 @Unique(['companyId', 'identificationCode'])
-export class Supplier extends TenantEntity {
+@Check('"is_supplier" OR "is_client"')
+export class Partner extends TenantEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
   @Column()
   name!: string;
 
-  @Column({ type: 'enum', enum: SupplierType, default: SupplierType.COMPANY })
-  type!: SupplierType;
+  @Column({ type: 'enum', enum: PartnerType, default: PartnerType.COMPANY })
+  type!: PartnerType;
 
   @Column({ name: 'identification_code', type: 'varchar', nullable: true })
   identificationCode!: string | null;
@@ -33,10 +42,18 @@ export class Supplier extends TenantEntity {
   @Column({ type: 'varchar', nullable: true })
   address!: string | null;
 
-  @Column({ type: 'enum', enum: SupplierStatus, default: SupplierStatus.ACTIVE })
-  status!: SupplierStatus;
+  @Column({ name: 'is_supplier', default: false })
+  isSupplier!: boolean;
+
+  @Column({ name: 'is_client', default: false })
+  isClient!: boolean;
+
+  @Column({ type: 'enum', enum: PartnerStatus, default: PartnerStatus.ACTIVE })
+  status!: PartnerStatus;
 
   productCount?: number;
+
+  receiptCount?: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

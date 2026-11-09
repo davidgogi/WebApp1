@@ -16,6 +16,7 @@ import {
   Utensils,
   LogOut,
   FileText,
+  Settings,
 } from 'lucide-angular';
 import { LanguageSwitch } from '../../shared/language-switch/language-switch';
 import { TranslatePipe } from '../../core/i18n/t.pipe';
@@ -37,10 +38,12 @@ export class Shell {
   protected readonly UtensilsIcon = Utensils;
   protected readonly LogOutIcon = LogOut;
   protected readonly RsIcon = FileText;
+  protected readonly ParametersIcon = Settings;
 
   protected readonly isSidebarOpen = signal(true);
   protected readonly isHrExpanded = signal(true);
   protected readonly isRsExpanded = signal(true);
+  protected readonly isParametersExpanded = signal(true);
   protected readonly isWmsExpanded = signal(true);
   protected readonly isStoreExpanded = signal(true);
   protected readonly isRestaurantExpanded = signal(true);
@@ -52,6 +55,7 @@ export class Shell {
   protected readonly user = this.auth.user;
   protected readonly showHr = computed(() => canAccessModule(this.user(), 'hr'));
   protected readonly showRs = computed(() => canAccessModule(this.user(), 'rs'));
+  protected readonly showParameters = computed(() => canAccessModule(this.user(), 'parameters'));
   protected readonly showWms = computed(() => canAccessModule(this.user(), 'wms'));
   protected readonly showStore = computed(() => canAccessModule(this.user(), 'store'));
   protected readonly showRestaurant = computed(() => canAccessModule(this.user(), 'restaurant'));
@@ -85,6 +89,7 @@ export class Shell {
 
   protected readonly isHrActive = computed(() => this.currentUrl().startsWith('/hr'));
   protected readonly isRsActive = computed(() => this.currentUrl().startsWith('/rs'));
+  protected readonly isParametersActive = computed(() => this.currentUrl().startsWith('/parameters'));
   protected readonly isWmsActive = computed(() => this.currentUrl().startsWith('/wms'));
   protected readonly isStoreActive = computed(() => this.currentUrl().startsWith('/store'));
   protected readonly isRestaurantActive = computed(() =>
@@ -113,6 +118,16 @@ export class Shell {
     }
 
     this.isRsExpanded.update((value) => !value);
+  }
+
+  toggleParametersMenu(): void {
+    if (!this.isSidebarOpen()) {
+      this.isSidebarOpen.set(true);
+      this.isParametersExpanded.set(true);
+      return;
+    }
+
+    this.isParametersExpanded.update((value) => !value);
   }
 
   toggleWmsMenu(): void {

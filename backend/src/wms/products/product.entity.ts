@@ -14,8 +14,9 @@ import {
 import { TenantEntity } from '../../companies/tenant.entity.js';
 import { decimalTransformer } from '../../common/decimal.transformer.js';
 import { Category } from '../categories/category.entity.js';
+import { ProductGroup } from '../categories/product-group.entity.js';
 import { ProductWarehouse } from '../stock/product-warehouse.entity.js';
-import { Supplier } from '../suppliers/supplier.entity.js';
+import { Partner } from '../../parameters/partners/partner.entity.js';
 import { ProductPosStatus } from './product-pos-status.enum.js';
 import { ProductStatus } from './product-status.enum.js';
 import { ProductUnit } from './product-unit.enum.js';
@@ -40,15 +41,22 @@ export class Product extends TenantEntity {
   @JoinColumn({ name: 'category_id' })
   category?: Pick<Category, 'id' | 'name' | 'status'>;
 
-  @Column({ name: 'product_group' })
-  group!: string;
+  @Column({ name: 'group_id', type: 'uuid', nullable: true })
+  groupId!: string | null;
+
+  @ManyToOne(() => ProductGroup, { nullable: true })
+  @JoinColumn([
+    { name: 'company_id', referencedColumnName: 'companyId' },
+    { name: 'group_id', referencedColumnName: 'id' },
+  ])
+  group?: Pick<ProductGroup, 'id' | 'name' | 'status'> | null;
 
   @Column({ name: 'supplier_id', type: 'uuid' })
   supplierId!: string;
 
-  @ManyToOne(() => Supplier, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Partner, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'supplier_id' })
-  supplier?: Pick<Supplier, 'id' | 'name' | 'status'>;
+  supplier?: Pick<Partner, 'id' | 'name' | 'status'>;
 
   @Column({ type: 'enum', enum: ProductStatus, default: ProductStatus.ACTIVE })
   status!: ProductStatus;

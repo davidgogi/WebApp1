@@ -272,7 +272,6 @@
 <app-modal [open]="isProductFormOpen()" [title]="'New product' | t" (closed)="isProductFormOpen.set(false)">
   @if (isProductFormOpen()) {
     <app-product-form
-      [known]="products()"
       [initial]="newProductDraft()"
       [hint]="'It is added to Products and linked to this waybill line. It has no stock yet: goods come in through a receipt, so the transfer can be sent once the source warehouse has them.' | t"
       (saved)="onProductCreated($event)"

@@ -21,8 +21,9 @@ import {
 } from '../../common/xlsx.js';
 import { Category } from '../categories/category.entity.js';
 import { CategoryStatus } from '../categories/category-status.enum.js';
-import { Supplier } from '../suppliers/supplier.entity.js';
-import { SupplierStatus } from '../suppliers/supplier-status.enum.js';
+import { Partner } from '../../parameters/partners/partner.entity.js';
+import { ProductGroup } from '../categories/product-group.entity.js';
+import { PartnerStatus } from '../../parameters/partners/partner-status.enum.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { Product } from './product.entity.js';
 import { ProductPosStatus } from './product-pos-status.enum.js';
@@ -96,7 +97,6 @@ const COLUMNS: SheetColumn<Field>[] = [
     header: 'Group',
     aliases: ['ჯგუფი'],
     width: 18,
-    required: true,
   },
   {
     field: 'supplier',
@@ -238,8 +238,10 @@ export class ProductExcelService {
     private readonly productsRepository: Repository<Product>,
     @InjectRepository(Category)
     private readonly categoriesRepository: Repository<Category>,
-    @InjectRepository(Supplier)
-    private readonly suppliersRepository: Repository<Supplier>,
+    @InjectRepository(ProductGroup)
+    private readonly groupsRepository: Repository<ProductGroup>,
+    @InjectRepository(Partner)
+    private readonly suppliersRepository: Repository<Partner>,
     private readonly productsService: ProductsService,
   ) {}
 
@@ -265,7 +267,7 @@ export class ProductExcelService {
         p.name,
         p.barcode,
         p.category?.name ?? '',
-        p.group,
+        p.group?.name ?? '',
         p.supplier?.name ?? '',
         UNIT_LABELS[p.unit],
         USAGE_LABELS[p.usage],
@@ -282,7 +284,8 @@ export class ProductExcelService {
   }
 
   async template(actor: AuthUser, language: Language): Promise<Buffer> {
-    const { categories, suppliers } = await this.activeLists(actor);
+    const { categories, groups, suppliers } = await this.activeLists(actor);
+    const categoryName = new Map(categories.map((c) => [c.id, c.name]));
     const workbook = new ExcelJS.Workbook();
     const sheet = addTemplateSheet(workbook, SHEET_NAME, COLUMNS);
     const columnOf = (field: Field) =>
@@ -324,8 +327,8 @@ export class ProductExcelService {
         ],
         [
           'Group',
-          'Yes',
-          'Narrower group inside the category, free text.',
+          'No',
+          'Optional. An active group of that category, as on the Groups sheet.',
           'Chocolate',
         ],
         [
@@ -366,7 +369,7 @@ export class ProductExcelService {
         `The sheet named "${SHEET_NAME}" is read (or the first sheet). Empty rows are skipped.`,
         'An exported products file can be imported too: its extra columns (In stock, ...) are ignored.',
         'At most 1000 products per file. If any row has an error, nothing is imported.',
-        'New categories and suppliers are added in Products → Categories / Suppliers first.',
+        'New categories and groups are added in Products → Categories, and suppliers in Partners, first.',
       ],
     );
     addTableSheet(
@@ -381,6 +384,20 @@ export class ProductExcelService {
             ],
           ],
     );
+    const listedGroups = groups.filter((g) => categoryName.has(g.categoryId));
+    addTableSheet(
+      workbook,
+      'Groups',
+      [
+        { header: 'Category', width: 30, translated: listedGroups.length === 0 },
+        { header: 'Group', width: 30 },
+      ],
+      listedGroups.length
+        ? listedGroups
+            .map((g) => [categoryName.get(g.categoryId)!, g.name])
+            .sort((a, b) => `${a[0]} ${a[1]}`.localeCompare(`${b[0]} ${b[1]}`))
+        : [['No active groups yet. Add them in Products → Categories first.', '']],
+    );
     addTableSheet(
       workbook,
       'Suppliers',
@@ -389,7 +406,7 @@ export class ProductExcelService {
         ? suppliers.map((s) => [s.name])
         : [
             [
-              'No active suppliers yet. Add them in Products → Suppliers first.',
+              'No active suppliers yet. Add them in Partners first.',
             ],
           ],
     );
@@ -437,7 +454,11 @@ export class ProductExcelService {
       where: { companyId: actor.companyId! },
     });
     const byName = new Map(existing.map((p) => [nameKey(p.name), p]));
-    const { categories, suppliers } = await this.activeLists(actor);
+    const { categories, groups, suppliers } = await this.activeLists(actor);
+    const groupsOf = new Map<string, ProductGroup[]>();
+    for (const group of groups) {
+      groupsOf.set(group.categoryId, [...(groupsOf.get(group.categoryId) ?? []), group]);
+    }
     const categoryByName = new Map(categories.map((c) => [nameKey(c.name), c]));
     const supplierByName = new Map(suppliers.map((s) => [nameKey(s.name), s]));
     const listed = (names: string[], sheet: string, kind: string) =>
@@ -537,7 +558,21 @@ export class ProductExcelService {
       if (categoryName && !category) {
         error('category', `Not an active category. ${categoryList}`);
       }
-      const group = required('group', 'Group');
+      const groupName = values.group ?? '';
+      const categoryGroups = category ? (groupsOf.get(category.id) ?? []) : [];
+      const group = groupName
+        ? categoryGroups.find((g) => nameKey(g.name) === nameKey(groupName))
+        : undefined;
+      if (groupName && category && !group) {
+        error(
+          'group',
+          `Not an active group of ${category.name}. ${listed(
+            categoryGroups.map((g) => g.name),
+            'Groups',
+            'groups',
+          )}`,
+        );
+      }
       const supplierName = required('supplier', 'Supplier');
       const supplier = supplierName
         ? supplierByName.get(nameKey(supplierName))
@@ -580,7 +615,6 @@ export class ProductExcelService {
         const product = {
           name,
           barcode,
-          group,
           unit: unit!,
           usage: usage!,
           posStatus: posStatus!,
@@ -591,12 +625,14 @@ export class ProductExcelService {
         products.push({
           ...product,
           categoryId: category!.id,
+          groupId: group?.id ?? null,
           supplierId: supplier!.id,
         });
         report.rows.push({
           row,
           ...product,
           category: category!.name,
+          group: group?.name ?? '',
           supplier: supplier!.name,
         });
       }
@@ -608,17 +644,29 @@ export class ProductExcelService {
 
   private async activeLists(
     actor: AuthUser,
-  ): Promise<{ categories: Category[]; suppliers: Supplier[] }> {
-    const [categories, suppliers] = await Promise.all([
+  ): Promise<{
+    categories: Category[];
+    groups: ProductGroup[];
+    suppliers: Partner[];
+  }> {
+    const [categories, groups, suppliers] = await Promise.all([
       this.categoriesRepository.find({
         where: { companyId: actor.companyId!, status: CategoryStatus.ACTIVE },
         order: { name: 'ASC' },
       }),
+      this.groupsRepository.find({
+        where: { companyId: actor.companyId!, status: CategoryStatus.ACTIVE },
+        order: { name: 'ASC' },
+      }),
       this.suppliersRepository.find({
-        where: { companyId: actor.companyId!, status: SupplierStatus.ACTIVE },
+        where: {
+          companyId: actor.companyId!,
+          status: PartnerStatus.ACTIVE,
+          isSupplier: true,
+        },
         order: { name: 'ASC' },
       }),
     ]);
-    return { categories, suppliers };
+    return { categories, groups, suppliers };
   }
 }
