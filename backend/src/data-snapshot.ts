@@ -16,7 +16,7 @@ async function tablesInInsertOrder(dataSource: DataSource): Promise<string[]> {
     await dataSource.query<{ tablename: string }[]>(`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`)
   )
     .map((row) => row.tablename)
-    .filter((name) => name !== 'migrations');
+    .filter((name) => name !== 'migrations' && name !== 'platform_admins');
   const links = await dataSource.query<{ child: string; parent: string }[]>(
     `SELECT conrelid::regclass::text AS child, confrelid::regclass::text AS parent
        FROM pg_constraint WHERE contype = 'f' AND connamespace = 'public'::regnamespace`,
@@ -47,9 +47,8 @@ async function exportSnapshot(dataSource: DataSource): Promise<void> {
     if (NOT_EXPORTED.has(name)) {
       continue;
     }
-    const where = name === 'users' ? `WHERE role <> 'superuser'` : '';
     const result = await dataSource.query<{ row: Record<string, unknown> }[]>(
-      `SELECT to_jsonb(t) AS row FROM "${name}" t ${where} ORDER BY to_jsonb(t)::text`,
+      `SELECT to_jsonb(t) AS row FROM "${name}" t ORDER BY to_jsonb(t)::text`,
     );
     tables.push({ name, rows: result.map((r) => r.row) });
   }
@@ -93,21 +92,17 @@ async function importSnapshot(dataSource: DataSource, confirmed: boolean): Promi
   for (const name of existing) {
     rowsToDelete += Number((await dataSource.query<{ n: string }[]>(`SELECT count(*) AS n FROM "${name}"`))[0].n);
   }
-  rowsToDelete -= Number((await dataSource.query<{ n: string }[]>(`SELECT count(*) AS n FROM users WHERE role = 'superuser'`))[0].n);
   const rowsToLoad = snapshot.tables.reduce((sum, table) => sum + table.rows.length, 0);
 
   console.log(`Database: ${options.host}:${options.port}/${options.database}`);
   console.log(`Snapshot: exported ${snapshot.exportedAt}, ${rowsToLoad} rows in ${snapshot.tables.length} tables`);
-  console.log(`This DELETES ${rowsToDelete} rows (everything except the superuser) and loads the snapshot.`);
+  console.log(`This DELETES ${rowsToDelete} rows (everything except the platform admins) and loads the snapshot.`);
   if (!confirmed) {
     console.log('\nNothing was changed. To go ahead: npm run data:import -- --yes');
     return;
   }
 
   await dataSource.transaction(async (manager) => {
-    const superusers = await manager.query<{ row: unknown }[]>(
-      `SELECT to_jsonb(u) AS row FROM users u WHERE role = 'superuser'`,
-    );
     await manager.query(`TRUNCATE ${existing.map((name) => `"${name}"`).join(', ')} RESTART IDENTITY CASCADE`);
 
     const insert = (name: string, rows: unknown[]) =>
@@ -118,9 +113,6 @@ async function importSnapshot(dataSource: DataSource, confirmed: boolean): Promi
       if (table.rows.length > 0) {
         await insert(table.name, table.rows);
       }
-    }
-    if (superusers.length > 0) {
-      await insert('users', superusers.map((s) => s.row));
     }
   });
 

@@ -7,12 +7,14 @@ function sign(payload: string): string {
   return createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
-export function signToken(userId: string): string {
-  const payload = Buffer.from(JSON.stringify({ u: userId, exp: Date.now() + TOKEN_LIFETIME_MS })).toString('base64url');
+export type TokenKind = 'user' | 'platform';
+
+export function signToken(id: string, kind: TokenKind): string {
+  const payload = Buffer.from(JSON.stringify({ u: id, k: kind, exp: Date.now() + TOKEN_LIFETIME_MS })).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 
-export function verifyToken(token: string): string | null {
+export function verifyToken(token: string): { id: string; kind: TokenKind } | null {
   const [payload, signature] = token.split('.');
   if (!payload || !signature) {
     return null;
@@ -23,8 +25,8 @@ export function verifyToken(token: string): string | null {
     return null;
   }
   try {
-    const { u, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { u: string; exp: number };
-    return exp > Date.now() ? u : null;
+    const { u, k, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { u: string; k?: TokenKind; exp: number };
+    return exp > Date.now() ? { id: u, kind: k === 'platform' ? 'platform' : 'user' } : null;
   } catch {
     return null;
   }

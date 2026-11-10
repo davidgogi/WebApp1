@@ -5,6 +5,7 @@ import { PostgresDataSourceOptions } from 'typeorm/driver/postgres/PostgresDataS
 import { addMissingCompanyIds } from './company-id-backfill.js';
 import { SuppliersBecomePartners1794225600000 } from './migrations/1794225600000-SuppliersBecomePartners.js';
 import { ProductGroupsBecomeRecords1794312000000 } from './migrations/1794312000000-ProductGroupsBecomeRecords.js';
+import { SuperuserBecomesPlatformAdmin1794398400000 } from './migrations/1794398400000-SuperuserBecomesPlatformAdmin.js';
 
 const compiledRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -47,6 +48,10 @@ async function runDataMigrations(dataSource: DataSource): Promise<void> {
         : null,
       (await runner.hasColumn('products', 'product_group'))
         ? new ProductGroupsBecomeRecords1794312000000()
+        : null,
+      (await runner.hasTable('users')) &&
+      !(await runner.hasTable('platform_admins'))
+        ? new SuperuserBecomesPlatformAdmin1794398400000()
         : null,
     ].filter((migration) => migration !== null);
     for (const migration of pending) {

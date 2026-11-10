@@ -1093,4 +1093,10 @@ export const KA: Record<string, string> = {
   "Move and delete": "გადატანა და წაშლა",
   "Deleting…": "იშლება…",
   "Choose a category to move the products to.": "აირჩიეთ კატეგორია პროდუქტების გადასატანად.",
+  "Import partners": "პარტნიორების იმპორტი",
+  "Could not export the partners. Is the backend running?": "პარტნიორების ექსპორტი ვერ მოხერხდა. მუშაობს სერვერი?",
+  "Add many partners at once from an Excel file (.xlsx), one partner per row. Start from the template: it has the right columns and dropdowns for type, role, VAT and status.": "დაამატეთ ბევრი პარტნიორი ერთად Excel ფაილიდან (.xlsx), ერთი პარტნიორი თითო მწკრივზე. დაიწყეთ შაბლონიდან: მასში სწორი სვეტები და ტიპის, როლის, დღგ-ისა და სტატუსის ჩამონათვალებია.",
+  "partner": "პარტნიორი",
+  "partners": "პარტნიორები",
+  "Choose a category first": "ჯერ აირჩიეთ კატეგორია",
 };

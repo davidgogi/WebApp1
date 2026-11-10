@@ -36,12 +36,12 @@ export class User {
   })
   module!: AppModuleName | null;
 
-  @Column({ name: 'company_id', type: 'uuid', nullable: true })
-  companyId!: string | null;
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
-  @ManyToOne(() => Company, { nullable: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => Company, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'company_id' })
-  company?: Company | null;
+  company?: Company;
 
   @Column({ name: 'employee_id', type: 'uuid', nullable: true })
   employeeId!: string | null;

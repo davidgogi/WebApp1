@@ -6,12 +6,17 @@ import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { UsersService } from './users.service.js';
 import { User } from './user.entity.js';
+import { PlatformAdmin } from './platform-admin.entity.js';
 
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
+  imports: [TypeOrmModule.forFeature([User, PlatformAdmin])],
   controllers: [AuthController],
-  providers: [AuthService, UsersService, { provide: APP_GUARD, useClass: AuthGuard }],
+  providers: [
+    AuthService,
+    UsersService,
+    { provide: APP_GUARD, useClass: AuthGuard },
+  ],
   exports: [AuthService, UsersService, TypeOrmModule],
 })
 export class AuthModule {}

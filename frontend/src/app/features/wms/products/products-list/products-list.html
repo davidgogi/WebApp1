@@ -75,11 +75,16 @@
             <option [value]="option.id">{{ option.name }}</option>
           }
         </select>
-        <select class="text-select" [aria-label]="'Group' | t" [(ngModel)]="groupFilter">
+        <select
+          class="text-select"
+          [aria-label]="'Group' | t"
+          [(ngModel)]="groupFilter"
+          [disabled]="categoryFilter() === 'all'"
+          [title]="categoryFilter() === 'all' ? ('Choose a category first' | t) : ''"
+        >
           <option value="all">{{ 'All groups' | t }}</option>
-          <option [value]="noGroup">{{ 'No group' | t }}</option>
-          @for (option of filterGroups(); track option) {
-            <option [value]="option">{{ option }}</option>
+          @for (option of filterGroups(); track option.id) {
+            <option [value]="option.id">{{ option.name }}</option>
           }
         </select>
         <select class="text-select" [aria-label]="'Supplier' | t" [(ngModel)]="supplierFilter">

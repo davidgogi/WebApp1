@@ -40,7 +40,6 @@ import { I18nService } from '../../../../core/i18n/i18n.service';
 import { ColumnHeader, ColumnTable } from '../../../../shared/column-order/column-header';
 import { ColumnTools } from '../../../../shared/column-order/column-tools';
 
-const NO_GROUP = '__none__';
 
 @Component({
   selector: 'app-products-list',
@@ -100,7 +99,6 @@ export class ProductsList implements OnInit {
   protected readonly search = signal('');
   protected readonly categoryFilter = signal('all');
   protected readonly groupFilter = signal('all');
-  protected readonly noGroup = NO_GROUP;
   protected readonly supplierFilter = signal('all');
   protected readonly warehouseFilter = signal('all');
   protected readonly usageFilter = signal<'all' | ProductUsage>('all');
@@ -111,10 +109,11 @@ export class ProductsList implements OnInit {
 
   protected readonly filterGroups = computed(() => {
     const category = this.categoryFilter();
-    return this.uniqueSorted(
-      this.products()
-        .filter((p) => category === 'all' || p.categoryId === category)
-        .flatMap((p) => (p.group ? [p.group.name] : [])),
+    if (category === 'all') {
+      return [];
+    }
+    return this.uniqueById(
+      this.products().flatMap((p) => (p.categoryId === category && p.group ? [p.group] : [])),
     );
   });
 
@@ -152,7 +151,7 @@ export class ProductsList implements OnInit {
     return this.products().filter(
       (p) =>
         matches(this.categoryFilter(), p.categoryId) &&
-        matches(this.groupFilter(), p.group?.name ?? NO_GROUP) &&
+        matches(this.groupFilter(), p.groupId ?? '') &&
         matches(this.supplierFilter(), p.supplierId) &&
         matches(this.usageFilter(), p.usage) &&
         matches(this.posStatusFilter(), p.posStatus) &&
@@ -300,9 +299,5 @@ export class ProductsList implements OnInit {
     return [...new Map(items.map((item) => [item.id, item])).values()].sort((a, b) =>
       a.name.localeCompare(b.name),
     );
-  }
-
-  private uniqueSorted(values: string[]): string[] {
-    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
   }
 }

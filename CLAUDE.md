@@ -263,6 +263,12 @@ submodules are planned, so keep to the structure below.
   (`@Access(WMS)`). Every change is audited. Products and receipts still use `supplier_id` (only
   entries marked supplier can be picked); a partner on products or receipts must stay a supplier and
   can't be deleted (set it Inactive). Clients are **only a list so far**: nothing uses them yet.
+  **Import / Export** (`partner-excel.service.ts`, same admins as the page): Name *, Type * (Company /
+  Individual), Role * (Supplier / Client / Both), Identification code [Text], VAT payer (Yes / No,
+  default No), Contact person, Phone, Email, Address, Status (default Active). Name and code must not
+  repeat an existing partner or another row, and the code must fit the type; every problem is listed
+  (Excel row, column, value). Export adds Products and Receipts. `PartnersService.createMany`,
+  `partner.import` audit entry.
   The partners service reads the WMS `Product` and `Receipt` entities for the counts, and WMS
   imports `PartnersModule`, a deliberate exception like HR's `Employee`.
 - **RS** → **RS waybills** (its own module since 2026-10-22, first built under WMS the same day;
@@ -351,7 +357,17 @@ Read this before adding any module, endpoint or page.
   A suspended or cancelled company's users can't log in (clear message) and their open sessions
   get 401 (`AuthService.toAuthUser`); its data is kept, Reactivate restores access. Every change,
   status change and payment goes to the audit log.
-- **Roles** (`auth/user-role.enum.ts`): `superuser` (no company; own area), `system_admin` (whole
+- **Platform admins** (2026-11-10): the superuser is **not** in `users` but in its own table
+  `platform_admins` (`auth/platform-admin.entity.ts`: username, password hash, display name,
+  language; no `company_id`, so no RLS), and `users.company_id` is **required**: every user belongs
+  to a company. `/auth/superadmin-login` looks only in `platform_admins`, `/auth/login` only in
+  `users`. Tokens carry their kind (`signToken(id, 'user' | 'platform')` in `auth/token.ts`; old
+  tokens without a kind count as company users), so a company user's id can never be read as an
+  admin's. In code a platform admin is still an `AuthUser` with role `superuser`. Startup creates one
+  if the table is empty, and when `SUPERUSER_PASSWORD` is set and differs from the stored one it
+  **changes the password** (before 2026-11-10 the variable only worked the first time). The
+  migration moved the existing superuser across with the same id and password.
+- **Roles** (`auth/user-role.enum.ts`): `superuser` (a platform admin, see above; no company; own area), `system_admin` (whole
   company: HR + every bought module), `module_admin` (one module + HR limited to that module's people),
   `manager` and `cashier` (one module only, never HR). A system admin is not an employee; the others are
   an `Employee` + a `User` (login) linked by `users.employee_id`. Employees without a login are normal
@@ -424,7 +440,8 @@ Read this before adding any module, endpoint or page.
   action. Shown to the superuser (all) and the system admin (own company; HR → Audit log).
 - **Auth is a local-development stand-in**: signed tokens are hand-rolled in `auth/token.ts`
   (`AUTH_SECRET` env, 12h), there is no email/invite flow, and the superuser is auto-created on startup
-  (`superuser` / `superuser`, override with `SUPERUSER_USERNAME` / `SUPERUSER_PASSWORD` in `.env`).
+  in `platform_admins` (`superuser` / `superuser`, override with `SUPERUSER_USERNAME` /
+  `SUPERUSER_PASSWORD` in `.env`; a changed `SUPERUSER_PASSWORD` is applied at the next startup).
   Replace with a proper provider (and real invite emails) before anything is shared or deployed.
 - **Frontend**: `core/auth/` (session in localStorage, interceptor adds the token and logs out on 401,
   guards, `access.ts` mirrors the backend rules for what to show). `/login` for company users,
@@ -472,7 +489,7 @@ are deliberate exceptions to "clean up throwaway companies".
 
 ## Excel import / export
 
-Used by WMS Warehouses and Products (2026-10-21); reuse it for any future import (receipts, stock
+Used by WMS Warehouses and Products (2026-10-21) and Partners (2026-11-09); reuse it for any future import (receipts, stock
 count, ...). **.xlsx only** (`exceljs` on the backend; nothing Excel-related in the frontend bundle).
 - Endpoints per page: `GET <page>/export`, `GET <page>/import/template`, `POST <page>/import/check`
   and `POST <page>/import` (multipart field `file`, `XLSX_UPLOAD` = 5 MB, at most 1000 rows). Declare
@@ -685,7 +702,7 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
   **Adopting old databases**: a database built by `synchronize` (has `companies`, no rows in
   `migrations`) is brought up to date once more with backfill + `synchronize` and every migration is
   marked done without running (`fake`). Migrations that move data (suppliers → partners, group text
-  → `product_groups`) run their `up` first (`runDataMigrations`), because `synchronize` would
+  → `product_groups`, superuser → `platform_admins`) run their `up` first (`runDataMigrations`), because `synchronize` would
   otherwise lose that data: **add any new data-moving migration to that list.** This laptop's database was adopted on 2026-11-06 (backup
   before it: `pg_dump` in the session scratchpad); the test cluster's database and other laptops
   adopt themselves at their next startup. Delete that path (and `company-id-backfill.ts`) once every
@@ -707,7 +724,7 @@ cd backend && npm run test:e2e               # companies can't reach each other'
 `data:export` on the machine that has the data, commit, pull on the other machine, then
 `npm run data:import` (a dry run that only prints what it would delete) and `... -- --yes` to do it.
 Rows keep their ids, timestamps and **password hashes**, so the same logins work everywhere. The audit
-log is not exported, and the target machine keeps its own superuser. Import wipes everything in the
+log and `platform_admins` are not exported, so the target machine keeps its own superuser. Import wipes everything in the
 database named in that machine's `backend/.env`. After a schema change, export again; an old snapshot
 may not fit the new tables (the import says so). Tables are discovered from the database, so new
 entities are included automatically.

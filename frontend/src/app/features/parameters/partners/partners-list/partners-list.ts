@@ -1,11 +1,13 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { LucideAngularModule, PenLine, Plus, Search, Trash2 } from 'lucide-angular';
+import { Download, LucideAngularModule, PenLine, Plus, Search, Trash2, Upload } from 'lucide-angular';
 import { Modal } from '../../../../shared/modal/modal';
 import { Pager } from '../../../../shared/pager/pager';
 import { Pagination } from '../../../../shared/pager/pagination';
-import { PARTNER_TYPE_LABELS, Partner, PartnerStatus, PartnerType } from '../../../../shared/partners/partner.model';
+import { PARTNER_TYPE_LABELS, Partner, PartnerPreviewRow, PartnerStatus, PartnerType } from '../../../../shared/partners/partner.model';
+import { XlsxImport } from '../../../../shared/xlsx-import/xlsx-import';
+import { PreviewColumn, saveFile, today } from '../../../../shared/xlsx-import/xlsx-import.model';
 import { PartnerForm } from '../../../../shared/partners/partner-form/partner-form';
 import { PartnerService } from '../../../../shared/partners/partner.service';
 import { TranslatePipe } from '../../../../core/i18n/t.pipe';
@@ -16,7 +18,7 @@ import { ColumnOrder } from '../../../../shared/column-order/column-order';
 
 @Component({
   selector: 'app-partners-list',
-  imports: [ColumnHeader, ColumnTable, ColumnTools, TranslatePipe, FormsModule, LucideAngularModule, Modal, Pager, PartnerForm],
+  imports: [ColumnHeader, ColumnTable, ColumnTools, TranslatePipe, FormsModule, LucideAngularModule, Modal, Pager, PartnerForm, XlsxImport],
   templateUrl: './partners-list.html',
 })
 export class PartnersList implements OnInit {
@@ -32,13 +34,15 @@ export class PartnersList implements OnInit {
     { key: 'products', label: 'Products' },
     { key: 'status', label: 'Status' },
   ]);
-  private readonly partnerService = inject(PartnerService);
+  protected readonly partnerService = inject(PartnerService);
   protected readonly typeLabels = PARTNER_TYPE_LABELS;
 
   protected readonly EditIcon = PenLine;
   protected readonly DeleteIcon = Trash2;
   protected readonly PlusIcon = Plus;
   protected readonly SearchIcon = Search;
+  protected readonly ImportIcon = Upload;
+  protected readonly ExportIcon = Download;
 
   protected readonly partners = signal<Partner[]>([]);
   protected readonly isLoading = signal(false);
@@ -81,6 +85,17 @@ export class PartnersList implements OnInit {
   );
 
   protected readonly isFormOpen = signal(false);
+  protected readonly isImportOpen = signal(false);
+  protected readonly isExporting = signal(false);
+  protected readonly importColumns: PreviewColumn<PartnerPreviewRow>[] = [
+    { label: 'Partner', value: (row) => row.name, strong: true },
+    { label: 'Role', value: (row) => ({ supplier: 'Supplier', client: 'Client', both: 'Both' })[row.role] },
+    { label: 'Type', value: (row) => PARTNER_TYPE_LABELS[row.type] },
+    { label: 'ID code', value: (row) => row.identificationCode ?? '—' },
+    { label: 'VAT', value: (row) => (row.vatPayer ? 'VAT payer' : 'No') },
+    { label: 'Contact', value: (row) => row.contactPerson ?? row.phone ?? '—' },
+    { label: 'Status', value: (row) => (row.status === 'active' ? 'Active' : 'Inactive') },
+  ];
   protected readonly editing = signal<Partner | null>(null);
 
   ngOnInit(): void {
@@ -97,6 +112,20 @@ export class PartnersList implements OnInit {
       error: () => {
         this.errorMessage.set('Could not load partners. Is the backend running?');
         this.isLoading.set(false);
+      },
+    });
+  }
+
+  exportPartners(): void {
+    this.isExporting.set(true);
+    this.partnerService.export().subscribe({
+      next: (blob) => {
+        this.isExporting.set(false);
+        saveFile(blob, `partners-${today()}.xlsx`);
+      },
+      error: () => {
+        this.isExporting.set(false);
+        this.errorMessage.set('Could not export the partners. Is the backend running?');
       },
     });
   }

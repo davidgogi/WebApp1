@@ -946,4 +946,10 @@ export const RU: Record<string, string> = {
   "Move and delete": "Перенести и удалить",
   "Deleting…": "Удаление…",
   "Choose a category to move the products to.": "Выберите категорию для переноса продуктов.",
+  "Import partners": "Импорт партнёров",
+  "Could not export the partners. Is the backend running?": "Не удалось экспортировать партнёров. Сервер запущен?",
+  "Add many partners at once from an Excel file (.xlsx), one partner per row. Start from the template: it has the right columns and dropdowns for type, role, VAT and status.": "Добавьте сразу много партнёров из файла Excel (.xlsx), по одному в строке. Начните с шаблона: в нём нужные столбцы и списки для типа, роли, НДС и статуса.",
+  "partner": "партнёр",
+  "partners": "партнёры",
+  "Choose a category first": "Сначала выберите категорию",
 };
