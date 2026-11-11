@@ -53,7 +53,7 @@ export class PartnersController {
   ): Promise<StreamableFile> {
     return new StreamableFile(await this.excelService.export(user, language), {
       type: XLSX_TYPE,
-      disposition: 'attachment; filename="partners.xlsx"',
+      disposition: 'attachment; filename="counterparties.xlsx"',
     });
   }
 
@@ -61,7 +61,7 @@ export class PartnersController {
   async importTemplate(@Lang() language: Language): Promise<StreamableFile> {
     return new StreamableFile(await this.excelService.template(language), {
       type: XLSX_TYPE,
-      disposition: 'attachment; filename="partners-template.xlsx"',
+      disposition: 'attachment; filename="counterparties-template.xlsx"',
     });
   }
 

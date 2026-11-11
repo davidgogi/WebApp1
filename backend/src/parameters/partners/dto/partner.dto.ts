@@ -1,21 +1,53 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEmail,
   IsEnum,
   IsNotEmpty,
-  IsOptional,
   IsString,
   Matches,
   MaxLength,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import { PartnerStatus } from '../partner-status.enum.js';
 import { PartnerType } from '../partner-type.enum.js';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
-const trimOrNull = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() || null : value;
+const sent = (_: object, value: unknown) => value !== undefined;
+
+export class PartnerContactDto {
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  firstName!: string;
+
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  lastName!: string;
+
+  @Transform(trim)
+  @IsNotEmpty()
+  @Matches(/^\+?[0-9 ()-]{7,20}$/, { message: 'phone must be a phone number' })
+  phone!: string;
+
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  position!: string;
+
+  @Transform(trim)
+  @IsNotEmpty()
+  @IsEmail()
+  email!: string;
+}
 
 export class CreatePartnerDto {
   @Transform(trim)
@@ -33,100 +65,117 @@ export class CreatePartnerDto {
   @IsBoolean()
   isClient!: boolean;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @Transform(trim)
+  @IsNotEmpty()
   @Matches(/^(\d{9}|\d{11})$/, {
     message:
       'The identification code has 9 digits (company) or 11 digits (personal ID)',
   })
-  identificationCode?: string | null;
+  identificationCode!: string;
 
-  @IsOptional()
   @IsBoolean()
-  vatPayer?: boolean;
+  vatPayer!: boolean;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @Transform(trim)
   @IsString()
+  @IsNotEmpty()
   @MaxLength(120)
-  contactPerson?: string | null;
+  contactPerson!: string;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @Transform(trim)
+  @IsNotEmpty()
   @Matches(/^\+?[0-9 ()-]{7,20}$/, { message: 'phone must be a phone number' })
-  phone?: string | null;
+  phone!: string;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @Transform(trim)
+  @IsNotEmpty()
   @IsEmail()
-  email?: string | null;
+  email!: string;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @Transform(trim)
   @IsString()
+  @IsNotEmpty()
   @MaxLength(240)
-  address?: string | null;
+  address!: string;
 
-  @IsOptional()
   @IsEnum(PartnerStatus)
-  status?: PartnerStatus;
+  status!: PartnerStatus;
+
+  @ValidateIf(sent)
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => PartnerContactDto)
+  contacts?: PartnerContactDto[];
 }
 
 export class UpdatePartnerDto {
-  @IsOptional()
+  @ValidateIf(sent)
   @Transform(trim)
   @IsString()
   @IsNotEmpty()
   @MaxLength(140)
   name?: string;
 
-  @IsOptional()
+  @ValidateIf(sent)
   @IsEnum(PartnerType)
   type?: PartnerType;
 
-  @IsOptional()
+  @ValidateIf(sent)
   @IsBoolean()
   isSupplier?: boolean;
 
-  @IsOptional()
+  @ValidateIf(sent)
   @IsBoolean()
   isClient?: boolean;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @ValidateIf(sent)
+  @Transform(trim)
+  @IsNotEmpty()
   @Matches(/^(\d{9}|\d{11})$/, {
     message:
       'The identification code has 9 digits (company) or 11 digits (personal ID)',
   })
-  identificationCode?: string | null;
+  identificationCode?: string;
 
-  @IsOptional()
+  @ValidateIf(sent)
   @IsBoolean()
   vatPayer?: boolean;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @ValidateIf(sent)
+  @Transform(trim)
   @IsString()
+  @IsNotEmpty()
   @MaxLength(120)
-  contactPerson?: string | null;
+  contactPerson?: string;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @ValidateIf(sent)
+  @Transform(trim)
+  @IsNotEmpty()
   @Matches(/^\+?[0-9 ()-]{7,20}$/, { message: 'phone must be a phone number' })
-  phone?: string | null;
+  phone?: string;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @ValidateIf(sent)
+  @Transform(trim)
+  @IsNotEmpty()
   @IsEmail()
-  email?: string | null;
+  email?: string;
 
-  @IsOptional()
-  @Transform(trimOrNull)
+  @ValidateIf(sent)
+  @Transform(trim)
   @IsString()
+  @IsNotEmpty()
   @MaxLength(240)
-  address?: string | null;
+  address?: string;
 
-  @IsOptional()
+  @ValidateIf(sent)
   @IsEnum(PartnerStatus)
   status?: PartnerStatus;
+
+  @ValidateIf(sent)
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => PartnerContactDto)
+  contacts?: PartnerContactDto[];
 }

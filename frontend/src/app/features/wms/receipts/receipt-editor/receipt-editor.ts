@@ -265,7 +265,7 @@ export class ReceiptEditor implements OnInit {
     ]);
     this.supplierId.set(supplier.id);
     this.supplierNotice.set(
-      this.i18n.t('{name} was added to Partners and chosen for this receipt.', {
+      this.i18n.t('{name} was added to Counterparties and chosen for this receipt.', {
         name: supplier.name,
       }),
     );

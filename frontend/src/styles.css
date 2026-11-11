@@ -1180,6 +1180,55 @@ lucide-icon.search-input__icon {
   box-shadow: inset 0 -2px 0 var(--accent);
 }
 
+.form-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+
+.form-tabs__tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: inset 0 -2px 0 transparent;
+  transition:
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.form-tabs__tab:hover {
+  color: var(--ink-strong);
+}
+
+.form-tabs__tab--active,
+.form-tabs__tab--active:hover {
+  color: var(--accent-strong);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.form-tabs__tab:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+
+.form-tabs__count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+  line-height: 18px;
+}
+
 .chip--rs {
   margin-left: 6px;
   padding: 0 6px;

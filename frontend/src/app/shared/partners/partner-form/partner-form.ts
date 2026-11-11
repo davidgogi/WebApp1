@@ -1,14 +1,16 @@
 import { Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { Partner, PartnerPayload, PartnerStatus, PartnerType } from '../partner.model';
+import { LucideAngularModule, Plus, Trash2 } from 'lucide-angular';
+import { Partner, PartnerContact, PartnerPayload, PartnerStatus, PartnerType } from '../partner.model';
 import { PartnerService } from '../partner.service';
 import { TranslatePipe } from '../../../core/i18n/t.pipe';
 
 @Component({
   selector: 'app-partner-form',
-  imports: [TranslatePipe, FormsModule],
+  imports: [TranslatePipe, FormsModule, LucideAngularModule],
   templateUrl: './partner-form.html',
+  styleUrl: './partner-form.css',
 })
 export class PartnerForm implements OnInit {
   private readonly partnerService = inject(PartnerService);
@@ -20,6 +22,10 @@ export class PartnerForm implements OnInit {
   readonly saved = output<Partner>();
   readonly cancelled = output<void>();
 
+  protected readonly AddIcon = Plus;
+  protected readonly RemoveIcon = Trash2;
+
+  protected readonly tab = signal<'main' | 'contacts'>('main');
   protected readonly isSaving = signal(false);
   protected readonly formError = signal('');
   protected readonly name = signal('');
@@ -33,6 +39,13 @@ export class PartnerForm implements OnInit {
   protected readonly email = signal('');
   protected readonly address = signal('');
   protected readonly status = signal<PartnerStatus>('active');
+  protected readonly contacts = signal<PartnerContact[]>([]);
+  protected readonly contactError = signal('');
+  protected readonly contactFirstName = signal('');
+  protected readonly contactLastName = signal('');
+  protected readonly contactPhone = signal('');
+  protected readonly contactPosition = signal('');
+  protected readonly contactEmail = signal('');
 
   ngOnInit(): void {
     const values = this.partner() ?? this.initial();
@@ -47,39 +60,116 @@ export class PartnerForm implements OnInit {
     this.email.set(values?.email ?? '');
     this.address.set(values?.address ?? '');
     this.status.set(values?.status ?? 'active');
+    this.contacts.set(this.partner()?.contacts ?? []);
+  }
+
+  addContact(): void {
+    const contact: PartnerContact = {
+      firstName: this.contactFirstName().trim(),
+      lastName: this.contactLastName().trim(),
+      phone: this.contactPhone().trim(),
+      position: this.contactPosition().trim(),
+      email: this.contactEmail().trim(),
+    };
+    if (Object.values(contact).some((value) => !value)) {
+      this.contactError.set('Fill in every field of the contact.');
+      return;
+    }
+    if (!/^\+?[0-9 ()-]{7,20}$/.test(contact.phone)) {
+      this.contactError.set('Enter a valid phone number.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) {
+      this.contactError.set('Enter a valid email address.');
+      return;
+    }
+    this.contacts.update((list) => [...list, contact]);
+    this.contactError.set('');
+    for (const field of [
+      this.contactFirstName,
+      this.contactLastName,
+      this.contactPhone,
+      this.contactPosition,
+      this.contactEmail,
+    ]) {
+      field.set('');
+    }
+  }
+
+  removeContact(index: number): void {
+    this.contacts.update((list) => list.filter((_, i) => i !== index));
+  }
+
+  private hasUnaddedContact(): boolean {
+    return [
+      this.contactFirstName(),
+      this.contactLastName(),
+      this.contactPhone(),
+      this.contactPosition(),
+      this.contactEmail(),
+    ].some((value) => value.trim());
+  }
+
+  private showError(message: string): void {
+    this.tab.set('main');
+    this.formError.set(message);
   }
 
   save(): void {
     const code = this.identificationCode().trim();
     if (!this.name().trim()) {
-      this.formError.set('The partner name is required.');
+      this.showError('The counterparty name is required.');
       return;
     }
     if (!this.isSupplier() && !this.isClient()) {
-      this.formError.set('Choose at least one: Supplier or Client');
+      this.showError('Choose at least one: Supplier or Client');
+      return;
+    }
+    const missing: [string, string][] = [
+      [code, 'The identification code is required.'],
+      [this.contactPerson().trim(), 'The contact person is required.'],
+      [this.phone().trim(), 'The phone is required.'],
+      [this.email().trim(), 'The email is required.'],
+      [this.address().trim(), 'The address is required.'],
+    ];
+    const empty = missing.find(([value]) => !value);
+    if (empty) {
+      this.showError(empty[1]);
       return;
     }
     const length = this.type() === 'company' ? 9 : 11;
-    if (code && !new RegExp(`^\\d{${length}}$`).test(code)) {
-      this.formError.set(
+    if (!new RegExp(`^\\d{${length}}$`).test(code)) {
+      this.showError(
         this.type() === 'company'
           ? "A company's identification code has 9 digits."
           : "An individual's identification code is the 11-digit personal ID.",
       );
       return;
     }
+    if (this.hasUnaddedContact()) {
+      this.tab.set('contacts');
+      this.contactError.set('Add the contact you typed, or clear its fields, before saving.');
+      return;
+    }
     const payload = {
       name: this.name().trim(),
       type: this.type(),
-      identificationCode: code || null,
+      identificationCode: code,
       isSupplier: this.isSupplier(),
       isClient: this.isClient(),
       vatPayer: this.vatPayer(),
-      contactPerson: this.contactPerson().trim() || null,
-      phone: this.phone().trim() || null,
-      email: this.email().trim() || null,
-      address: this.address().trim() || null,
+      contactPerson: this.contactPerson().trim(),
+      phone: this.phone().trim(),
+      email: this.email().trim(),
+      address: this.address().trim(),
       status: this.status(),
+      contacts: this.contacts().map(({ firstName, lastName, phone, position, email }) => ({
+        firstName,
+        lastName,
+        phone,
+        position,
+        email,
+      })),
     };
     const id = this.partner()?.id;
     const request = id
@@ -87,6 +177,7 @@ export class PartnerForm implements OnInit {
       : this.partnerService.create(payload);
     this.isSaving.set(true);
     this.formError.set('');
+    this.contactError.set('');
     request.subscribe({
       next: (partner) => {
         this.isSaving.set(false);
@@ -100,7 +191,7 @@ export class PartnerForm implements OnInit {
             ? message.join(', ')
             : typeof message === 'string'
               ? message
-              : 'Could not save the partner.',
+              : 'Could not save the counterparty.',
         );
       },
     });

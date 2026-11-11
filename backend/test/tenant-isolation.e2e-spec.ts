@@ -56,6 +56,19 @@ function digits(count: number): string {
   ).join('');
 }
 
+function partnerDetails() {
+  return {
+    type: 'company',
+    identificationCode: digits(9),
+    vatPayer: false,
+    contactPerson: 'Nino',
+    phone: '+995 555 12 34 56',
+    email: 'test@example.com',
+    address: 'Tbilisi',
+    status: 'active',
+  };
+}
+
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const probe = createServer();
@@ -213,10 +226,19 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
     { name: `${secret} group` },
   );
   const supplier = await ok('POST', '/parameters/partners', wmsAdmin, {
+    ...partnerDetails(),
     name: `${secret} supplier`,
-    type: 'company',
     isSupplier: true,
     isClient: false,
+    contacts: [
+      {
+        firstName: `${secret} contact`,
+        lastName: 'Beridze',
+        phone: '+995 555 12 34 56',
+        position: 'Sales manager',
+        email: 'contact@example.com',
+      },
+    ],
   });
   const warehouse = await ok('POST', '/wms/warehouses', wmsAdmin, {
     name: `${secret} warehouse`,
@@ -484,16 +506,38 @@ describe('tenant isolation', () => {
     const name = `${b.secret} imported`;
     const code = digits(9);
     await ok('POST', '/parameters/partners', b.wmsAdmin, {
+      ...partnerDetails(),
       name,
-      type: 'company',
       isSupplier: true,
       isClient: false,
       identificationCode: code,
     });
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Partners');
-    sheet.addRow(['Name', 'Type', 'Role', 'Identification code']);
-    sheet.addRow([name, 'Company', 'Client', code]);
+    sheet.addRow([
+      'Name',
+      'Type',
+      'Role',
+      'Identification code',
+      'VAT payer',
+      'Contact person',
+      'Phone',
+      'Email',
+      'Address',
+      'Status',
+    ]);
+    sheet.addRow([
+      name,
+      'Company',
+      'Client',
+      code,
+      'No',
+      'Nino',
+      '+995 555 12 34 56',
+      'test@example.com',
+      'Tbilisi',
+      'Active',
+    ]);
     const form = new FormData();
     form.append(
       'file',

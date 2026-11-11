@@ -3,15 +3,19 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
+  type Relation,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
 import { TenantEntity } from '../../companies/tenant.entity.js';
+import { PartnerContact } from './partner-contact.entity.js';
 import { PartnerStatus } from './partner-status.enum.js';
 import { PartnerType } from './partner-type.enum.js';
 
 @Entity({ name: 'partners' })
+@Unique(['companyId', 'id'])
 @Unique(['companyId', 'identificationCode'])
 @Check('"is_supplier" OR "is_client"')
 export class Partner extends TenantEntity {
@@ -50,6 +54,9 @@ export class Partner extends TenantEntity {
 
   @Column({ type: 'enum', enum: PartnerStatus, default: PartnerStatus.ACTIVE })
   status!: PartnerStatus;
+
+  @OneToMany(() => PartnerContact, (contact) => contact.partner)
+  contacts?: Relation<PartnerContact>[];
 
   productCount?: number;
 

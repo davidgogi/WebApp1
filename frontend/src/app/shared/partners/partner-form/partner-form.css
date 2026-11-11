@@ -1,0 +1,20 @@
+.contacts-title {
+  margin: 0;
+}
+
+.contact-entry {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.contact-entry__add {
+  align-content: end;
+  justify-items: end;
+}
+
+.contacts-empty {
+  color: var(--ink-muted);
+  text-align: center;
+}

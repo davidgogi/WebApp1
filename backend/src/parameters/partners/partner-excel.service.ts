@@ -37,7 +37,7 @@ type Field =
 
 type PartnerRole = 'supplier' | 'client' | 'both';
 
-const SHEET_NAME = 'Partners';
+const SHEET_NAME = 'Counterparties';
 
 const TYPE_LABELS: Record<PartnerType, string> = {
   [PartnerType.COMPANY]: 'Company',
@@ -59,7 +59,16 @@ const COLUMNS: SheetColumn<Field>[] = [
   {
     field: 'name',
     header: 'Name',
-    aliases: ['partner', 'partner name', 'სახელი', 'პარტნიორი'],
+    aliases: [
+      'counterparty',
+      'counterparty name',
+      'partner',
+      'partner name',
+      'სახელი',
+      'კონტრაგენტი',
+      'პარტნიორი',
+      'контрагент',
+    ],
     width: 30,
     required: true,
   },
@@ -85,6 +94,7 @@ const COLUMNS: SheetColumn<Field>[] = [
     aliases: ['id code', 'code', 'საიდენტიფიკაციო კოდი', 'პირადი ნომერი'],
     width: 20,
     text: true,
+    required: true,
   },
   {
     field: 'vatPayer',
@@ -92,12 +102,14 @@ const COLUMNS: SheetColumn<Field>[] = [
     aliases: ['vat', 'დღგ'],
     width: 11,
     choices: ['Yes', 'No'],
+    required: true,
   },
   {
     field: 'contactPerson',
     header: 'Contact person',
     aliases: ['contact', 'საკონტაქტო პირი'],
     width: 22,
+    required: true,
   },
   {
     field: 'phone',
@@ -105,15 +117,29 @@ const COLUMNS: SheetColumn<Field>[] = [
     aliases: ['ტელეფონი'],
     width: 18,
     text: true,
+    required: true,
   },
-  { field: 'email', header: 'Email', aliases: ['ელფოსტა'], width: 26 },
-  { field: 'address', header: 'Address', aliases: ['მისამართი'], width: 34 },
+  {
+    field: 'email',
+    header: 'Email',
+    aliases: ['ელფოსტა'],
+    width: 26,
+    required: true,
+  },
+  {
+    field: 'address',
+    header: 'Address',
+    aliases: ['მისამართი'],
+    width: 34,
+    required: true,
+  },
   {
     field: 'status',
     header: 'Status',
     aliases: ['სტატუსი'],
     width: 12,
     choices: Object.values(STATUS_LABELS),
+    required: true,
   },
 ];
 
@@ -218,41 +244,42 @@ export class PartnerExcelService {
 
   async template(language: Language): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
-    addTemplateSheet(workbook, SHEET_NAME, COLUMNS);
+    addTemplateSheet(workbook, SHEET_NAME, COLUMNS, { markRequired: false });
     addInstructionsSheet(
       workbook,
       [
         [
           'Name',
           'Yes',
-          'Must not repeat an existing partner or another row (capitals and extra spaces are ignored).',
+          'Must not repeat an existing counterparty or another row (capitals and extra spaces are ignored).',
           'Mars Georgia',
         ],
         ['Type', 'Yes', 'Company or Individual.', 'Company'],
         ['Role', 'Yes', 'Supplier, Client or Both.', 'Supplier'],
         [
           'Identification code',
-          'No',
-          '9 digits for a company, the 11-digit personal ID for an individual. Must not repeat an existing partner or another row.',
+          'Yes',
+          '9 digits for a company, the 11-digit personal ID for an individual. Must not repeat an existing counterparty or another row.',
           '405123456',
         ],
-        ['VAT payer', 'No', 'Yes or No. Empty means No.', 'Yes'],
-        ['Contact person', 'No', 'Free text.', 'Nino Beridze'],
+        ['VAT payer', 'Yes', 'Yes or No.', 'Yes'],
+        ['Contact person', 'Yes', 'Free text.', 'Nino Beridze'],
         [
           'Phone',
-          'No',
+          'Yes',
           'Digits, with an optional + at the start.',
           '+995 555 12 34 56',
         ],
-        ['Email', 'No', 'A valid email address.', 'orders@supplier.ge'],
-        ['Address', 'No', 'Free text.', '12 Tsereteli Ave, Tbilisi'],
-        ['Status', 'No', 'Active or Inactive. Empty means Active.', 'Active'],
+        ['Email', 'Yes', 'A valid email address.', 'orders@supplier.ge'],
+        ['Address', 'Yes', 'Free text.', '12 Tsereteli Ave, Tbilisi'],
+        ['Status', 'Yes', 'Active or Inactive.', 'Active'],
       ],
       [
         `The sheet named "${SHEET_NAME}" is read (or the first sheet). Empty rows are skipped.`,
-        'An exported partners file can be imported too: its extra columns (Products, Receipts) are ignored.',
-        'At most 1000 partners per file. If any row has an error, nothing is imported.',
-        'This only adds new partners: a partner that already exists is reported as an error, not updated.',
+        'An exported counterparties file can be imported too: its extra columns (Products, Receipts) are ignored.',
+        'Every column must be filled in for every counterparty.',
+        'At most 1000 counterparties per file. If any row has an error, nothing is imported.',
+        'This only adds new counterparties: a counterparty that already exists is reported as an error, not updated.',
       ],
     );
     return workbookBuffer(workbook, language);
@@ -330,11 +357,11 @@ export class PartnerExcelService {
         const taken = byName.get(key);
         const firstRow = firstRowByName.get(key);
         if (taken) {
-          error('name', `A partner named "${taken.name}" already exists`);
+          error('name', `A counterparty named "${taken.name}" already exists`);
         } else if (firstRow !== undefined) {
           error(
             'name',
-            `Same name as row ${firstRow}; partner names must be unique`,
+            `Same name as row ${firstRow}; counterparty names must be unique`,
           );
         } else {
           firstRowByName.set(key, row);
@@ -357,8 +384,10 @@ export class PartnerExcelService {
         error('role', 'Role must be Supplier, Client or Both');
       }
 
-      const identificationCode = values.identificationCode || null;
-      if (identificationCode) {
+      const identificationCode = values.identificationCode ?? '';
+      if (!identificationCode) {
+        error('identificationCode', 'Identification code is required');
+      } else {
         const firstRow = firstRowByCode.get(identificationCode);
         const taken = byCode.get(identificationCode);
         if (!CODE.test(identificationCode)) {
@@ -398,34 +427,43 @@ export class PartnerExcelService {
       }
 
       const vatText = values.vatPayer ?? '';
-      const vatPayer = vatText ? VAT[choiceKey(vatText)] : false;
-      if (vatPayer === undefined) {
-        error('vatPayer', 'VAT payer must be Yes or No (or empty for No)');
+      const vatPayer = VAT[choiceKey(vatText)];
+      if (!vatText) {
+        error('vatPayer', 'VAT payer is required: Yes or No');
+      } else if (vatPayer === undefined) {
+        error('vatPayer', 'VAT payer must be Yes or No');
       }
 
       const statusText = values.status ?? '';
-      const status = statusText
-        ? STATUSES[choiceKey(statusText)]
-        : PartnerStatus.ACTIVE;
-      if (!status) {
-        error(
-          'status',
-          'Status must be Active or Inactive (or empty for Active)',
-        );
+      const status = STATUSES[choiceKey(statusText)];
+      if (!statusText) {
+        error('status', 'Status is required: Active or Inactive');
+      } else if (!status) {
+        error('status', 'Status must be Active or Inactive');
       }
 
-      const phone = values.phone || null;
-      if (phone && !PHONE.test(phone)) {
+      const phone = values.phone ?? '';
+      if (!phone) {
+        error('phone', 'Phone is required');
+      } else if (!PHONE.test(phone)) {
         error('phone', 'Phone must be a valid phone number');
       }
-      const email = values.email || null;
-      if (email && !isEmail(email)) {
+      const email = values.email ?? '';
+      if (!email) {
+        error('email', 'Email is required');
+      } else if (!isEmail(email)) {
         error('email', 'Email must be a valid email address');
+      }
+      const contactPerson = values.contactPerson ?? '';
+      if (!contactPerson) {
+        error('contactPerson', 'Contact person is required');
+      }
+      const address = values.address ?? '';
+      if (!address) {
+        error('address', 'Address is required');
       }
       tooLong('contactPerson', 120);
       tooLong('address', 240);
-      const contactPerson = values.contactPerson || null;
-      const address = values.address || null;
 
       if (report.errors.length === errorCount) {
         partners.push({

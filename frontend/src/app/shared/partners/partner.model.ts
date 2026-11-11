@@ -6,6 +6,15 @@ export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
   individual: 'Individual',
 };
 
+export interface PartnerContact {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  position: string;
+  email: string;
+}
+
 export interface Partner {
   id: string;
   name: string;
@@ -19,6 +28,7 @@ export interface Partner {
   email: string | null;
   address: string | null;
   status: PartnerStatus;
+  contacts?: PartnerContact[];
   productCount: number;
   receiptCount: number;
   createdAt: string;

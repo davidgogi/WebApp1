@@ -85,7 +85,7 @@
           />
           @if (suppliers().length === 0) {
             <span class="field-hint">{{
-              'No active suppliers yet. Admins add them in Partners.' | t
+              'No active suppliers yet. Admins add them in Counterparties.' | t
             }}</span>
           }
         }
@@ -394,7 +394,7 @@
       [initial]="newSupplierDraft()"
       [supplierOnly]="true"
       [hint]="
-        'Filled in from the waybill\'s seller. It is added to Partners and chosen for this receipt; its identification code makes the next waybills from this seller find it by themselves.'
+        'Filled in from the waybill\'s seller. It is added to Counterparties and chosen for this receipt; its identification code makes the next waybills from this seller find it by themselves.'
           | t
       "
       (saved)="onSupplierCreated($event)"

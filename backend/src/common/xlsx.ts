@@ -219,11 +219,15 @@ export function addTemplateSheet<F extends string>(
   workbook: ExcelJS.Workbook,
   name: string,
   columns: SheetColumn<F>[],
+  { markRequired = true }: { markRequired?: boolean } = {},
 ): ExcelJS.Worksheet {
   const sheet = addTableSheet(
     workbook,
     name,
-    columns.map((column) => ({ ...column, header: column.required ? `${column.header} *` : column.header })),
+    columns.map((column) => ({
+      ...column,
+      header: column.required && markRequired ? `${column.header} *` : column.header,
+    })),
     [],
   );
   columns.forEach(({ choices }, index) => {

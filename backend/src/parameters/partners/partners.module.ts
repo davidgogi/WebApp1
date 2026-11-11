@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Receipt } from '../../wms/receipts/receipt.entity.js';
 import { Product } from '../../wms/products/product.entity.js';
+import { PartnerContact } from './partner-contact.entity.js';
 import { Partner } from './partner.entity.js';
 import { PartnersController } from './partners.controller.js';
 import { PartnersService } from './partners.service.js';
 import { PartnerExcelService } from './partner-excel.service.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Partner, Product, Receipt])],
+  imports: [TypeOrmModule.forFeature([Partner, PartnerContact, Product, Receipt])],
   controllers: [PartnersController],
   providers: [PartnersService, PartnerExcelService],
   exports: [PartnersService],

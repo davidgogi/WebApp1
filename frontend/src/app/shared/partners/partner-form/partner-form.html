@@ -1,123 +1,270 @@
 <form class="page-stack" (ngSubmit)="save()">
-  <div class="form-grid">
-    <div class="field">
-      <label for="partnerName">{{ 'Name' | t }}</label>
-      <input
-        id="partnerName"
-        class="text-input"
-        type="text"
-        name="name"
-        [(ngModel)]="name"
-        [placeholder]="'e.g. Mars Georgia' | t"
-        required
-      />
-    </div>
+  <div class="form-tabs" role="tablist">
+    <button
+      type="button"
+      role="tab"
+      class="form-tabs__tab"
+      [class.form-tabs__tab--active]="tab() === 'main'"
+      [attr.aria-selected]="tab() === 'main'"
+      (click)="tab.set('main')"
+    >
+      {{ 'Main information' | t }}
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="form-tabs__tab"
+      [class.form-tabs__tab--active]="tab() === 'contacts'"
+      [attr.aria-selected]="tab() === 'contacts'"
+      (click)="tab.set('contacts')"
+    >
+      {{ 'Contacts' | t }}
+      @if (contacts().length) {
+        <span class="form-tabs__count">{{ contacts().length }}</span>
+      }
+    </button>
+  </div>
 
-    <div class="field">
-      <label for="partnerType">{{ 'Type' | t }}</label>
-      <select id="partnerType" class="text-select" name="type" [(ngModel)]="type">
-        <option value="company">{{ 'Company' | t }}</option>
-        <option value="individual">{{ 'Individual' | t }}</option>
-      </select>
-    </div>
+  @if (tab() === 'main') {
+    <div class="form-grid">
+      <div class="field">
+        <label for="partnerName">{{ 'Name' | t }}</label>
+        <input
+          id="partnerName"
+          class="text-input"
+          type="text"
+          name="name"
+          [(ngModel)]="name"
+          [placeholder]="'e.g. Mars Georgia' | t"
+          required
+        />
+      </div>
 
-    <div class="field">
-      <span class="field-label">{{ 'Role' | t }}</span>
-      <div class="chip-list">
-        <label class="check-chip" [class.check-chip--on]="isSupplier()">
-          <input
-            type="checkbox"
-            name="isSupplier"
-            [(ngModel)]="isSupplier"
-            [disabled]="supplierOnly()"
-          />
-          {{ 'Supplier' | t }}
-        </label>
-        <label class="check-chip" [class.check-chip--on]="isClient()">
-          <input type="checkbox" name="isClient" [(ngModel)]="isClient" />
-          {{ 'Client' | t }}
-        </label>
+      <div class="field">
+        <label for="partnerType">{{ 'Type' | t }}</label>
+        <select id="partnerType" class="text-select" name="type" [(ngModel)]="type">
+          <option value="company">{{ 'Company' | t }}</option>
+          <option value="individual">{{ 'Individual' | t }}</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <span class="field-label">{{ 'Role' | t }}</span>
+        <div class="chip-list">
+          <label class="check-chip" [class.check-chip--on]="isSupplier()">
+            <input
+              type="checkbox"
+              name="isSupplier"
+              [(ngModel)]="isSupplier"
+              [disabled]="supplierOnly()"
+            />
+            {{ 'Supplier' | t }}
+          </label>
+          <label class="check-chip" [class.check-chip--on]="isClient()">
+            <input type="checkbox" name="isClient" [(ngModel)]="isClient" />
+            {{ 'Client' | t }}
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="partnerCode">{{ 'Identification code' | t }}</label>
+        <input
+          id="partnerCode"
+          class="text-input"
+          type="text"
+          inputmode="numeric"
+          name="identificationCode"
+          [(ngModel)]="identificationCode"
+          required
+          [placeholder]="type() === 'company' ? ('9 digits, e.g. 405123456' | t) : ('Personal ID, 11 digits' | t)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="partnerVat">{{ 'VAT' | t }}</label>
+        <select id="partnerVat" class="text-select" name="vatPayer" [(ngModel)]="vatPayer">
+          <option [ngValue]="true">{{ 'VAT payer' | t }}</option>
+          <option [ngValue]="false">{{ 'Not a VAT payer' | t }}</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="partnerContact">{{ 'Contact person' | t }}</label>
+        <input
+          id="partnerContact"
+          class="text-input"
+          type="text"
+          name="contactPerson"
+          [(ngModel)]="contactPerson"
+          required
+          [placeholder]="'e.g. Nino Beridze' | t"
+        />
+      </div>
+
+      <div class="field">
+        <label for="partnerPhone">{{ 'Phone' | t }}</label>
+        <input
+          id="partnerPhone"
+          class="text-input"
+          type="tel"
+          name="phone"
+          [(ngModel)]="phone"
+          required
+          [placeholder]="'e.g. +995 555 12 34 56' | t"
+        />
+      </div>
+
+      <div class="field">
+        <label for="partnerEmail">{{ 'Email' | t }}</label>
+        <input
+          id="partnerEmail"
+          class="text-input"
+          type="email"
+          name="email"
+          [(ngModel)]="email"
+          required
+          [placeholder]="'e.g. orders@supplier.ge' | t"
+        />
+      </div>
+
+      <div class="field">
+        <label for="partnerAddress">{{ 'Address' | t }}</label>
+        <input
+          id="partnerAddress"
+          class="text-input"
+          type="text"
+          name="address"
+          [(ngModel)]="address"
+          required
+          [placeholder]="'e.g. 12 Tsereteli Ave, Tbilisi' | t"
+        />
+      </div>
+
+      <div class="field">
+        <label for="partnerStatus">{{ 'Status' | t }}</label>
+        <select id="partnerStatus" class="text-select" name="status" [(ngModel)]="status">
+          <option value="active">{{ 'Active' | t }}</option>
+          <option value="inactive">{{ 'Inactive' | t }}</option>
+        </select>
+        <span class="field-hint">{{ 'Inactive counterparties can\'t be chosen for new products or receipts.' | t }}</span>
       </div>
     </div>
 
-    <div class="field">
-      <label for="partnerCode">{{ 'Identification code (optional)' | t }}</label>
-      <input
-        id="partnerCode"
-        class="text-input"
-        type="text"
-        inputmode="numeric"
-        name="identificationCode"
-        [(ngModel)]="identificationCode"
-        [placeholder]="type() === 'company' ? ('9 digits, e.g. 405123456' | t) : ('Personal ID, 11 digits' | t)"
-      />
-    </div>
+  } @else {
+    <div class="page-stack">
+      <h3 class="card-title contacts-title">{{ 'Additional contact persons' | t }}</h3>
+      <div class="contact-entry" (keydown.enter)="$event.preventDefault(); addContact()">
+        <div class="form-grid">
+          <div class="field">
+            <label for="contactFirstName">{{ 'First name' | t }}</label>
+            <input
+              id="contactFirstName"
+              class="text-input"
+              type="text"
+              name="contactFirstName"
+              [(ngModel)]="contactFirstName"
+              [placeholder]="'e.g. Nino' | t"
+            />
+          </div>
+          <div class="field">
+            <label for="contactPosition">{{ 'Position' | t }}</label>
+            <input
+              id="contactPosition"
+              class="text-input"
+              type="text"
+              name="contactPosition"
+              [(ngModel)]="contactPosition"
+              [placeholder]="'e.g. Sales manager' | t"
+            />
+          </div>
+          <div class="field">
+            <label for="contactLastName">{{ 'Last name' | t }}</label>
+            <input
+              id="contactLastName"
+              class="text-input"
+              type="text"
+              name="contactLastName"
+              [(ngModel)]="contactLastName"
+              [placeholder]="'e.g. Beridze' | t"
+            />
+          </div>
+          <div class="field">
+            <label for="contactEmail">{{ 'Email' | t }}</label>
+            <input
+              id="contactEmail"
+              class="text-input"
+              type="email"
+              name="contactEmail"
+              [(ngModel)]="contactEmail"
+              [placeholder]="'e.g. orders@supplier.ge' | t"
+            />
+          </div>
+          <div class="field">
+            <label for="contactPhone">{{ 'Phone' | t }}</label>
+            <input
+              id="contactPhone"
+              class="text-input"
+              type="tel"
+              name="contactPhone"
+              [(ngModel)]="contactPhone"
+              [placeholder]="'e.g. +995 555 12 34 56' | t"
+            />
+          </div>
+          <div class="field contact-entry__add">
+            <button type="button" class="button button--primary" (click)="addContact()">
+              <lucide-icon [img]="AddIcon" [size]="16"></lucide-icon>
+              {{ 'Add' | t }}
+            </button>
+          </div>
+        </div>
+        @if (contactError()) {
+          <p class="field-error">{{ contactError() | t }}</p>
+        }
+      </div>
 
-    <div class="field">
-      <label for="partnerVat">{{ 'VAT' | t }}</label>
-      <select id="partnerVat" class="text-select" name="vatPayer" [(ngModel)]="vatPayer">
-        <option [ngValue]="true">{{ 'VAT payer' | t }}</option>
-        <option [ngValue]="false">{{ 'Not a VAT payer' | t }}</option>
-      </select>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'First name' | t }}</th>
+              <th>{{ 'Last name' | t }}</th>
+              <th>{{ 'Phone' | t }}</th>
+              <th>{{ 'Position' | t }}</th>
+              <th>{{ 'Email' | t }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (contact of contacts(); track $index) {
+              <tr>
+                <td>{{ contact.firstName }}</td>
+                <td>{{ contact.lastName }}</td>
+                <td>{{ contact.phone }}</td>
+                <td>{{ contact.position }}</td>
+                <td>{{ contact.email }}</td>
+                <td>
+                  <button
+                    type="button"
+                    class="icon-action icon-action--danger"
+                    [title]="'Remove contact' | t"
+                    [attr.aria-label]="'Remove contact' | t"
+                    (click)="removeContact($index)"
+                  >
+                    <lucide-icon [img]="RemoveIcon" [size]="14"></lucide-icon>
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="contacts-empty">{{ 'No additional contacts yet.' | t }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     </div>
-
-    <div class="field">
-      <label for="partnerContact">{{ 'Contact person (optional)' | t }}</label>
-      <input
-        id="partnerContact"
-        class="text-input"
-        type="text"
-        name="contactPerson"
-        [(ngModel)]="contactPerson"
-        [placeholder]="'e.g. Nino Beridze' | t"
-      />
-    </div>
-
-    <div class="field">
-      <label for="partnerPhone">{{ 'Phone (optional)' | t }}</label>
-      <input
-        id="partnerPhone"
-        class="text-input"
-        type="tel"
-        name="phone"
-        [(ngModel)]="phone"
-        [placeholder]="'e.g. +995 555 12 34 56' | t"
-      />
-    </div>
-
-    <div class="field">
-      <label for="partnerEmail">{{ 'Email (optional)' | t }}</label>
-      <input
-        id="partnerEmail"
-        class="text-input"
-        type="email"
-        name="email"
-        [(ngModel)]="email"
-        [placeholder]="'e.g. orders@supplier.ge' | t"
-      />
-    </div>
-
-    <div class="field">
-      <label for="partnerAddress">{{ 'Address (optional)' | t }}</label>
-      <input
-        id="partnerAddress"
-        class="text-input"
-        type="text"
-        name="address"
-        [(ngModel)]="address"
-        [placeholder]="'e.g. 12 Tsereteli Ave, Tbilisi' | t"
-      />
-    </div>
-
-    <div class="field">
-      <label for="partnerStatus">{{ 'Status' | t }}</label>
-      <select id="partnerStatus" class="text-select" name="status" [(ngModel)]="status">
-        <option value="active">{{ 'Active' | t }}</option>
-        <option value="inactive">{{ 'Inactive' | t }}</option>
-      </select>
-      <span class="field-hint">{{ 'Inactive partners can\'t be chosen for new products or receipts.' | t }}</span>
-    </div>
-  </div>
+  }
 
   @if (formError()) {
     <p class="field-error">{{ formError() | t }}</p>
@@ -128,7 +275,7 @@
       @if (partner()) {
         {{ isSaving() ? ('Saving…' | t) : ('Save changes' | t) }}
       } @else {
-        {{ isSaving() ? ('Adding…' | t) : ('Add partner' | t) }}
+        {{ isSaving() ? ('Adding…' | t) : ('Add counterparty' | t) }}
       }
     </button>
     <button type="button" class="button button--secondary" (click)="cancelled.emit()">{{ 'Cancel' | t }}</button>

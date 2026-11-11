@@ -1,10 +1,20 @@
 <div class="page-stack">
   <div class="page-header">
     <div>
-      <h1 class="page-title">{{ 'Partners' | t }}</h1>
+      <h1 class="page-title">{{ 'Counterparties' | t }}</h1>
       <p class="page-description">{{ 'Companies and people this company buys from or sells to.' | t }}</p>
     </div>
     <div class="button-row page-header__actions">
+      <button
+        type="button"
+        class="button button--outline"
+        [disabled]="isDownloadingTemplate()"
+        [title]="'An empty Excel file with every column, ready to fill in and import' | t"
+        (click)="downloadTemplate()"
+      >
+        <lucide-icon [img]="TemplateIcon" [size]="16"></lucide-icon>
+        {{ isDownloadingTemplate() ? ('Downloading…' | t) : ('Template' | t) }}
+      </button>
       <button type="button" class="button button--outline" (click)="isImportOpen.set(true)">
         <lucide-icon [img]="ImportIcon" [size]="16"></lucide-icon>
         {{ 'Import' | t }}
@@ -15,7 +25,7 @@
       </button>
       <button type="button" class="button button--dark" (click)="openAddForm()">
         <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
-        {{ 'Add partner' | t }}
+        {{ 'Add counterparty' | t }}
       </button>
     </div>
   </div>
@@ -28,7 +38,7 @@
     @if (isLoading()) {
       <p class="page-description">{{ 'Loading…' | t }}</p>
     } @else if (partners().length === 0) {
-      <p class="page-description">{{ 'No partners yet. Use “Add partner” to create the first one.' | t }}</p>
+      <p class="page-description">{{ 'No counterparties yet. Use “Add counterparty” to create the first one.' | t }}</p>
     } @else {
       <div class="table-filters">
         <div class="search-input table-filters__search">
@@ -36,7 +46,7 @@
           <input
             class="text-input"
             type="search"
-            [aria-label]="'Search partners' | t"
+            [aria-label]="'Search counterparties' | t"
             [(ngModel)]="search"
             [placeholder]="'Name, ID code, contact, phone, email or address' | t"
           />
@@ -68,9 +78,9 @@
       <div class="table-toolbar">
         <span>
           @if (hasFilters()) {
-            {{ '{p0} of {p1} partners' | t: { p0: filtered().length, p1: partners().length } }}
+            {{ '{p0} of {p1} counterparties' | t: { p0: filtered().length, p1: partners().length } }}
           } @else {
-            {{ '{p0} partners' | t: { p0: partners().length } }}
+            {{ '{p0} counterparties' | t: { p0: partners().length } }}
           }
         </span>
         <app-column-tools [columnOrder]="columnOrder" />
@@ -159,6 +169,15 @@
                     <button
                       type="button"
                       class="icon-action"
+                      [title]="'View' | t"
+                      [attr.aria-label]="'View {name}' | t: { name: partner.name }"
+                      (click)="viewPartner(partner)"
+                    >
+                      <lucide-icon [img]="ViewIcon" [size]="18"></lucide-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-action"
                       [title]="'Edit' | t"
                       [attr.aria-label]="'Edit {name}' | t: { name: partner.name }"
                       (click)="editPartner(partner)"
@@ -180,7 +199,7 @@
               </tr>
             } @empty {
               <tr>
-                <td class="muted" colspan="10">{{ 'No partners match the search and filters.' | t }}</td>
+                <td class="muted" colspan="10">{{ 'No counterparties match the search and filters.' | t }}</td>
               </tr>
             }
           </tbody>
@@ -193,7 +212,7 @@
 
 <app-modal
   [open]="isFormOpen()"
-  [title]="editing() ? ('Edit partner' | t) : ('Add partner' | t)"
+  [title]="editing() ? ('Edit counterparty' | t) : ('Add counterparty' | t)"
   (closed)="isFormOpen.set(false)"
 >
   @if (isFormOpen()) {
@@ -201,20 +220,122 @@
   }
 </app-modal>
 
-<app-modal [open]="isImportOpen()" [title]="'Import partners' | t" (closed)="isImportOpen.set(false)">
+<app-modal [open]="isImportOpen()" [title]="'Import counterparties' | t" (closed)="isImportOpen.set(false)">
   @if (isImportOpen()) {
     <app-xlsx-import
       [source]="partnerService.importSource"
       [columns]="importColumns"
-      [noun]="{ one: 'partner', many: 'partners' }"
+      [noun]="{ one: 'counterparty', many: 'counterparties' }"
       [description]="
-        'Add many partners at once from an Excel file (.xlsx), one partner per row. Start from the template: it has the right columns and dropdowns for type, role, VAT and status.'
+        'Add many counterparties at once from an Excel file (.xlsx), one counterparty per row. Start from the template: it has the right columns and dropdowns for type, role, VAT and status.'
           | t
       "
-      templateName="partners-template.xlsx"
+      templateName="counterparties-template.xlsx"
       codeLabel="ID code"
       (imported)="loadPartners()"
       (closed)="isImportOpen.set(false)"
     />
+  }
+</app-modal>
+
+<app-modal [open]="!!viewing()" [title]="viewing()?.name ?? ''" (closed)="viewing.set(null)">
+  @if (viewing(); as partner) {
+    <div class="page-stack">
+      <dl class="detail-grid">
+        <div>
+          <dt>{{ 'Type' | t }}</dt>
+          <dd>{{ typeLabels[partner.type] | t }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Role' | t }}</dt>
+          <dd>
+            @if (partner.isSupplier) {
+              <span class="chip">{{ 'Supplier' | t }}</span>
+            }
+            @if (partner.isClient) {
+              <span class="chip">{{ 'Client' | t }}</span>
+            }
+          </dd>
+        </div>
+        <div>
+          <dt>{{ 'Identification code' | t }}</dt>
+          <dd>{{ partner.identificationCode || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'VAT' | t }}</dt>
+          <dd>{{ partner.vatPayer ? ('VAT payer' | t) : ('Not a VAT payer' | t) }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Contact person' | t }}</dt>
+          <dd>{{ partner.contactPerson || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Phone' | t }}</dt>
+          <dd>{{ partner.phone || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Email' | t }}</dt>
+          <dd>{{ partner.email || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Address' | t }}</dt>
+          <dd>{{ partner.address || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Status' | t }}</dt>
+          <dd>
+            <span class="badge" [class]="partner.status === 'active' ? 'badge--active' : 'badge--inactive'">
+              {{ partner.status === 'active' ? ('Active' | t) : ('Inactive' | t) }}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt>{{ 'Products' | t }}</dt>
+          <dd>{{ partner.productCount }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Receipts' | t }}</dt>
+          <dd>{{ partner.receiptCount }}</dd>
+        </div>
+      </dl>
+
+      <h3 class="card-title">{{ 'Additional contact persons' | t }}</h3>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'First name' | t }}</th>
+              <th>{{ 'Last name' | t }}</th>
+              <th>{{ 'Phone' | t }}</th>
+              <th>{{ 'Position' | t }}</th>
+              <th>{{ 'Email' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (contact of partner.contacts ?? []; track $index) {
+              <tr>
+                <td>{{ contact.firstName }}</td>
+                <td>{{ contact.lastName }}</td>
+                <td>{{ contact.phone }}</td>
+                <td>{{ contact.position }}</td>
+                <td>{{ contact.email }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="muted">{{ 'No additional contacts yet.' | t }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="button-row">
+        <button type="button" class="button button--dark" (click)="editFromView(partner)">
+          <lucide-icon [img]="EditIcon" [size]="16"></lucide-icon>
+          {{ 'Edit' | t }}
+        </button>
+        <button type="button" class="button button--secondary" (click)="viewing.set(null)">{{ 'Close' | t }}</button>
+      </div>
+    </div>
   }
 </app-modal>

@@ -5,14 +5,19 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { AuditService } from '../../audit/audit.service.js';
 import { AuthUser } from '../../auth/auth-user.js';
 import { isUniqueViolation } from '../../common/is-unique-violation.js';
 import { nameKey, nameKeySql } from '../../common/name-key.js';
 import { Product } from '../../wms/products/product.entity.js';
 import { Receipt } from '../../wms/receipts/receipt.entity.js';
-import { CreatePartnerDto, UpdatePartnerDto } from './dto/partner.dto.js';
+import {
+  CreatePartnerDto,
+  PartnerContactDto,
+  UpdatePartnerDto,
+} from './dto/partner.dto.js';
+import { PartnerContact } from './partner-contact.entity.js';
 import { Partner } from './partner.entity.js';
 import { PartnerStatus } from './partner-status.enum.js';
 import { PartnerType } from './partner-type.enum.js';
@@ -47,7 +52,8 @@ export class PartnersService {
   async findAll(actor: AuthUser): Promise<Partner[]> {
     const partners = await this.partnersRepository.find({
       where: { companyId: actor.companyId! },
-      order: { name: 'ASC' },
+      relations: { contacts: true },
+      order: { name: 'ASC', contacts: { createdAt: 'ASC' } },
     });
     const counts: { partnerId: string; count: string }[] =
       await this.productsRepository
@@ -99,18 +105,19 @@ export class PartnersService {
   }
 
   async create(actor: AuthUser, dto: CreatePartnerDto): Promise<Partner> {
-    await this.assertNameFree(actor, dto.name);
+    const { contacts = [], ...fields } = dto;
+    await this.assertNameFree(actor, fields.name);
     const partner = this.partnersRepository.create({
-      ...dto,
+      ...fields,
       companyId: actor.companyId!,
     });
     this.assertCodeFitsType(partner);
     this.assertHasRole(partner);
-    const saved = await this.save(partner);
+    const saved = await this.save(partner, actor, contacts);
     await this.audit.record(
       actor,
       'partner.create',
-      `Created partner ${saved.name}`,
+      `Created counterparty ${saved.name}`,
     );
     return Object.assign(saved, { productCount: 0, receiptCount: 0 });
   }
@@ -132,7 +139,7 @@ export class PartnersService {
           } catch (error) {
             if (isUniqueViolation(error)) {
               throw new ConflictException(
-                `Identification code ${row.identificationCode} is already used by another partner`,
+                `Identification code ${row.identificationCode} is already used by another counterparty`,
               );
             }
             throw error;
@@ -144,7 +151,7 @@ export class PartnersService {
     await this.audit.record(
       actor,
       'partner.import',
-      `Imported ${saved.length} partners`,
+      `Imported ${saved.length} counterparties`,
     );
     return saved;
   }
@@ -154,16 +161,17 @@ export class PartnersService {
     id: string,
     dto: UpdatePartnerDto,
   ): Promise<Partner> {
+    const { contacts, ...fields } = dto;
     const partner = await this.findEntity(actor, id);
 
-    if (dto.name && nameKey(dto.name) !== nameKey(partner.name)) {
-      await this.assertNameFree(actor, dto.name, id);
+    if (fields.name && nameKey(fields.name) !== nameKey(partner.name)) {
+      await this.assertNameFree(actor, fields.name, id);
     }
 
     Object.assign(
       partner,
       Object.fromEntries(
-        Object.entries(dto).filter(([, value]) => value !== undefined),
+        Object.entries(fields).filter(([, value]) => value !== undefined),
       ),
     );
 
@@ -176,11 +184,11 @@ export class PartnersService {
         `${partner.name} is the supplier on products or receipts, so it must stay a supplier`,
       );
     }
-    const saved = await this.save(partner);
+    const saved = await this.save(partner, actor, contacts);
     await this.audit.record(
       actor,
       'partner.update',
-      `Updated partner ${saved.name}`,
+      `Updated counterparty ${saved.name}`,
     );
     return Object.assign(saved, { productCount, receiptCount });
   }
@@ -202,7 +210,7 @@ export class PartnersService {
     await this.audit.record(
       actor,
       'partner.delete',
-      `Deleted partner ${partner.name}`,
+      `Deleted counterparty ${partner.name}`,
     );
   }
 
@@ -239,17 +247,55 @@ export class PartnersService {
     }
   }
 
-  private async save(partner: Partner): Promise<Partner> {
+  private async save(
+    partner: Partner,
+    actor: AuthUser,
+    contacts?: PartnerContactDto[],
+  ): Promise<Partner> {
     try {
-      return await this.partnersRepository.save(partner);
+      return await this.partnersRepository.manager.transaction(
+        async (manager) => {
+          const saved = await manager.save(partner);
+          saved.contacts = await this.saveContacts(
+            manager,
+            actor,
+            saved.id,
+            contacts,
+          );
+          return saved;
+        },
+      );
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new ConflictException(
-          `Identification code ${partner.identificationCode} is already used by another partner`,
+          `Identification code ${partner.identificationCode} is already used by another counterparty`,
         );
       }
       throw error;
     }
+  }
+
+  private async saveContacts(
+    manager: EntityManager,
+    actor: AuthUser,
+    partnerId: string,
+    contacts?: PartnerContactDto[],
+  ): Promise<PartnerContact[]> {
+    const where = { companyId: actor.companyId!, partnerId };
+    if (contacts === undefined) {
+      return manager.find(PartnerContact, {
+        where,
+        order: { createdAt: 'ASC' },
+      });
+    }
+    await manager.delete(PartnerContact, where);
+    const saved: PartnerContact[] = [];
+    for (const contact of contacts) {
+      saved.push(
+        await manager.save(manager.create(PartnerContact, { ...contact, ...where })),
+      );
+    }
+    return saved;
   }
 
   private productCount(actor: AuthUser, partnerId: string): Promise<number> {
@@ -272,7 +318,7 @@ export class PartnersService {
       companyId: actor.companyId!,
     });
     if (!partner) {
-      throw new NotFoundException(`Partner ${id} not found`);
+      throw new NotFoundException(`Counterparty ${id} not found`);
     }
     return partner;
   }
@@ -294,7 +340,7 @@ export class PartnersService {
     const existing = await query.getOne();
     if (existing) {
       throw new ConflictException(
-        `A partner named "${existing.name}" already exists`,
+        `A counterparty named "${existing.name}" already exists`,
       );
     }
   }

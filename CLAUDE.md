@@ -248,14 +248,30 @@ submodules are planned, so keep to the structure below.
   scan a barcode + Enter); if saving a new draft works but posting / sending fails, the editor moves
   to that draft's edit page instead of creating a second one. Stock history rows link to their
   document. Demo Company has REC-000001 and TR-000001 from the UI test.
-- **Parameters** → **Partners** (`/parameters/partners`; Parameters is the module for company-wide lists, always included; backend `parameters/partners/`,
+- **Parameters** → **Counterparties** (კონტრაგენტები / Контрагенты; called Partners until 2026-11-11,
+  renamed in the **UI only**: every text, Excel sheet / file names and new audit summaries say
+  counterparty, while the code, URLs, tables and audit action codes stay `partner(s)`, the user's
+  choice; imports still accept the old "Partners" sheet and "partner" headers. Use "counterparty" in
+  any new UI text) (`/parameters/partners`; Parameters is the module for company-wide lists, always included; backend `parameters/partners/`,
   API `/parameters/partners`; frontend page `features/parameters/partners/`, and `shared/partners/` for the model, service and form because WMS uses them;
   2026-11-09, renamed from WMS Suppliers). The businesses and people **a tenant** buys from or sells
   to; `partners` in the code because `companies` already means the tenants. One list, each entry a
   supplier, a client or both (`is_supplier` / `is_client`, at least one, also a DB check): one firm,
-  one row, one identification code. Fields as before: name (unique ignoring capitals / spaces), type
-  `company` / `individual`, optional identification code (9 digits, or the 11-digit personal ID;
+  one row, one identification code. Fields: name (unique ignoring capitals / spaces), type
+  `company` / `individual`, identification code (9 digits, or the 11-digit personal ID;
   unique per company), VAT payer, contact person, phone, email, address, status, product count.
+  **Every field is required** (2026-11-11, the user's choice) in the form, the API (create; an update
+  may leave a field out but not empty it) and the import; the columns stay nullable because older
+  partners have empty ones (editing one makes you fill them in). The RS "+ New supplier" form is the
+  same, so it needs contact, phone, email and address too.
+  **Additional contact persons** (2026-11-11, `partner_contacts`, `partner-contact.entity.ts`,
+  composite key to the partner, deleted with it): first name, last name, phone, position, email, all
+  required. The form has two tabs, **Main information** / **Contacts** (`.form-tabs` in `styles.css`);
+  contacts are kept in the form and sent with the partner as `contacts` on Save, which **replaces the
+  whole list** (`saveContacts`, same transaction); a PATCH without `contacts` leaves them alone. The
+  list returns each partner's `contacts`. Each row has **View** (eye icon, read-only pop-up with the
+  details and contacts, Edit from there), Edit and Delete. Contacts are not in the Excel import /
+  export.
   **Always included, like RS, and not separated by module** (the user's agreement): the system admin
   and every module admin see and edit all of the company's partners (`@Access('parameters')`); hiding
   them by module would cause duplicates or "already exists" errors about invisible rows. Managers
@@ -263,9 +279,11 @@ submodules are planned, so keep to the structure below.
   (`@Access(WMS)`). Every change is audited. Products and receipts still use `supplier_id` (only
   entries marked supplier can be picked); a partner on products or receipts must stay a supplier and
   can't be deleted (set it Inactive). Clients are **only a list so far**: nothing uses them yet.
-  **Import / Export** (`partner-excel.service.ts`, same admins as the page): Name *, Type * (Company /
-  Individual), Role * (Supplier / Client / Both), Identification code [Text], VAT payer (Yes / No,
-  default No), Contact person, Phone, Email, Address, Status (default Active). Name and code must not
+  **Import / Export** (`partner-excel.service.ts`, same admins as the page): Name, Type (Company /
+  Individual), Role (Supplier / Client / Both), Identification code [Text], VAT payer (Yes / No),
+  Contact person, Phone, Email, Address, Status, all required, so the template has no `*` marks
+  (`addTemplateSheet(..., { markRequired: false })`); a **Template** button on the page downloads it
+  without opening Import. Name and code must not
   repeat an existing partner or another row, and the code must fit the type; every problem is listed
   (Excel row, column, value). Export adds Products and Receipts. `PartnersService.createMany`,
   `partner.import` audit entry.

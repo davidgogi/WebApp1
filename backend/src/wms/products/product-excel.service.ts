@@ -369,7 +369,7 @@ export class ProductExcelService {
         `The sheet named "${SHEET_NAME}" is read (or the first sheet). Empty rows are skipped.`,
         'An exported products file can be imported too: its extra columns (In stock, ...) are ignored.',
         'At most 1000 products per file. If any row has an error, nothing is imported.',
-        'New categories and groups are added in Products → Categories, and suppliers in Partners, first.',
+        'New categories and groups are added in Products → Categories, and suppliers in Counterparties, first.',
       ],
     );
     addTableSheet(
@@ -406,7 +406,7 @@ export class ProductExcelService {
         ? suppliers.map((s) => [s.name])
         : [
             [
-              'No active suppliers yet. Add them in Partners first.',
+              'No active suppliers yet. Add them in Counterparties first.',
             ],
           ],
     );

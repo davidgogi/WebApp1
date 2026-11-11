@@ -568,7 +568,7 @@ export class ReceiptsService {
       });
     if (supplier && supplier.status !== PartnerStatus.ACTIVE) {
       throw new BadRequestException(
-        `The supplier ${supplier.name} (${sellerTin}) is inactive. Reactivate it in Partners first.`,
+        `The supplier ${supplier.name} (${sellerTin}) is inactive. Reactivate it in Counterparties first.`,
       );
     }
     if (supplier) {
