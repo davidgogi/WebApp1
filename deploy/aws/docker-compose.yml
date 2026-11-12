@@ -1,0 +1,55 @@
+name: webapp1
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: webapp1
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d webapp1"]
+      interval: 5s
+      retries: 20
+
+  backend:
+    image: ${REGISTRY}/webapp1-backend:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_DATABASE: webapp1
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: ${REGISTRY}/webapp1-frontend:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:3000
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:
