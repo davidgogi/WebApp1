@@ -2,24 +2,18 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 8px;
   margin-top: 10px;
   font-size: 0.92rem;
   color: var(--ink-muted);
-}
-
-.pager__info {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 20px;
 }
 
 .pager__size {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-right: 4px;
 }
 
 .pager__size .text-select {
@@ -29,45 +23,8 @@
   font-size: 0.92rem;
 }
 
-.pager__pages {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.pager__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.pager__button:hover:not(:disabled) {
-  background: var(--surface-muted);
-}
-
-.pager__button--current,
-.pager__button--current:hover:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
-}
-
-.pager__button:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.pager__gap {
+.pager__current {
   padding: 0 4px;
-  color: var(--ink-faint);
+  color: var(--ink);
+  white-space: nowrap;
 }

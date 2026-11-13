@@ -1,14 +1,26 @@
 import { Component, OnInit, inject, input, output, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, Plus, Trash2 } from 'lucide-angular';
-import { Partner, PartnerContact, PartnerPayload, PartnerStatus, PartnerType } from '../partner.model';
+import {
+  PARTNER_HISTORY_ACTIONS,
+  PARTNER_SOURCE_LABELS,
+  Partner,
+  PartnerContact,
+  PartnerHistoryEntry,
+  PartnerPayload,
+  PartnerRole,
+  PartnerStatus,
+  PartnerType,
+  partnerRole,
+} from '../partner.model';
 import { PartnerService } from '../partner.service';
 import { TranslatePipe } from '../../../core/i18n/t.pipe';
 
 @Component({
   selector: 'app-partner-form',
-  imports: [TranslatePipe, FormsModule, LucideAngularModule],
+  imports: [TranslatePipe, FormsModule, LucideAngularModule, DatePipe],
   templateUrl: './partner-form.html',
   styleUrl: './partner-form.css',
 })
@@ -19,25 +31,33 @@ export class PartnerForm implements OnInit {
   readonly initial = input<Partial<PartnerPayload> | null>(null);
   readonly hint = input('');
   readonly supplierOnly = input(false);
+  readonly source = input<'form' | 'rs'>('form');
   readonly saved = output<Partner>();
   readonly cancelled = output<void>();
 
   protected readonly AddIcon = Plus;
   protected readonly RemoveIcon = Trash2;
 
-  protected readonly tab = signal<'main' | 'contacts'>('main');
+  protected readonly historyActions = PARTNER_HISTORY_ACTIONS;
+  protected readonly sourceLabels = PARTNER_SOURCE_LABELS;
+
+  protected readonly tab = signal<'main' | 'contacts' | 'history'>('main');
+  protected readonly categories = signal<string[]>([]);
+  protected readonly history = signal<PartnerHistoryEntry[]>([]);
+  protected readonly historyState = signal<'' | 'loading' | 'loaded' | 'error'>('');
   protected readonly isSaving = signal(false);
   protected readonly formError = signal('');
   protected readonly name = signal('');
   protected readonly type = signal<PartnerType>('company');
   protected readonly identificationCode = signal('');
-  protected readonly isSupplier = signal(false);
-  protected readonly isClient = signal(false);
+  protected readonly role = signal<PartnerRole | ''>('');
   protected readonly vatPayer = signal(false);
   protected readonly contactPerson = signal('');
   protected readonly phone = signal('');
   protected readonly email = signal('');
   protected readonly address = signal('');
+  protected readonly category = signal('');
+  protected readonly note = signal('');
   protected readonly status = signal<PartnerStatus>('active');
   protected readonly contacts = signal<PartnerContact[]>([]);
   protected readonly contactError = signal('');
@@ -52,15 +72,45 @@ export class PartnerForm implements OnInit {
     this.name.set(values?.name ?? '');
     this.type.set(values?.type ?? 'company');
     this.identificationCode.set(values?.identificationCode ?? '');
-    this.isSupplier.set(values?.isSupplier ?? this.supplierOnly());
-    this.isClient.set(values?.isClient ?? false);
+    this.role.set(
+      values?.isSupplier !== undefined && values?.isClient !== undefined
+        ? partnerRole({ isSupplier: values.isSupplier, isClient: values.isClient })
+        : this.supplierOnly()
+          ? 'supplier'
+          : '',
+    );
     this.vatPayer.set(values?.vatPayer ?? false);
     this.contactPerson.set(values?.contactPerson ?? '');
     this.phone.set(values?.phone ?? '');
     this.email.set(values?.email ?? '');
     this.address.set(values?.address ?? '');
+    this.category.set(values?.category ?? '');
+    this.note.set(values?.note ?? '');
     this.status.set(values?.status ?? 'active');
     this.contacts.set(this.partner()?.contacts ?? []);
+    this.partnerService.categories().subscribe({
+      next: (categories) => this.categories.set(categories),
+      error: () => this.categories.set([]),
+    });
+  }
+
+  openHistory(): void {
+    const id = this.partner()?.id;
+    if (!id) {
+      return;
+    }
+    this.tab.set('history');
+    if (this.historyState() === 'loading' || this.historyState() === 'loaded') {
+      return;
+    }
+    this.historyState.set('loading');
+    this.partnerService.history(id).subscribe({
+      next: (entries) => {
+        this.history.set(entries);
+        this.historyState.set('loaded');
+      },
+      error: () => this.historyState.set('error'),
+    });
   }
 
   addContact(): void {
@@ -121,12 +171,14 @@ export class PartnerForm implements OnInit {
       this.showError('The counterparty name is required.');
       return;
     }
-    if (!this.isSupplier() && !this.isClient()) {
-      this.showError('Choose at least one: Supplier or Client');
+    const role = this.role();
+    if (!role) {
+      this.showError('Choose a role.');
       return;
     }
     const missing: [string, string][] = [
       [code, 'The identification code is required.'],
+      [this.category().trim(), 'The category is required.'],
       [this.contactPerson().trim(), 'The contact person is required.'],
       [this.phone().trim(), 'The phone is required.'],
       [this.email().trim(), 'The email is required.'],
@@ -155,13 +207,15 @@ export class PartnerForm implements OnInit {
       name: this.name().trim(),
       type: this.type(),
       identificationCode: code,
-      isSupplier: this.isSupplier(),
-      isClient: this.isClient(),
+      isSupplier: role !== 'client',
+      isClient: role !== 'supplier',
       vatPayer: this.vatPayer(),
       contactPerson: this.contactPerson().trim(),
       phone: this.phone().trim(),
       email: this.email().trim(),
       address: this.address().trim(),
+      category: this.category().trim(),
+      note: this.note().trim(),
       status: this.status(),
       contacts: this.contacts().map(({ firstName, lastName, phone, position, email }) => ({
         firstName,
@@ -174,7 +228,7 @@ export class PartnerForm implements OnInit {
     const id = this.partner()?.id;
     const request = id
       ? this.partnerService.update(id, payload)
-      : this.partnerService.create(payload);
+      : this.partnerService.create({ ...payload, source: this.source() });
     this.isSaving.set(true);
     this.formError.set('');
     this.contactError.set('');

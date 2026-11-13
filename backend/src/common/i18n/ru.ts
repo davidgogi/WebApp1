@@ -443,4 +443,12 @@ export const RU: Record<string, string> = {
   "Contact person is required": "Контактное лицо обязательно",
   "Every column must be filled in for every counterparty.": "Для каждого контрагента должны быть заполнены все столбцы.",
   "vatPayer": "Плательщик НДС",
+  "Note": "Примечание",
+  "category": "Категория",
+  "Category is required": "Категория обязательна",
+  "Free text: what the counterparty deals in.": "Свободный текст: чем занимается контрагент.",
+  "Groceries": "Продукты",
+  "Delivers on Mondays": "Поставляет по понедельникам",
+  "Every column except Note must be filled in for every counterparty.": "Для каждого контрагента должны быть заполнены все столбцы, кроме примечания.",
+  "source must be one of the following values: form, rs": "Источник должен быть: form или rs",
 };

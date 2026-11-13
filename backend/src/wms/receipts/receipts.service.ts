@@ -598,9 +598,12 @@ export class ReceiptsService {
       );
     }
     if (!supplier.identificationCode && /^(\d{9}|\d{11})$/.test(sellerTin)) {
-      await this.partnersService.update(actor, supplier.id, {
-        identificationCode: sellerTin,
-      });
+      await this.partnersService.update(
+        actor,
+        supplier.id,
+        { identificationCode: sellerTin },
+        'rs',
+      );
     }
   }
 

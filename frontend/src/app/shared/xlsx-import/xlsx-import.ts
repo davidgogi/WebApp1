@@ -25,6 +25,7 @@ export class XlsxImport<P extends { row: number }> {
   readonly noun = input.required<{ one: string; many: string }>();
   readonly description = input.required<string>();
   readonly templateName = input.required<string>();
+  readonly exampleName = input('');
   readonly codeLabel = input('Code');
 
   readonly imported = output<void>();
@@ -38,13 +39,17 @@ export class XlsxImport<P extends { row: number }> {
 
   protected readonly file = signal<File | null>(null);
   protected readonly report = signal<ImportReport<P> | null>(null);
-  protected readonly busy = signal<'' | 'template' | 'checking' | 'importing'>('');
+  protected readonly busy = signal<'' | 'template' | 'example' | 'checking' | 'importing'>('');
   protected readonly errorMessage = signal('');
 
   protected readonly errors = computed(() => this.sorted(this.report()?.errors ?? []));
   protected readonly warnings = computed(() => this.sorted(this.report()?.warnings ?? []));
   protected readonly badRows = computed(
     () => new Set(this.errors().flatMap((issue) => (issue.row && issue.row > 1 ? [issue.row] : []))).size,
+  );
+  protected readonly hasExample = computed(() => !!this.source().example && !!this.exampleName());
+  protected readonly canCheck = computed(
+    () => !!this.file() && this.busy() === '' && !this.report() && !this.errorMessage(),
   );
   protected readonly canImport = computed(() => {
     const report = this.report();
@@ -68,6 +73,25 @@ export class XlsxImport<P extends { row: number }> {
       });
   }
 
+  downloadExample(): void {
+    const example = this.source().example;
+    if (!example) {
+      return;
+    }
+    this.busy.set('example');
+    this.errorMessage.set('');
+    example().subscribe({
+      next: (blob) => {
+        this.busy.set('');
+        saveFile(blob, this.exampleName());
+      },
+      error: () => {
+        this.busy.set('');
+        this.errorMessage.set('Could not download the example. Is the backend running?');
+      },
+    });
+  }
+
   chooseFile(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
@@ -84,7 +108,15 @@ export class XlsxImport<P extends { row: number }> {
       );
       return;
     }
+  }
+
+  checkFile(): void {
+    const file = this.file();
+    if (!file || !this.canCheck()) {
+      return;
+    }
     this.busy.set('checking');
+    this.errorMessage.set('');
     this.source()
       .check(file)
       .subscribe({

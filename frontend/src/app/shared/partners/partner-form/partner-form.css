@@ -3,18 +3,33 @@
 }
 
 .contact-entry {
+  display: grid;
+  gap: 10px;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-muted);
 }
 
-.contact-entry__add {
-  align-content: end;
-  justify-items: end;
+.contact-entry__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.contact-entry__column {
+  display: grid;
+  align-content: start;
+  gap: 12px;
 }
 
 .contacts-empty {
   color: var(--ink-muted);
   text-align: center;
+}
+
+@media (max-width: 640px) {
+  .contact-entry__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

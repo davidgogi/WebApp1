@@ -41,6 +41,17 @@
         <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
         {{ busy() === 'template' ? ('Downloading…' | t) : ('Download template' | t) }}
       </button>
+      @if (hasExample()) {
+        <button
+          type="button"
+          class="button button--outline"
+          [disabled]="busy() === 'example'"
+          (click)="downloadExample()"
+        >
+          <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
+          {{ busy() === 'example' ? ('Downloading…' | t) : ('Download example' | t) }}
+        </button>
+      }
     </div>
 
     <label class="import-drop" [class.import-drop--busy]="busy() !== ''">
@@ -55,7 +66,7 @@
         <span><strong>{{ 'Checking {p0}…' | t: { p0: file()?.name } }}</strong></span>
       } @else if (file()) {
         <span><strong>{{ file()!.name }}</strong></span>
-        <span class="muted">{{ 'Click to choose another file' | t }}</span>
+        <span class="muted">{{ 'Click “Check file”, or click here to choose another file' | t }}</span>
       } @else {
         <span><strong>{{ 'Choose an .xlsx file' | t }}</strong></span>
         <span class="muted">{{ 'Nothing is saved until you confirm the import' | t }}</span>
@@ -99,7 +110,7 @@
             @if (badRows()) {
               {{ '{p0} {p1} problems.' | t: { p0: badRows(), p1: (badRows() === 1 ? ('row has' | t) : ('rows have' | t)) } }}
             }
-            {{ 'Fix them in Excel and choose the file again. Row numbers are the row numbers in Excel.' | t }}
+            {{ 'Fix them in Excel, choose the file again and check it. Row numbers are the row numbers in Excel.' | t }}
           </div>
         </div>
         <div class="table-scroll">
@@ -201,16 +212,23 @@
 
     <div class="button-row import-actions">
       <button type="button" class="button button--outline" (click)="closed.emit()">{{ 'Cancel' | t }}</button>
-      @if (canImport()) {
-        <button
-          type="button"
-          class="button button--dark"
-          [disabled]="busy() === 'importing'"
-          (click)="runImport()"
-        >
-          {{ busy() === 'importing' ? ('Importing…' | t) : ('Import {rows}' | t: { rows: count(report!.validRows) }) }}
-        </button>
-      }
+      <button type="button" class="button button--outline" [disabled]="!canCheck()" (click)="checkFile()">
+        {{ busy() === 'checking' ? ('Checking…' | t) : ('Check file' | t) }}
+      </button>
+      <button
+        type="button"
+        class="button button--primary"
+        [disabled]="!canImport() || busy() === 'importing'"
+        (click)="runImport()"
+      >
+        @if (busy() === 'importing') {
+          {{ 'Importing…' | t }}
+        } @else if (canImport()) {
+          {{ 'Confirm import: {rows}' | t: { rows: count(report!.validRows) } }}
+        } @else {
+          {{ 'Confirm import' | t }}
+        }
+      </button>
     </div>
   }
 </div>

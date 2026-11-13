@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   StreamableFile,
@@ -19,7 +20,7 @@ import { Lang } from '../../common/i18n/translate.js';
 import type { Language } from '../../common/i18n/translate.js';
 import { XLSX_TYPE, XLSX_UPLOAD } from '../../common/xlsx.js';
 import { PartnerExcelService, PartnerImportReport } from './partner-excel.service.js';
-import { PartnersService } from './partners.service.js';
+import { PartnerHistoryEntry, PartnersService } from './partners.service.js';
 import { Partner } from './partner.entity.js';
 import { CreatePartnerDto, UpdatePartnerDto } from './dto/partner.dto.js';
 
@@ -46,6 +47,11 @@ export class PartnersController {
     return this.partnersService.supplierOptions(user);
   }
 
+  @Get('categories')
+  categories(@CurrentUser() user: AuthUser): Promise<string[]> {
+    return this.partnersService.categories(user);
+  }
+
   @Get('export')
   async export(
     @CurrentUser() user: AuthUser,
@@ -65,6 +71,14 @@ export class PartnersController {
     });
   }
 
+  @Get('import/example')
+  async importExample(@Lang() language: Language): Promise<StreamableFile> {
+    return new StreamableFile(await this.excelService.example(language), {
+      type: XLSX_TYPE,
+      disposition: 'attachment; filename="counterparties-example.xlsx"',
+    });
+  }
+
   @Post('import/check')
   @UseInterceptors(FileInterceptor('file', XLSX_UPLOAD))
   checkImport(
@@ -81,6 +95,14 @@ export class PartnersController {
     @UploadedFile() file: Express.Multer.File | undefined,
   ): Promise<PartnerImportReport> {
     return this.excelService.import(user, file);
+  }
+
+  @Get(':id/history')
+  history(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PartnerHistoryEntry[]> {
+    return this.partnersService.history(user, id);
   }
 
   @Post()

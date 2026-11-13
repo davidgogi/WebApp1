@@ -259,10 +259,29 @@ submodules are planned, so keep to the structure below.
   supplier, a client or both (`is_supplier` / `is_client`, at least one, also a DB check): one firm,
   one row, one identification code. Fields: name (unique ignoring capitals / spaces), type
   `company` / `individual`, identification code (9 digits, or the 11-digit personal ID;
-  unique per company), VAT payer, contact person, phone, email, address, status, product count.
-  **Every field is required** (2026-11-11, the user's choice) in the form, the API (create; an update
+  unique per company), VAT payer, contact person, phone, email, address, **category** (free text,
+  e.g. Groceries / Dishware; the form suggests the company's existing ones from `GET
+  /parameters/partners/categories`), optional **note** (multi-line), status.
+  **Every field except the note is required** (2026-11-11, confirmed 2026-11-13 although the mockup
+  starred only six) in the form, the API (create; an update
   may leave a field out but not empty it) and the import; the columns stay nullable because older
-  partners have empty ones (editing one makes you fill them in). The RS "+ New supplier" form is the
+  partners have empty ones (editing one makes you fill them in).
+  **Page layout follows the reviewer's mockup** (2026-11-13): header Import / Export / Add; a filter
+  card (Search, Counterparty type, Status, "Additional filters" → Organization type, VAT status,
+  Category; Clear also clears column filters); toolbar Views ▾ / hint / Columns; columns
+  Counterparty name, Counterparty type (= role), Category, Identification code, Organization type
+  (= type), VAT status, Contact person, Phone, Email, Status (table id `counterparties`; no Products
+  column, no address under the name). "Counterparty name" is its own English key so Georgian can
+  say დასახელება while `Name` stays სახელი elsewhere. Form: two columns in the mockup's order, Role
+  is a dropdown (Supplier / Client / Supplier and client), Address and Note are textareas, Cancel /
+  Save bottom right, tabs Main information / Contacts / **History**.
+  **History** (2026-11-13): `audit_log` got `entity_id` and `source` (`form` / `import` / `rs`);
+  counterparty changes record their id (`partner.create`, `partner.update`, `partner.status` when
+  the status changed, `partner.supplier` when an RS receipt marks a client as supplier,
+  `partner.import` one row per imported counterparty plus the old summary row, `partner.delete`).
+  `GET /parameters/partners/:id/history` (date, user, action, source). The company audit log hides
+  the per-row import entries (`AuditService.find`). Changes before 2026-11-13 have no link, so older
+  counterparties start with an empty history. The RS "+ New supplier" form sends `source: 'rs'`. The RS "+ New supplier" form is the
   same, so it needs contact, phone, email and address too.
   **Additional contact persons** (2026-11-11, `partner_contacts`, `partner-contact.entity.ts`,
   composite key to the partner, deleted with it): first name, last name, phone, position, email, all
@@ -280,13 +299,13 @@ submodules are planned, so keep to the structure below.
   entries marked supplier can be picked); a partner on products or receipts must stay a supplier and
   can't be deleted (set it Inactive). Clients are **only a list so far**: nothing uses them yet.
   **Import / Export** (`partner-excel.service.ts`, same admins as the page): Name, Type (Company /
-  Individual), Role (Supplier / Client / Both), Identification code [Text], VAT payer (Yes / No),
-  Contact person, Phone, Email, Address, Status, all required, so the template has no `*` marks
-  (`addTemplateSheet(..., { markRequired: false })`); a **Template** button on the page downloads it
-  without opening Import. Name and code must not
+  Individual), Role (Supplier / Client / Both), Category, Identification code [Text], VAT payer (Yes /
+  No), Contact person, Phone, Email, Address, Note (optional), Status; no `*` marks
+  (`addTemplateSheet(..., { markRequired: false })`). `GET import/example` is the template with three
+  sample rows (the import window's "Download example"). Name and code must not
   repeat an existing partner or another row, and the code must fit the type; every problem is listed
-  (Excel row, column, value). Export adds Products and Receipts. `PartnersService.createMany`,
-  `partner.import` audit entry.
+  (Excel row, column, value). The export has the same columns (no Products / Receipts since
+  2026-11-13; old files with them still import). `PartnersService.createMany`.
   The partners service reads the WMS `Product` and `Receipt` entities for the counts, and WMS
   imports `PartnersModule`, a deliberate exception like HR's `Employee`.
 - **RS** → **RS waybills** (its own module since 2026-10-22, first built under WMS the same day;
@@ -526,7 +545,10 @@ count, ...). **.xlsx only** (`exceljs` on the backend; nothing Excel-related in 
   name / barcode that already exists is an error (no updating through a file yet). An exported file
   can be re-imported (e.g. into another company) because the extra columns are ignored.
 - Frontend: `shared/xlsx-import/` (`<app-xlsx-import [source] [columns] [noun] description
-  templateName codeLabel (imported) (closed)>`) with the service's `importSource`; `saveFile` there
+  templateName exampleName codeLabel (imported) (closed)>`) with the service's `importSource`
+  (`example()` optional: the "Download example" button shows only when it and `exampleName` are
+  given). Since 2026-11-13 choosing a file no longer checks it: **Check file** and **Confirm import**
+  are always visible at the bottom right and disabled until usable (every import page); `saveFile` there
   downloads a blob (exports are named `<page>-YYYY-MM-DD.xlsx`). Exports contain everything the user
   may see, **not** the current search / filters.
 
@@ -646,7 +668,15 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
   the category, reset when it changes], supplier, warehouse [incl. "In no warehouse"], use, POS
   status, production status, unit, stock [in / out of stock]). "Clear" resets search and filters.
   Pagination is `shared/pager/` (`Pagination` class: `new Pagination(() => list, () => [what
-  resets to page 1])`, and `<app-pager [pagination]>`: "81–100 of 342", rows per page 10/20/50/100).
+  resets to page 1])`, and `<app-pager [pagination]>`: bottom right "Per page [20] Previous Page 3 / 18
+  Next", the mockup's style since 2026-11-13, on every table).
+  Also in `shared/column-order/` (2026-11-13, used by Counterparties so far): `app-column-filter`
+  (funnel in a header: search values, checkboxes, Clear selection / Clear / Apply; fixed-position
+  panel so the table's scroll doesn't clip it), `app-column-picker` ("Columns": show / hide, stored
+  as `columns:<table>:hidden`, plus Reset), `SavedViews` + `app-saved-views` ("Views ▾": named
+  snapshots of search, filters and `ColumnOrder.layout()`, per browser in `views:<table>`), and the
+  `data-table--grips` / `data-table--compact` table classes (grip dots before draggable headers,
+  tighter rows).
   `.search-input` lives in `styles.css`; style its icon as `lucide-icon.search-input__icon`, because
   Lucide copies the class onto the inner `<svg>` and a bare class selector moves the icon twice.
 - New pages: `npx ng g c features/<module>/<submodule>/<page> --skip-tests`, then add a route in

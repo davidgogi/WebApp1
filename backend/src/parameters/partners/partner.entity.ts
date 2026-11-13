@@ -46,6 +46,12 @@ export class Partner extends TenantEntity {
   @Column({ type: 'varchar', nullable: true })
   address!: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  category!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  note!: string | null;
+
   @Column({ name: 'is_supplier', default: false })
   isSupplier!: boolean;
 

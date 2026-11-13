@@ -23,261 +23,346 @@
         <span class="form-tabs__count">{{ contacts().length }}</span>
       }
     </button>
+    <button
+      type="button"
+      role="tab"
+      class="form-tabs__tab"
+      [class.form-tabs__tab--active]="tab() === 'history'"
+      [attr.aria-selected]="tab() === 'history'"
+      [disabled]="!partner()"
+      [title]="partner() ? '' : ('History starts once the counterparty is saved' | t)"
+      (click)="openHistory()"
+    >
+      {{ 'History' | t }}
+    </button>
   </div>
 
-  @if (tab() === 'main') {
-    <div class="form-grid">
-      <div class="field">
-        <label for="partnerName">{{ 'Name' | t }}</label>
-        <input
-          id="partnerName"
-          class="text-input"
-          type="text"
-          name="name"
-          [(ngModel)]="name"
-          [placeholder]="'e.g. Mars Georgia' | t"
-          required
-        />
-      </div>
+  @if (hint()) {
+    <p class="field-hint">{{ hint() }}</p>
+  }
 
-      <div class="field">
-        <label for="partnerType">{{ 'Type' | t }}</label>
-        <select id="partnerType" class="text-select" name="type" [(ngModel)]="type">
-          <option value="company">{{ 'Company' | t }}</option>
-          <option value="individual">{{ 'Individual' | t }}</option>
-        </select>
-      </div>
+  @switch (tab()) {
+    @case ('main') {
+      <div class="form-grid form-grid--two">
+        <div class="field field--full">
+          <label for="partnerName">{{ 'Counterparty name' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="partnerName"
+            class="text-input"
+            type="text"
+            name="name"
+            [(ngModel)]="name"
+            [placeholder]="'e.g. Mars Georgia' | t"
+            required
+          />
+        </div>
 
-      <div class="field">
-        <span class="field-label">{{ 'Role' | t }}</span>
-        <div class="chip-list">
-          <label class="check-chip" [class.check-chip--on]="isSupplier()">
-            <input
-              type="checkbox"
-              name="isSupplier"
-              [(ngModel)]="isSupplier"
-              [disabled]="supplierOnly()"
-            />
-            {{ 'Supplier' | t }}
-          </label>
-          <label class="check-chip" [class.check-chip--on]="isClient()">
-            <input type="checkbox" name="isClient" [(ngModel)]="isClient" />
-            {{ 'Client' | t }}
-          </label>
+        <div class="field">
+          <label for="partnerRole">{{ 'Role' | t }} <span class="required-mark">*</span></label>
+          <select id="partnerRole" class="text-select" name="role" [(ngModel)]="role" required>
+            <option value="" disabled>{{ 'Choose a role' | t }}</option>
+            <option value="supplier">{{ 'Supplier' | t }}</option>
+            @if (!supplierOnly()) {
+              <option value="client">{{ 'Client' | t }}</option>
+            }
+            <option value="both">{{ 'Supplier and client' | t }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="partnerCode">{{ 'Identification code' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="partnerCode"
+            class="text-input"
+            type="text"
+            inputmode="numeric"
+            name="identificationCode"
+            [(ngModel)]="identificationCode"
+            required
+            [placeholder]="type() === 'company' ? ('9 digits, e.g. 405123456' | t) : ('Personal ID, 11 digits' | t)"
+          />
+        </div>
+
+        <div class="field">
+          <label for="partnerType">{{ 'Type' | t }} <span class="required-mark">*</span></label>
+          <select id="partnerType" class="text-select" name="type" [(ngModel)]="type">
+            <option value="company">{{ 'Company' | t }}</option>
+            <option value="individual">{{ 'Individual' | t }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="partnerVat">{{ 'VAT status' | t }} <span class="required-mark">*</span></label>
+          <select id="partnerVat" class="text-select" name="vatPayer" [(ngModel)]="vatPayer">
+            <option [ngValue]="true">{{ 'VAT payer' | t }}</option>
+            <option [ngValue]="false">{{ 'Not a VAT payer' | t }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="partnerStatus">{{ 'Status' | t }} <span class="required-mark">*</span></label>
+          <select id="partnerStatus" class="text-select" name="status" [(ngModel)]="status">
+            <option value="active">{{ 'Active' | t }}</option>
+            <option value="inactive">{{ 'Inactive' | t }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="partnerCategory">{{ 'Category' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="partnerCategory"
+            class="text-input"
+            type="text"
+            name="category"
+            list="partnerCategories"
+            autocomplete="off"
+            [(ngModel)]="category"
+            required
+            [placeholder]="'e.g. Groceries' | t"
+          />
+          <datalist id="partnerCategories">
+            @for (option of categories(); track option) {
+              <option [value]="option"></option>
+            }
+          </datalist>
+        </div>
+
+        <div class="field">
+          <label for="partnerContact">{{ 'Contact person' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="partnerContact"
+            class="text-input"
+            type="text"
+            name="contactPerson"
+            [(ngModel)]="contactPerson"
+            required
+            [placeholder]="'e.g. Nino Beridze' | t"
+          />
+        </div>
+
+        <div class="field">
+          <label for="partnerPhone">{{ 'Phone' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="partnerPhone"
+            class="text-input"
+            type="tel"
+            name="phone"
+            [(ngModel)]="phone"
+            required
+            [placeholder]="'e.g. +995 555 12 34 56' | t"
+          />
+        </div>
+
+        <div class="field">
+          <label for="partnerEmail">{{ 'Email' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="partnerEmail"
+            class="text-input"
+            type="email"
+            name="email"
+            [(ngModel)]="email"
+            required
+            [placeholder]="'e.g. orders@supplier.ge' | t"
+          />
+        </div>
+
+        <div class="field field--full">
+          <label for="partnerAddress">{{ 'Address' | t }} <span class="required-mark">*</span></label>
+          <textarea
+            id="partnerAddress"
+            class="text-input text-area"
+            name="address"
+            rows="2"
+            [(ngModel)]="address"
+            required
+            [placeholder]="'e.g. 12 Tsereteli Ave, Tbilisi' | t"
+          ></textarea>
+        </div>
+
+        <div class="field field--full">
+          <label for="partnerNote">{{ 'Note' | t }}</label>
+          <textarea
+            id="partnerNote"
+            class="text-input text-area"
+            name="note"
+            rows="3"
+            maxlength="1000"
+            [(ngModel)]="note"
+            [placeholder]="'Anything worth knowing about this counterparty' | t"
+          ></textarea>
         </div>
       </div>
+    }
 
-      <div class="field">
-        <label for="partnerCode">{{ 'Identification code' | t }}</label>
-        <input
-          id="partnerCode"
-          class="text-input"
-          type="text"
-          inputmode="numeric"
-          name="identificationCode"
-          [(ngModel)]="identificationCode"
-          required
-          [placeholder]="type() === 'company' ? ('9 digits, e.g. 405123456' | t) : ('Personal ID, 11 digits' | t)"
-        />
-      </div>
-
-      <div class="field">
-        <label for="partnerVat">{{ 'VAT' | t }}</label>
-        <select id="partnerVat" class="text-select" name="vatPayer" [(ngModel)]="vatPayer">
-          <option [ngValue]="true">{{ 'VAT payer' | t }}</option>
-          <option [ngValue]="false">{{ 'Not a VAT payer' | t }}</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="partnerContact">{{ 'Contact person' | t }}</label>
-        <input
-          id="partnerContact"
-          class="text-input"
-          type="text"
-          name="contactPerson"
-          [(ngModel)]="contactPerson"
-          required
-          [placeholder]="'e.g. Nino Beridze' | t"
-        />
-      </div>
-
-      <div class="field">
-        <label for="partnerPhone">{{ 'Phone' | t }}</label>
-        <input
-          id="partnerPhone"
-          class="text-input"
-          type="tel"
-          name="phone"
-          [(ngModel)]="phone"
-          required
-          [placeholder]="'e.g. +995 555 12 34 56' | t"
-        />
-      </div>
-
-      <div class="field">
-        <label for="partnerEmail">{{ 'Email' | t }}</label>
-        <input
-          id="partnerEmail"
-          class="text-input"
-          type="email"
-          name="email"
-          [(ngModel)]="email"
-          required
-          [placeholder]="'e.g. orders@supplier.ge' | t"
-        />
-      </div>
-
-      <div class="field">
-        <label for="partnerAddress">{{ 'Address' | t }}</label>
-        <input
-          id="partnerAddress"
-          class="text-input"
-          type="text"
-          name="address"
-          [(ngModel)]="address"
-          required
-          [placeholder]="'e.g. 12 Tsereteli Ave, Tbilisi' | t"
-        />
-      </div>
-
-      <div class="field">
-        <label for="partnerStatus">{{ 'Status' | t }}</label>
-        <select id="partnerStatus" class="text-select" name="status" [(ngModel)]="status">
-          <option value="active">{{ 'Active' | t }}</option>
-          <option value="inactive">{{ 'Inactive' | t }}</option>
-        </select>
-        <span class="field-hint">{{ 'Inactive counterparties can\'t be chosen for new products or receipts.' | t }}</span>
-      </div>
-    </div>
-
-  } @else {
-    <div class="page-stack">
-      <h3 class="card-title contacts-title">{{ 'Additional contact persons' | t }}</h3>
-      <div class="contact-entry" (keydown.enter)="$event.preventDefault(); addContact()">
-        <div class="form-grid">
-          <div class="field">
-            <label for="contactFirstName">{{ 'First name' | t }}</label>
-            <input
-              id="contactFirstName"
-              class="text-input"
-              type="text"
-              name="contactFirstName"
-              [(ngModel)]="contactFirstName"
-              [placeholder]="'e.g. Nino' | t"
-            />
+    @case ('contacts') {
+      <div class="page-stack">
+        <h3 class="card-title contacts-title">{{ 'Additional contact persons' | t }}</h3>
+        <div class="contact-entry" (keydown.enter)="$event.preventDefault(); addContact()">
+          <div class="contact-entry__columns">
+            <div class="contact-entry__column">
+              <div class="field">
+                <label for="contactFirstName">{{ 'First name' | t }} <span class="required-mark">*</span></label>
+                <input
+                  id="contactFirstName"
+                  class="text-input"
+                  type="text"
+                  name="contactFirstName"
+                  [(ngModel)]="contactFirstName"
+                  [placeholder]="'e.g. Nino' | t"
+                />
+              </div>
+              <div class="field">
+                <label for="contactLastName">{{ 'Last name' | t }} <span class="required-mark">*</span></label>
+                <input
+                  id="contactLastName"
+                  class="text-input"
+                  type="text"
+                  name="contactLastName"
+                  [(ngModel)]="contactLastName"
+                  [placeholder]="'e.g. Beridze' | t"
+                />
+              </div>
+              <div class="field">
+                <label for="contactPhone">{{ 'Phone number' | t }} <span class="required-mark">*</span></label>
+                <input
+                  id="contactPhone"
+                  class="text-input"
+                  type="tel"
+                  name="contactPhone"
+                  [(ngModel)]="contactPhone"
+                  [placeholder]="'e.g. +995 555 12 34 56' | t"
+                />
+              </div>
+            </div>
+            <div class="contact-entry__column">
+              <div class="field">
+                <label for="contactPosition">{{ 'Position' | t }} <span class="required-mark">*</span></label>
+                <input
+                  id="contactPosition"
+                  class="text-input"
+                  type="text"
+                  name="contactPosition"
+                  [(ngModel)]="contactPosition"
+                  [placeholder]="'e.g. Sales manager' | t"
+                />
+              </div>
+              <div class="field">
+                <label for="contactEmail">{{ 'Email' | t }} <span class="required-mark">*</span></label>
+                <input
+                  id="contactEmail"
+                  class="text-input"
+                  type="email"
+                  name="contactEmail"
+                  [(ngModel)]="contactEmail"
+                  [placeholder]="'e.g. orders@supplier.ge' | t"
+                />
+              </div>
+            </div>
           </div>
-          <div class="field">
-            <label for="contactPosition">{{ 'Position' | t }}</label>
-            <input
-              id="contactPosition"
-              class="text-input"
-              type="text"
-              name="contactPosition"
-              [(ngModel)]="contactPosition"
-              [placeholder]="'e.g. Sales manager' | t"
-            />
-          </div>
-          <div class="field">
-            <label for="contactLastName">{{ 'Last name' | t }}</label>
-            <input
-              id="contactLastName"
-              class="text-input"
-              type="text"
-              name="contactLastName"
-              [(ngModel)]="contactLastName"
-              [placeholder]="'e.g. Beridze' | t"
-            />
-          </div>
-          <div class="field">
-            <label for="contactEmail">{{ 'Email' | t }}</label>
-            <input
-              id="contactEmail"
-              class="text-input"
-              type="email"
-              name="contactEmail"
-              [(ngModel)]="contactEmail"
-              [placeholder]="'e.g. orders@supplier.ge' | t"
-            />
-          </div>
-          <div class="field">
-            <label for="contactPhone">{{ 'Phone' | t }}</label>
-            <input
-              id="contactPhone"
-              class="text-input"
-              type="tel"
-              name="contactPhone"
-              [(ngModel)]="contactPhone"
-              [placeholder]="'e.g. +995 555 12 34 56' | t"
-            />
-          </div>
-          <div class="field contact-entry__add">
+          @if (contactError()) {
+            <p class="field-error">{{ contactError() | t }}</p>
+          }
+          <div class="button-row form-actions">
             <button type="button" class="button button--primary" (click)="addContact()">
               <lucide-icon [img]="AddIcon" [size]="16"></lucide-icon>
               {{ 'Add' | t }}
             </button>
           </div>
         </div>
-        @if (contactError()) {
-          <p class="field-error">{{ contactError() | t }}</p>
-        }
-      </div>
 
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'First name' | t }}</th>
+                <th>{{ 'Last name' | t }}</th>
+                <th>{{ 'Phone number' | t }}</th>
+                <th>{{ 'Position' | t }}</th>
+                <th>{{ 'Email' | t }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (contact of contacts(); track $index) {
+                <tr>
+                  <td>{{ contact.firstName }}</td>
+                  <td>{{ contact.lastName }}</td>
+                  <td>{{ contact.phone }}</td>
+                  <td>{{ contact.position }}</td>
+                  <td>{{ contact.email }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="icon-action icon-action--danger"
+                      [title]="'Remove contact' | t"
+                      [attr.aria-label]="'Remove contact' | t"
+                      (click)="removeContact($index)"
+                    >
+                      <lucide-icon [img]="RemoveIcon" [size]="14"></lucide-icon>
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="contacts-empty">{{ 'No additional contacts yet.' | t }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @case ('history') {
       <div class="table-scroll">
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'First name' | t }}</th>
-              <th>{{ 'Last name' | t }}</th>
-              <th>{{ 'Phone' | t }}</th>
-              <th>{{ 'Position' | t }}</th>
-              <th>{{ 'Email' | t }}</th>
-              <th></th>
+              <th>{{ 'Date' | t }}</th>
+              <th>{{ 'User' | t }}</th>
+              <th>{{ 'Action' | t }}</th>
+              <th>{{ 'Source' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            @for (contact of contacts(); track $index) {
+            @if (historyState() === 'loading') {
               <tr>
-                <td>{{ contact.firstName }}</td>
-                <td>{{ contact.lastName }}</td>
-                <td>{{ contact.phone }}</td>
-                <td>{{ contact.position }}</td>
-                <td>{{ contact.email }}</td>
-                <td>
-                  <button
-                    type="button"
-                    class="icon-action icon-action--danger"
-                    [title]="'Remove contact' | t"
-                    [attr.aria-label]="'Remove contact' | t"
-                    (click)="removeContact($index)"
-                  >
-                    <lucide-icon [img]="RemoveIcon" [size]="14"></lucide-icon>
-                  </button>
-                </td>
+                <td colspan="4" class="contacts-empty">{{ 'Loading…' | t }}</td>
               </tr>
-            } @empty {
+            } @else if (historyState() === 'error') {
               <tr>
-                <td colspan="6" class="contacts-empty">{{ 'No additional contacts yet.' | t }}</td>
+                <td colspan="4" class="contacts-empty">{{ 'Could not load the history.' | t }}</td>
               </tr>
+            } @else {
+              @for (entry of history(); track entry.id) {
+                <tr>
+                  <td class="cell-nowrap">{{ entry.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                  <td>{{ entry.actorName }}</td>
+                  <td>{{ (historyActions[entry.action] ?? entry.action) | t }}</td>
+                  <td>{{ entry.source ? (sourceLabels[entry.source] | t) : '—' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="contacts-empty">
+                    {{ 'No history yet. Changes are recorded from now on.' | t }}
+                  </td>
+                </tr>
+              }
             }
           </tbody>
         </table>
       </div>
-    </div>
+    }
   }
 
   @if (formError()) {
     <p class="field-error">{{ formError() | t }}</p>
   }
 
-  <div class="button-row">
-    <button type="submit" class="button button--dark" [disabled]="isSaving()">
-      @if (partner()) {
-        {{ isSaving() ? ('Saving…' | t) : ('Save changes' | t) }}
-      } @else {
-        {{ isSaving() ? ('Adding…' | t) : ('Add counterparty' | t) }}
-      }
+  <div class="button-row form-actions">
+    <button type="button" class="button button--outline" (click)="cancelled.emit()">{{ 'Cancel' | t }}</button>
+    <button type="submit" class="button button--primary" [disabled]="isSaving()">
+      {{ isSaving() ? ('Saving…' | t) : ('Save' | t) }}
     </button>
-    <button type="button" class="button button--secondary" (click)="cancelled.emit()">{{ 'Cancel' | t }}</button>
   </div>
 </form>

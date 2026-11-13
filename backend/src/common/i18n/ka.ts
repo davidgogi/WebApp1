@@ -443,4 +443,12 @@ export const KA: Record<string, string> = {
   "Contact person is required": "საკონტაქტო პირი სავალდებულოა",
   "Every column must be filled in for every counterparty.": "ყველა კონტრაგენტისთვის ყველა სვეტი უნდა იყოს შევსებული.",
   "vatPayer": "დღგ-ის გადამხდელი",
+  "Note": "შენიშვნა",
+  "category": "კატეგორია",
+  "Category is required": "კატეგორია სავალდებულოა",
+  "Free text: what the counterparty deals in.": "თავისუფალი ტექსტი: რას საქმიანობს კონტრაგენტი.",
+  "Groceries": "სურსათი",
+  "Delivers on Mondays": "აწვდის ორშაბათობით",
+  "Every column except Note must be filled in for every counterparty.": "ყველა კონტრაგენტისთვის ყველა სვეტი, შენიშვნის გარდა, უნდა იყოს შევსებული.",
+  "source must be one of the following values: form, rs": "წყარო უნდა იყოს: form ან rs",
 };

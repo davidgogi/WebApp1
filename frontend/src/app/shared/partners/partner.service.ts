@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from '../../core/api';
 import { ImportReport, ImportSource } from '../xlsx-import/xlsx-import.model';
-import { Partner, PartnerPayload, PartnerPreviewRow } from './partner.model';
+import { Partner, PartnerHistoryEntry, PartnerPayload, PartnerPreviewRow } from './partner.model';
 
 const API_URL = `${API_BASE_URL}/parameters/partners`;
 
@@ -21,6 +21,14 @@ export class PartnerService {
     return this.http.get<Pick<Partner, 'id' | 'name' | 'identificationCode'>[]>(`${API_URL}/supplier-options`);
   }
 
+  categories(): Observable<string[]> {
+    return this.http.get<string[]>(`${API_URL}/categories`);
+  }
+
+  history(id: string): Observable<PartnerHistoryEntry[]> {
+    return this.http.get<PartnerHistoryEntry[]>(`${API_URL}/${id}/history`);
+  }
+
   create(payload: PartnerPayload): Observable<Partner> {
     return this.http.post<Partner>(API_URL, payload);
   }
@@ -35,6 +43,7 @@ export class PartnerService {
 
   readonly importSource: ImportSource<PartnerPreviewRow> = {
     template: () => this.http.get(`${API_URL}/import/template`, { responseType: 'blob' }),
+    example: () => this.http.get(`${API_URL}/import/example`, { responseType: 'blob' }),
     check: (file) =>
       this.http.post<ImportReport<PartnerPreviewRow>>(`${API_URL}/import/check`, this.fileForm(file)),
     import: (file) => this.http.post<ImportReport<PartnerPreviewRow>>(`${API_URL}/import`, this.fileForm(file)),

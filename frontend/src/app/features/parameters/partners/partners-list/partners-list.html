@@ -1,20 +1,7 @@
 <div class="page-stack">
   <div class="page-header">
-    <div>
-      <h1 class="page-title">{{ 'Counterparties' | t }}</h1>
-      <p class="page-description">{{ 'Companies and people this company buys from or sells to.' | t }}</p>
-    </div>
+    <h1 class="page-title">{{ 'Counterparties' | t }}</h1>
     <div class="button-row page-header__actions">
-      <button
-        type="button"
-        class="button button--outline"
-        [disabled]="isDownloadingTemplate()"
-        [title]="'An empty Excel file with every column, ready to fill in and import' | t"
-        (click)="downloadTemplate()"
-      >
-        <lucide-icon [img]="TemplateIcon" [size]="16"></lucide-icon>
-        {{ isDownloadingTemplate() ? ('Downloading…' | t) : ('Template' | t) }}
-      </button>
       <button type="button" class="button button--outline" (click)="isImportOpen.set(true)">
         <lucide-icon [img]="ImportIcon" [size]="16"></lucide-icon>
         {{ 'Import' | t }}
@@ -23,9 +10,9 @@
         <lucide-icon [img]="ExportIcon" [size]="16"></lucide-icon>
         {{ isExporting() ? ('Exporting…' | t) : ('Export' | t) }}
       </button>
-      <button type="button" class="button button--dark" (click)="openAddForm()">
+      <button type="button" class="button button--primary" (click)="openAddForm()">
         <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
-        {{ 'Add counterparty' | t }}
+        {{ 'Add' | t }}
       </button>
     </div>
   </div>
@@ -34,47 +21,91 @@
     <p class="field-error">{{ errorMessage() | t }}</p>
   }
 
+  @if (partners().length > 0) {
+    <div class="filter-panel">
+      <div class="field filter-panel__search">
+        <label for="partnerSearch">{{ 'Search' | t }}</label>
+        <div class="search-input">
+          <lucide-icon [img]="SearchIcon" [size]="16" class="search-input__icon"></lucide-icon>
+          <input
+            id="partnerSearch"
+            class="text-input"
+            type="search"
+            [(ngModel)]="search"
+            [placeholder]="'Name, identification code, category, contact, phone or email' | t"
+          />
+        </div>
+      </div>
+      <div class="field">
+        <label for="partnerRoleFilter">{{ 'Counterparty type' | t }}</label>
+        <select id="partnerRoleFilter" class="text-select" [(ngModel)]="roleFilter">
+          <option value="all">{{ 'All' | t }}</option>
+          <option value="supplier">{{ 'Supplier' | t }}</option>
+          <option value="client">{{ 'Client' | t }}</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="partnerStatusFilter">{{ 'Status' | t }}</label>
+        <select id="partnerStatusFilter" class="text-select" [(ngModel)]="statusFilter">
+          <option value="all">{{ 'All' | t }}</option>
+          <option value="active">{{ 'Active' | t }}</option>
+          <option value="inactive">{{ 'Inactive' | t }}</option>
+        </select>
+      </div>
+      <button
+        type="button"
+        class="button button--outline"
+        [class.button--active]="showMore()"
+        [attr.aria-expanded]="showMore()"
+        (click)="showMore.set(!showMore())"
+      >
+        {{ 'Additional filters' | t }}
+        @if (moreFilterCount()) {
+          <span class="form-tabs__count">{{ moreFilterCount() }}</span>
+        }
+      </button>
+      <button type="button" class="button button--outline" [disabled]="!hasFilters()" (click)="clearFilters()">
+        {{ 'Clear' | t }}
+      </button>
+
+      @if (showMore()) {
+        <div class="filter-panel__more">
+          <div class="field">
+            <label for="partnerTypeFilter">{{ 'Organization type' | t }}</label>
+            <select id="partnerTypeFilter" class="text-select" [(ngModel)]="typeFilter">
+              <option value="all">{{ 'All' | t }}</option>
+              <option value="company">{{ 'Company' | t }}</option>
+              <option value="individual">{{ 'Individual' | t }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="partnerVatFilter">{{ 'VAT status' | t }}</label>
+            <select id="partnerVatFilter" class="text-select" [(ngModel)]="vatFilter">
+              <option value="all">{{ 'All' | t }}</option>
+              <option value="yes">{{ 'VAT payer' | t }}</option>
+              <option value="no">{{ 'Not a VAT payer' | t }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="partnerCategoryFilter">{{ 'Category' | t }}</label>
+            <select id="partnerCategoryFilter" class="text-select" [(ngModel)]="categoryFilter">
+              <option value="all">{{ 'All' | t }}</option>
+              @for (category of categories(); track category) {
+                <option [value]="category">{{ category }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
   <div class="page-card">
     @if (isLoading()) {
       <p class="page-description">{{ 'Loading…' | t }}</p>
     } @else if (partners().length === 0) {
-      <p class="page-description">{{ 'No counterparties yet. Use “Add counterparty” to create the first one.' | t }}</p>
+      <p class="page-description">{{ 'No counterparties yet. Use “Add” to create the first one.' | t }}</p>
     } @else {
-      <div class="table-filters">
-        <div class="search-input table-filters__search">
-          <lucide-icon [img]="SearchIcon" [size]="16" class="search-input__icon"></lucide-icon>
-          <input
-            class="text-input"
-            type="search"
-            [aria-label]="'Search counterparties' | t"
-            [(ngModel)]="search"
-            [placeholder]="'Name, ID code, contact, phone, email or address' | t"
-          />
-        </div>
-        <select class="text-select" [aria-label]="'Role' | t" [(ngModel)]="roleFilter">
-          <option value="all">{{ 'All roles' | t }}</option>
-          <option value="supplier">{{ 'Supplier' | t }}</option>
-          <option value="client">{{ 'Client' | t }}</option>
-        </select>
-        <select class="text-select" [aria-label]="'Type' | t" [(ngModel)]="typeFilter">
-          <option value="all">{{ 'All types' | t }}</option>
-          <option value="company">{{ 'Company' | t }}</option>
-          <option value="individual">{{ 'Individual' | t }}</option>
-        </select>
-        <select class="text-select" [aria-label]="'VAT' | t" [(ngModel)]="vatFilter">
-          <option value="all">{{ 'VAT: any' | t }}</option>
-          <option value="yes">{{ 'VAT payer' | t }}</option>
-          <option value="no">{{ 'Not a VAT payer' | t }}</option>
-        </select>
-        <select class="text-select" [aria-label]="'Status' | t" [(ngModel)]="statusFilter">
-          <option value="all">{{ 'All statuses' | t }}</option>
-          <option value="active">{{ 'Active' | t }}</option>
-          <option value="inactive">{{ 'Inactive' | t }}</option>
-        </select>
-        @if (hasFilters()) {
-          <button type="button" class="link-button" (click)="clearFilters()">{{ 'Clear' | t }}</button>
-        }
-      </div>
       <div class="table-toolbar">
         <span>
           @if (hasFilters()) {
@@ -83,14 +114,28 @@
             {{ '{p0} counterparties' | t: { p0: partners().length } }}
           }
         </span>
-        <app-column-tools [columnOrder]="columnOrder" />
+        <div class="table-toolbar__tools">
+          <app-saved-views [views]="views" [capture]="captureView" (applied)="applyView($event)" />
+          <span>{{ 'Reorder columns by dragging their headers' | t }}</span>
+          <app-column-picker [columnOrder]="columnOrder" />
+        </div>
       </div>
       <div class="table-scroll">
-        <table class="data-table" [appColumns]="columnOrder">
+        <table class="data-table data-table--compact data-table--grips" [appColumns]="columnOrder">
           <thead>
             <tr>
               @for (column of columnOrder.columns(); track column.key) {
-                <th [appColumn]="column.key" [columnOrder]="columnOrder">{{ column.label | t }}</th>
+                <th [appColumn]="column.key" [columnOrder]="columnOrder">
+                  <span class="th-content">
+                    {{ column.label | t }}
+                    <app-column-filter
+                      [title]="column.label | t"
+                      [options]="optionsFor(column.key)"
+                      [selected]="selectedFor(column.key)"
+                      (applied)="setColumnFilter(column.key, $event)"
+                    />
+                  </span>
+                </th>
               }
               <th>{{ 'Actions' | t }}</th>
             </tr>
@@ -100,67 +145,42 @@
               <tr>
                 @for (column of columnOrder.columns(); track column.key) {
                   @switch (column.key) {
-                    @case ('partner') {
-                      <td>
-                      <div class="cell-strong">{{ partner.name }}</div>
-                      @if (partner.address) {
-                        <div class="muted">{{ partner.address }}</div>
-                      }
-                    </td>
-                    }
-                    @case ('roles') {
-                      <td>
-                        @if (partner.isSupplier) {
-                          <div>{{ 'Supplier' | t }}</div>
-                        }
-                        @if (partner.isClient) {
-                          <div>{{ 'Client' | t }}</div>
-                        }
-                      </td>
-                    }
-                    @case ('type') {
-                      <td>{{ typeLabels[partner.type] | t }}</td>
+                    @case ('name') {
+                      <td class="cell-strong">{{ partner.name }}</td>
                     }
                     @case ('idCode') {
                       <td>
-                      @if (partner.identificationCode) {
-                        <code class="code-tag">{{ partner.identificationCode }}</code>
-                      } @else {
-                        <span class="muted">—</span>
-                      }
-                    </td>
-                    }
-                    @case ('vat') {
-                      <td>{{ partner.vatPayer ? ('VAT payer' | t) : ('No' | t) }}</td>
-                    }
-                    @case ('contact') {
-                      <td>
-                      @if (partner.contactPerson || partner.phone) {
-                        <div>{{ partner.contactPerson }}</div>
-                        <div class="muted">{{ partner.phone }}</div>
-                      } @else {
-                        <span class="muted">—</span>
-                      }
-                    </td>
-                    }
-                    @case ('email') {
-                      <td>
-                      @if (partner.email) {
-                        {{ partner.email }}
-                      } @else {
-                        <span class="muted">—</span>
-                      }
-                    </td>
-                    }
-                    @case ('products') {
-                      <td class="cell-figure">{{ partner.productCount }}</td>
+                        @if (partner.identificationCode) {
+                          <code class="code-tag">{{ partner.identificationCode }}</code>
+                        } @else {
+                          <span class="muted">—</span>
+                        }
+                      </td>
                     }
                     @case ('status') {
                       <td>
-                      <span class="badge" [class]="partner.status === 'active' ? 'badge--active' : 'badge--inactive'">
-                        {{ partner.status === 'active' ? ('Active' | t) : ('Inactive' | t) }}
-                      </span>
-                    </td>
+                        <span class="badge" [class]="partner.status === 'active' ? 'badge--active' : 'badge--inactive'">
+                          {{ cell(partner, 'status') | t }}
+                        </span>
+                      </td>
+                    }
+                    @case ('role') {
+                      <td>{{ cell(partner, 'role') | t }}</td>
+                    }
+                    @case ('type') {
+                      <td>{{ cell(partner, 'type') | t }}</td>
+                    }
+                    @case ('vat') {
+                      <td>{{ cell(partner, 'vat') | t }}</td>
+                    }
+                    @default {
+                      <td>
+                        @if (cell(partner, column.key)) {
+                          {{ cell(partner, column.key) }}
+                        } @else {
+                          <span class="muted">—</span>
+                        }
+                      </td>
                     }
                   }
                 }
@@ -199,7 +219,9 @@
               </tr>
             } @empty {
               <tr>
-                <td class="muted" colspan="10">{{ 'No counterparties match the search and filters.' | t }}</td>
+                <td class="muted" [attr.colspan]="columnOrder.columns().length + 1">
+                  {{ 'No counterparties match the search and filters.' | t }}
+                </td>
               </tr>
             }
           </tbody>
@@ -227,11 +249,12 @@
       [columns]="importColumns"
       [noun]="{ one: 'counterparty', many: 'counterparties' }"
       [description]="
-        'Add many counterparties at once from an Excel file (.xlsx), one counterparty per row. Start from the template: it has the right columns and dropdowns for type, role, VAT and status.'
+        'Add many counterparties at once from an Excel file (.xlsx), one counterparty per row. Start from the template: it has the right columns and dropdowns. The example shows filled-in rows.'
           | t
       "
       templateName="counterparties-template.xlsx"
-      codeLabel="ID code"
+      exampleName="counterparties-example.xlsx"
+      codeLabel="Identification code"
       (imported)="loadPartners()"
       (closed)="isImportOpen.set(false)"
     />
@@ -243,27 +266,32 @@
     <div class="page-stack">
       <dl class="detail-grid">
         <div>
-          <dt>{{ 'Type' | t }}</dt>
-          <dd>{{ typeLabels[partner.type] | t }}</dd>
+          <dt>{{ 'Counterparty type' | t }}</dt>
+          <dd>{{ roleLabels[partnerRole(partner)] | t }}</dd>
         </div>
         <div>
-          <dt>{{ 'Role' | t }}</dt>
-          <dd>
-            @if (partner.isSupplier) {
-              <span class="chip">{{ 'Supplier' | t }}</span>
-            }
-            @if (partner.isClient) {
-              <span class="chip">{{ 'Client' | t }}</span>
-            }
-          </dd>
+          <dt>{{ 'Category' | t }}</dt>
+          <dd>{{ partner.category || '—' }}</dd>
         </div>
         <div>
           <dt>{{ 'Identification code' | t }}</dt>
           <dd>{{ partner.identificationCode || '—' }}</dd>
         </div>
         <div>
-          <dt>{{ 'VAT' | t }}</dt>
-          <dd>{{ partner.vatPayer ? ('VAT payer' | t) : ('Not a VAT payer' | t) }}</dd>
+          <dt>{{ 'Organization type' | t }}</dt>
+          <dd>{{ typeLabels[partner.type] | t }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'VAT status' | t }}</dt>
+          <dd>{{ vatLabel(partner.vatPayer) | t }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Status' | t }}</dt>
+          <dd>
+            <span class="badge" [class]="partner.status === 'active' ? 'badge--active' : 'badge--inactive'">
+              {{ partner.status === 'active' ? ('Active' | t) : ('Inactive' | t) }}
+            </span>
+          </dd>
         </div>
         <div>
           <dt>{{ 'Contact person' | t }}</dt>
@@ -282,16 +310,8 @@
           <dd>{{ partner.address || '—' }}</dd>
         </div>
         <div>
-          <dt>{{ 'Status' | t }}</dt>
-          <dd>
-            <span class="badge" [class]="partner.status === 'active' ? 'badge--active' : 'badge--inactive'">
-              {{ partner.status === 'active' ? ('Active' | t) : ('Inactive' | t) }}
-            </span>
-          </dd>
-        </div>
-        <div>
-          <dt>{{ 'Products' | t }}</dt>
-          <dd>{{ partner.productCount }}</dd>
+          <dt>{{ 'Note' | t }}</dt>
+          <dd>{{ partner.note || '—' }}</dd>
         </div>
         <div>
           <dt>{{ 'Receipts' | t }}</dt>
@@ -306,7 +326,7 @@
             <tr>
               <th>{{ 'First name' | t }}</th>
               <th>{{ 'Last name' | t }}</th>
-              <th>{{ 'Phone' | t }}</th>
+              <th>{{ 'Phone number' | t }}</th>
               <th>{{ 'Position' | t }}</th>
               <th>{{ 'Email' | t }}</th>
             </tr>
@@ -329,12 +349,12 @@
         </table>
       </div>
 
-      <div class="button-row">
-        <button type="button" class="button button--dark" (click)="editFromView(partner)">
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="viewing.set(null)">{{ 'Close' | t }}</button>
+        <button type="button" class="button button--primary" (click)="editFromView(partner)">
           <lucide-icon [img]="EditIcon" [size]="16"></lucide-icon>
           {{ 'Edit' | t }}
         </button>
-        <button type="button" class="button button--secondary" (click)="viewing.set(null)">{{ 'Close' | t }}</button>
       </div>
     </div>
   }

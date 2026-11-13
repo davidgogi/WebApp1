@@ -27,12 +27,14 @@ type Field =
   | 'name'
   | 'type'
   | 'role'
+  | 'category'
   | 'identificationCode'
   | 'vatPayer'
   | 'contactPerson'
   | 'phone'
   | 'email'
   | 'address'
+  | 'note'
   | 'status';
 
 type PartnerRole = 'supplier' | 'client' | 'both';
@@ -79,6 +81,7 @@ const COLUMNS: SheetColumn<Field>[] = [
     width: 13,
     required: true,
     choices: Object.values(TYPE_LABELS),
+    translated: true,
   },
   {
     field: 'role',
@@ -87,6 +90,14 @@ const COLUMNS: SheetColumn<Field>[] = [
     width: 12,
     required: true,
     choices: Object.values(ROLE_LABELS),
+    translated: true,
+  },
+  {
+    field: 'category',
+    header: 'Category',
+    aliases: ['კატეგორია', 'категория'],
+    width: 18,
+    required: true,
   },
   {
     field: 'identificationCode',
@@ -103,6 +114,7 @@ const COLUMNS: SheetColumn<Field>[] = [
     width: 11,
     choices: ['Yes', 'No'],
     required: true,
+    translated: true,
   },
   {
     field: 'contactPerson',
@@ -134,16 +146,68 @@ const COLUMNS: SheetColumn<Field>[] = [
     required: true,
   },
   {
+    field: 'note',
+    header: 'Note',
+    aliases: ['შენიშვნა', 'примечание'],
+    width: 34,
+  },
+  {
     field: 'status',
     header: 'Status',
     aliases: ['სტატუსი'],
     width: 12,
     choices: Object.values(STATUS_LABELS),
     required: true,
+    translated: true,
   },
 ];
 
 const EXPORT_ONLY = ['Products', 'Receipts'];
+
+const EXAMPLE_ROWS = [
+  [
+    'Mars Georgia',
+    'Company',
+    'Supplier',
+    'Groceries',
+    '405123456',
+    'Yes',
+    'Nino Beridze',
+    '+995 555 12 34 56',
+    'orders@mars.ge',
+    '12 Tsereteli Ave, Tbilisi',
+    'Delivers on Mondays',
+    'Active',
+  ],
+  [
+    'Tbilisi Dishware',
+    'Company',
+    'Both',
+    'Dishware',
+    '205987654',
+    'No',
+    'Giorgi Maisuradze',
+    '599 44 22 11',
+    'sales@dishware.ge',
+    '5 Agmashenebeli Ave, Tbilisi',
+    '',
+    'Active',
+  ],
+  [
+    'Levan Kapanadze',
+    'Individual',
+    'Client',
+    'Catering',
+    '01024012345',
+    'No',
+    'Levan Kapanadze',
+    '+995 577 10 20 30',
+    'levan@example.com',
+    '3 Rustaveli St, Batumi',
+    '',
+    'Inactive',
+  ],
+];
 const CODE = /^(\d{9}|\d{11})$/;
 const PHONE = /^\+?[0-9 ()-]{7,20}$/;
 
@@ -176,6 +240,7 @@ export interface PartnerPreviewRow {
   name: string;
   type: PartnerType;
   role: PartnerRole;
+  category: string;
   identificationCode: string | null;
   vatPayer: boolean;
   contactPerson: string | null;
@@ -214,37 +279,48 @@ export class PartnerExcelService {
         { header: 'Name', width: 30 },
         { header: 'Type', width: 13, translated: true },
         { header: 'Role', width: 12, translated: true },
+        { header: 'Category', width: 18 },
         { header: 'Identification code', width: 20, text: true },
         { header: 'VAT payer', width: 11, translated: true },
         { header: 'Contact person', width: 22 },
         { header: 'Phone', width: 18, text: true },
         { header: 'Email', width: 26 },
         { header: 'Address', width: 34 },
+        { header: 'Note', width: 34 },
         { header: 'Status', width: 12, translated: true },
-        { header: 'Products', width: 11 },
-        { header: 'Receipts', width: 11 },
       ],
       partners.map((p) => [
         p.name,
         TYPE_LABELS[p.type],
         ROLE_LABELS[roleOf(p)],
+        p.category ?? '',
         p.identificationCode ?? '',
         p.vatPayer ? 'Yes' : 'No',
         p.contactPerson ?? '',
         p.phone ?? '',
         p.email ?? '',
         p.address ?? '',
+        p.note ?? '',
         STATUS_LABELS[p.status],
-        p.productCount ?? 0,
-        p.receiptCount ?? 0,
       ]),
     );
     return workbookBuffer(workbook, language);
   }
 
-  async template(language: Language): Promise<Buffer> {
+  template(language: Language): Promise<Buffer> {
+    return workbookBuffer(this.templateWorkbook(), language);
+  }
+
+  example(language: Language): Promise<Buffer> {
+    return workbookBuffer(this.templateWorkbook(EXAMPLE_ROWS), language);
+  }
+
+  private templateWorkbook(rows: string[][] = []): ExcelJS.Workbook {
     const workbook = new ExcelJS.Workbook();
-    addTemplateSheet(workbook, SHEET_NAME, COLUMNS, { markRequired: false });
+    const sheet = addTemplateSheet(workbook, SHEET_NAME, COLUMNS, {
+      markRequired: false,
+    });
+    sheet.addRows(rows);
     addInstructionsSheet(
       workbook,
       [
@@ -256,6 +332,12 @@ export class PartnerExcelService {
         ],
         ['Type', 'Yes', 'Company or Individual.', 'Company'],
         ['Role', 'Yes', 'Supplier, Client or Both.', 'Supplier'],
+        [
+          'Category',
+          'Yes',
+          'Free text: what the counterparty deals in.',
+          'Groceries',
+        ],
         [
           'Identification code',
           'Yes',
@@ -272,17 +354,18 @@ export class PartnerExcelService {
         ],
         ['Email', 'Yes', 'A valid email address.', 'orders@supplier.ge'],
         ['Address', 'Yes', 'Free text.', '12 Tsereteli Ave, Tbilisi'],
+        ['Note', 'No', 'Free text.', 'Delivers on Mondays'],
         ['Status', 'Yes', 'Active or Inactive.', 'Active'],
       ],
       [
         `The sheet named "${SHEET_NAME}" is read (or the first sheet). Empty rows are skipped.`,
         'An exported counterparties file can be imported too: its extra columns (Products, Receipts) are ignored.',
-        'Every column must be filled in for every counterparty.',
+        'Every column except Note must be filled in for every counterparty.',
         'At most 1000 counterparties per file. If any row has an error, nothing is imported.',
         'This only adds new counterparties: a counterparty that already exists is reported as an error, not updated.',
       ],
     );
-    return workbookBuffer(workbook, language);
+    return workbook;
   }
 
   async check(
@@ -462,8 +545,15 @@ export class PartnerExcelService {
       if (!address) {
         error('address', 'Address is required');
       }
+      const category = values.category ?? '';
+      if (!category) {
+        error('category', 'Category is required');
+      }
+      const note = values.note ?? '';
       tooLong('contactPerson', 120);
       tooLong('address', 240);
+      tooLong('category', 80);
+      tooLong('note', 1000);
 
       if (report.errors.length === errorCount) {
         partners.push({
@@ -477,6 +567,8 @@ export class PartnerExcelService {
           phone,
           email,
           address,
+          category,
+          note: note || null,
           status,
         });
         report.rows.push({
@@ -484,6 +576,7 @@ export class PartnerExcelService {
           name,
           type,
           role,
+          category,
           identificationCode,
           vatPayer,
           contactPerson,

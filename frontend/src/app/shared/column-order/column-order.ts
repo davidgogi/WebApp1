@@ -12,9 +12,17 @@ interface ColumnSizes<K extends string> {
   rest: number;
 }
 
+export interface ColumnLayout {
+  order: string[];
+  sizes: { widths: Record<string, number>; rest: number } | null;
+  hidden: string[];
+}
+
 export class ColumnOrder<K extends string = string> {
   private readonly storageKey: string;
   private readonly sizesKey: string;
+  private readonly hiddenKey: string;
+  private readonly hidden = signal<K[]>([]);
   private readonly byKey: Map<K, TableColumn<K>>;
   private readonly order = signal<K[]>([]);
   private readonly sizes = signal<ColumnSizes<K> | null>(null);
@@ -24,10 +32,14 @@ export class ColumnOrder<K extends string = string> {
   readonly dropTarget = signal<K | null>(null);
   readonly resizing = signal<K | null>(null);
 
-  readonly columns = computed(() => this.order().filter((key) => this.isShown(key)).map((key) => this.byKey.get(key)!));
+  readonly available = computed(() => this.order().filter((key) => this.isShown(key)).map((key) => this.byKey.get(key)!));
+  readonly columns = computed(() => this.available().filter(({ key }) => !this.hidden().includes(key)));
   readonly isSized = computed(() => this.sizes() !== null);
   readonly isCustom = computed(
-    () => this.isSized() || this.order().join() !== this.defaults.map((c) => c.key).join(),
+    () =>
+      this.isSized() ||
+      this.hidden().length > 0 ||
+      this.order().join() !== this.defaults.map((c) => c.key).join(),
   );
   readonly tableWidth = computed(() => {
     const sizes = this.sizes();
@@ -44,9 +56,46 @@ export class ColumnOrder<K extends string = string> {
     this.isShown = isShown as (key: string) => boolean;
     this.storageKey = `columns:${tableId}`;
     this.sizesKey = `columns:${tableId}:widths`;
+    this.hiddenKey = `columns:${tableId}:hidden`;
     this.byKey = new Map(defaults.map((column) => [column.key, column]));
     this.order.set(this.load());
     this.sizes.set(this.loadSizes());
+    this.hidden.set(this.loadHidden());
+  }
+
+  isHidden(key: K): boolean {
+    return this.hidden().includes(key);
+  }
+
+  toggle(key: K): void {
+    if (this.isHidden(key)) {
+      this.hidden.update((keys) => keys.filter((k) => k !== key));
+    } else if (this.columns().length > 1) {
+      this.hidden.update((keys) => [...keys, key]);
+    }
+    this.store(this.hiddenKey, this.hidden());
+  }
+
+  layout(): ColumnLayout {
+    const sizes = this.sizes();
+    return {
+      order: [...this.order()],
+      sizes: sizes && { widths: { ...sizes.widths } as Record<string, number>, rest: sizes.rest },
+      hidden: [...this.hidden()],
+    };
+  }
+
+  restore(layout: ColumnLayout): void {
+    this.order.set(this.known(layout.order));
+    this.sizes.set(layout.sizes ? this.knownSizes(layout.sizes) : null);
+    this.hidden.set(layout.hidden.filter((key): key is K => this.byKey.has(key as K)));
+    this.save();
+    this.store(this.hiddenKey, this.hidden());
+    if (this.sizes()) {
+      this.saveSizes();
+    } else {
+      this.forget(this.sizesKey);
+    }
   }
 
   width(key: K): number | null {
@@ -140,24 +189,34 @@ export class ColumnOrder<K extends string = string> {
   reset(): void {
     this.order.set(this.defaults.map((column) => column.key));
     this.sizes.set(null);
-    try {
-      localStorage.removeItem(this.storageKey);
-      localStorage.removeItem(this.sizesKey);
-    } catch {
-    }
+    this.hidden.set([]);
+    this.forget(this.storageKey);
+    this.forget(this.sizesKey);
+    this.forget(this.hiddenKey);
   }
 
   private load(): K[] {
-    const keys = this.defaults.map((column) => column.key);
     let saved: unknown;
     try {
       saved = JSON.parse(localStorage.getItem(this.storageKey) ?? 'null');
     } catch {
-      return keys;
+      saved = null;
     }
-    if (!Array.isArray(saved)) {
-      return keys;
+    return this.known(Array.isArray(saved) ? saved : []);
+  }
+
+  private loadHidden(): K[] {
+    let saved: unknown;
+    try {
+      saved = JSON.parse(localStorage.getItem(this.hiddenKey) ?? '[]');
+    } catch {
+      return [];
     }
+    return Array.isArray(saved) ? saved.filter((key): key is K => this.byKey.has(key as K)) : [];
+  }
+
+  private known(saved: unknown[]): K[] {
+    const keys = this.defaults.map((column) => column.key);
     const known = saved.filter((key): key is K => this.byKey.has(key as K));
     const result = [...new Set(known)];
     keys.forEach((key, index) => {
@@ -175,9 +234,10 @@ export class ColumnOrder<K extends string = string> {
     } catch {
       return null;
     }
-    if (!saved || typeof saved !== 'object') {
-      return null;
-    }
+    return saved && typeof saved === 'object' ? this.knownSizes(saved) : null;
+  }
+
+  private knownSizes(saved: object): ColumnSizes<K> | null {
     const { widths, rest } = saved as { widths?: Record<string, unknown>; rest?: unknown };
     const known = Object.entries(widths ?? {}).filter(
       ([key, width]) => this.byKey.has(key as K) && typeof width === 'number' && width >= MIN_WIDTH,
@@ -193,8 +253,19 @@ export class ColumnOrder<K extends string = string> {
   }
 
   private save(): void {
+    this.store(this.storageKey, this.order());
+  }
+
+  private store(key: string, value: unknown): void {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.order()));
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+    }
+  }
+
+  private forget(key: string): void {
+    try {
+      localStorage.removeItem(key);
     } catch {
     }
   }

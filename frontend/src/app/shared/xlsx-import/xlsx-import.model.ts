@@ -19,6 +19,7 @@ export interface ImportReport<P extends { row: number }> {
 
 export interface ImportSource<P extends { row: number }> {
   template(): Observable<Blob>;
+  example?(): Observable<Blob>;
   check(file: File): Observable<ImportReport<P>>;
   import(file: File): Observable<ImportReport<P>>;
 }

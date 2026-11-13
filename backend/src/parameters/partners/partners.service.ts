@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
-import { AuditService } from '../../audit/audit.service.js';
+import { AuditService, AuditSource } from '../../audit/audit.service.js';
+import { AuditLog } from '../../audit/audit-log.entity.js';
 import { AuthUser } from '../../auth/auth-user.js';
 import { isUniqueViolation } from '../../common/is-unique-violation.js';
 import { nameKey, nameKeySql } from '../../common/name-key.js';
@@ -34,8 +35,36 @@ export type NewPartner = Pick<
   | 'phone'
   | 'email'
   | 'address'
+  | 'category'
+  | 'note'
   | 'status'
 >;
+
+export type PartnerHistoryEntry = Pick<
+  AuditLog,
+  'id' | 'createdAt' | 'actorName' | 'action' | 'source'
+>;
+
+const STATUS_NAMES: Record<PartnerStatus, string> = {
+  [PartnerStatus.ACTIVE]: 'Active',
+  [PartnerStatus.INACTIVE]: 'Inactive',
+};
+
+type ContactFields = Pick<
+  PartnerContact,
+  'firstName' | 'lastName' | 'phone' | 'position' | 'email'
+>;
+
+const contactsKey = (contacts: ContactFields[]) =>
+  JSON.stringify(
+    contacts.map(({ firstName, lastName, phone, position, email }) => [
+      firstName,
+      lastName,
+      phone,
+      position,
+      email,
+    ]),
+  );
 
 @Injectable()
 export class PartnersService {
@@ -104,11 +133,35 @@ export class PartnersService {
     });
   }
 
+  async categories(actor: AuthUser): Promise<string[]> {
+    const rows: { category: string }[] = await this.partnersRepository
+      .createQueryBuilder('partner')
+      .select('DISTINCT partner.category', 'category')
+      .where('partner.company_id = :companyId', { companyId: actor.companyId })
+      .andWhere("COALESCE(partner.category, '') <> ''")
+      .orderBy('category')
+      .getRawMany();
+    return rows.map((row) => row.category);
+  }
+
+  async history(actor: AuthUser, id: string): Promise<PartnerHistoryEntry[]> {
+    await this.findEntity(actor, id);
+    const entries = await this.audit.history(actor, id, 'partner');
+    return entries.map(({ id, createdAt, actorName, action, source }) => ({
+      id,
+      createdAt,
+      actorName,
+      action,
+      source,
+    }));
+  }
+
   async create(actor: AuthUser, dto: CreatePartnerDto): Promise<Partner> {
-    const { contacts = [], ...fields } = dto;
+    const { contacts = [], source = 'form', note, ...fields } = dto;
     await this.assertNameFree(actor, fields.name);
     const partner = this.partnersRepository.create({
       ...fields,
+      note: note || null,
       companyId: actor.companyId!,
     });
     this.assertCodeFitsType(partner);
@@ -118,6 +171,8 @@ export class PartnersService {
       actor,
       'partner.create',
       `Created counterparty ${saved.name}`,
+      undefined,
+      { entityId: saved.id, source },
     );
     return Object.assign(saved, { productCount: 0, receiptCount: 0 });
   }
@@ -152,6 +207,17 @@ export class PartnersService {
       actor,
       'partner.import',
       `Imported ${saved.length} counterparties`,
+      undefined,
+      { source: 'import' },
+    );
+    await this.audit.recordMany(
+      actor,
+      saved.map((partner) => ({
+        action: 'partner.import',
+        summary: `Imported counterparty ${partner.name}`,
+        entityId: partner.id,
+        source: 'import',
+      })),
     );
     return saved;
   }
@@ -160,20 +226,37 @@ export class PartnersService {
     actor: AuthUser,
     id: string,
     dto: UpdatePartnerDto,
+    source: AuditSource = 'form',
   ): Promise<Partner> {
-    const { contacts, ...fields } = dto;
+    const { contacts, ...given } = dto;
     const partner = await this.findEntity(actor, id);
+    const fields = {
+      ...given,
+      ...(given.note !== undefined && { note: given.note || null }),
+    };
 
     if (fields.name && nameKey(fields.name) !== nameKey(partner.name)) {
       await this.assertNameFree(actor, fields.name, id);
     }
 
-    Object.assign(
-      partner,
-      Object.fromEntries(
-        Object.entries(fields).filter(([, value]) => value !== undefined),
-      ),
+    const sent = Object.entries(fields).filter(
+      ([, value]) => value !== undefined,
+    ) as [keyof Partner, unknown][];
+    const statusBefore = partner.status;
+    const fieldsChanged = sent.some(
+      ([key, value]) => key !== 'status' && partner[key] !== value,
     );
+    const contactsChanged =
+      contacts !== undefined &&
+      contactsKey(contacts) !==
+        contactsKey(
+          await this.partnersRepository.manager.find(PartnerContact, {
+            where: { companyId: actor.companyId!, partnerId: id },
+            order: { createdAt: 'ASC' },
+          }),
+        );
+
+    Object.assign(partner, Object.fromEntries(sent));
 
     this.assertCodeFitsType(partner);
     this.assertHasRole(partner);
@@ -185,11 +268,25 @@ export class PartnersService {
       );
     }
     const saved = await this.save(partner, actor, contacts);
-    await this.audit.record(
-      actor,
-      'partner.update',
-      `Updated counterparty ${saved.name}`,
-    );
+    const statusChanged = saved.status !== statusBefore;
+    if (statusChanged) {
+      await this.audit.record(
+        actor,
+        'partner.status',
+        `Set counterparty ${saved.name} to ${STATUS_NAMES[saved.status]}`,
+        undefined,
+        { entityId: saved.id, source },
+      );
+    }
+    if (fieldsChanged || contactsChanged || !statusChanged) {
+      await this.audit.record(
+        actor,
+        'partner.update',
+        `Updated counterparty ${saved.name}`,
+        undefined,
+        { entityId: saved.id, source },
+      );
+    }
     return Object.assign(saved, { productCount, receiptCount });
   }
 
@@ -211,6 +308,8 @@ export class PartnersService {
       actor,
       'partner.delete',
       `Deleted counterparty ${partner.name}`,
+      undefined,
+      { entityId: id, source: 'form' },
     );
   }
 
@@ -222,8 +321,10 @@ export class PartnersService {
     await this.partnersRepository.save(partner);
     await this.audit.record(
       actor,
-      'partner.update',
+      'partner.supplier',
       `Marked ${partner.name} as a supplier (first receipt from it)`,
+      undefined,
+      { entityId: partner.id, source: 'rs' },
     );
   }
 

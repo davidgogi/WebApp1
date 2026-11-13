@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsString,
   Matches,
@@ -98,8 +99,24 @@ export class CreatePartnerDto {
   @MaxLength(240)
   address!: string;
 
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  category!: string;
+
+  @ValidateIf(sent)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+
   @IsEnum(PartnerStatus)
   status!: PartnerStatus;
+
+  @ValidateIf(sent)
+  @IsIn(['form', 'rs'])
+  source?: 'form' | 'rs';
 
   @ValidateIf(sent)
   @IsArray()
@@ -167,6 +184,19 @@ export class UpdatePartnerDto {
   @IsNotEmpty()
   @MaxLength(240)
   address?: string;
+
+  @ValidateIf(sent)
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  category?: string;
+
+  @ValidateIf(sent)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
 
   @ValidateIf(sent)
   @IsEnum(PartnerStatus)

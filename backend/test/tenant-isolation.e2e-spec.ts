@@ -65,6 +65,7 @@ function partnerDetails() {
     phone: '+995 555 12 34 56',
     email: 'test@example.com',
     address: 'Tbilisi',
+    category: 'Groceries',
     status: 'active',
   };
 }
@@ -380,6 +381,23 @@ describe('tenant isolation', () => {
       await call('GET', `/hr/employees/${b.employeeId}`, a.systemAdmin),
       b,
     );
+    expectRefused(
+      await call(
+        'GET',
+        `/parameters/partners/${b.supplierId}/history`,
+        a.wmsAdmin,
+      ),
+      b,
+    );
+    const ownHistory = await call(
+      'GET',
+      `/parameters/partners/${b.supplierId}/history`,
+      b.wmsAdmin,
+    );
+    expect(ownHistory.status).toBe(200);
+    expect(ownHistory.body.map((entry: { action: string }) => entry.action)).toContain(
+      'partner.create',
+    );
   });
 
   it("the other company's rows cannot be changed", async () => {
@@ -518,6 +536,7 @@ describe('tenant isolation', () => {
       'Name',
       'Type',
       'Role',
+      'Category',
       'Identification code',
       'VAT payer',
       'Contact person',
@@ -530,6 +549,7 @@ describe('tenant isolation', () => {
       name,
       'Company',
       'Client',
+      'Groceries',
       code,
       'No',
       'Nino',

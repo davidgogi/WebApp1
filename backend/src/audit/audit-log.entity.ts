@@ -24,4 +24,11 @@ export class AuditLog {
 
   @Column({ type: 'text' })
   summary!: string;
+
+  @Index()
+  @Column({ name: 'entity_id', type: 'uuid', nullable: true })
+  entityId!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  source!: string | null;
 }
