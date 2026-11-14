@@ -533,12 +533,12 @@ describe('tenant isolation', () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Partners');
     sheet.addRow([
-      'Name',
-      'Type',
-      'Role',
+      'Counterparty name',
+      'Organization type',
+      'Counterparty type',
       'Category',
       'Identification code',
-      'VAT payer',
+      'VAT status',
       'Contact person',
       'Phone',
       'Email',
@@ -551,7 +551,7 @@ describe('tenant isolation', () => {
       'Client',
       'Groceries',
       code,
-      'No',
+      'Not a VAT payer',
       'Nino',
       '+995 555 12 34 56',
       'test@example.com',
