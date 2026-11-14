@@ -249,9 +249,10 @@
       [columns]="importColumns"
       [noun]="{ one: 'counterparty', many: 'counterparties' }"
       [description]="
-        'Add many counterparties at once from an Excel file (.xlsx), one counterparty per row. Start from the template: it has the right columns and dropdowns. The example shows filled-in rows.'
+        'Download the template or the example, choose an .xlsx file, check the records and confirm the import. One file can add both clients and suppliers.'
           | t
       "
+      [hint]="'Fill in the identification code as text so the leading zeros are kept.' | t"
       templateName="counterparties-template.xlsx"
       exampleName="counterparties-example.xlsx"
       codeLabel="Identification code"

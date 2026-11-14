@@ -51,7 +51,7 @@ export class PartnerForm implements OnInit {
   protected readonly type = signal<PartnerType>('company');
   protected readonly identificationCode = signal('');
   protected readonly role = signal<PartnerRole | ''>('');
-  protected readonly vatPayer = signal(false);
+  protected readonly vatPayer = signal(true);
   protected readonly contactPerson = signal('');
   protected readonly phone = signal('');
   protected readonly email = signal('');
@@ -79,7 +79,7 @@ export class PartnerForm implements OnInit {
           ? 'supplier'
           : '',
     );
-    this.vatPayer.set(values?.vatPayer ?? false);
+    this.vatPayer.set(values?.vatPayer ?? true);
     this.contactPerson.set(values?.contactPerson ?? '');
     this.phone.set(values?.phone ?? '');
     this.email.set(values?.email ?? '');
@@ -176,17 +176,8 @@ export class PartnerForm implements OnInit {
       this.showError('Choose a role.');
       return;
     }
-    const missing: [string, string][] = [
-      [code, 'The identification code is required.'],
-      [this.category().trim(), 'The category is required.'],
-      [this.contactPerson().trim(), 'The contact person is required.'],
-      [this.phone().trim(), 'The phone is required.'],
-      [this.email().trim(), 'The email is required.'],
-      [this.address().trim(), 'The address is required.'],
-    ];
-    const empty = missing.find(([value]) => !value);
-    if (empty) {
-      this.showError(empty[1]);
+    if (!code) {
+      this.showError('The identification code is required.');
       return;
     }
     const length = this.type() === 'company' ? 9 : 11;

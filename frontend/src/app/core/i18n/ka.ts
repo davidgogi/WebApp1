@@ -1170,4 +1170,11 @@ export const KA: Record<string, string> = {
   "Reorder columns by dragging their headers": "სვეტები გადაალაგეთ სათაურის გადათრევით",
   "Add many counterparties at once from an Excel file (.xlsx), one counterparty per row. Start from the template: it has the right columns and dropdowns. The example shows filled-in rows.": "დაამატეთ ბევრი კონტრაგენტი ერთად Excel-ის ფაილიდან (.xlsx), თითო სტრიქონზე ერთი. დაიწყეთ შაბლონიდან: მასში სწორი სვეტები და ჩამოსაშლელი სიებია. მაგალითში ნაჩვენებია შევსებული სტრიქონები.",
   "Counterparty name": "დასახელება",
+  "Choose a category": "აირჩიეთ კატეგორია",
+  "Note text": "შენიშვნის ტექსტი",
+  "Template and file": "შაბლონი და ფაილი",
+  "Choose file": "ფაილის არჩევა",
+  "No file chosen yet": "ფაილი ჯერ არ არის არჩეული",
+  "Download the template or the example, choose an .xlsx file, check the records and confirm the import. One file can add both clients and suppliers.": "ჩამოტვირთე შაბლონი ან მაგალითი, აირჩიე .xlsx ფაილი, გადაამოწმე ჩანაწერები და დაადასტურე იმპორტი. ერთ ფაილში შეგიძლია დაამატო კლიენტებიც და მომწოდებლებიც.",
+  "Fill in the identification code as text so the leading zeros are kept.": "საიდენტიფიკაციო კოდი შეავსე ტექსტის ფორმატში, რომ საწყისი ნულები შენარჩუნდეს.",
 };

@@ -1,42 +1,126 @@
-.import-drop {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 20px 16px;
-  border: 1px dashed var(--accent);
+:host {
+  /* The four step colours of the mockup: soft fill, border, text. */
+  --pill-blue-bg: #eef4ff;
+  --pill-blue-line: #c7d7fe;
+  --pill-blue-ink: #1d4ed8;
+  --pill-orange-bg: #fff4ec;
+  --pill-orange-line: #fdd5b5;
+  --pill-orange-ink: #c2410c;
+  --pill-green-bg: #effaf2;
+  --pill-green-line: #bfe5c9;
+  --pill-green-ink: var(--success);
+  --pill-purple-bg: #f4f1ff;
+  --pill-purple-line: #d9d0fb;
+  --pill-purple-ink: #6d4fd8;
+}
+
+.import-intro {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
   border-radius: var(--radius);
   background: #fafbfc;
-  color: var(--accent);
-  text-align: center;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+.import-files {
+  display: grid;
+  gap: 8px;
+}
+
+.import-files__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.import-files__hint {
+  margin: 0;
+}
+
+.import-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.import-drop span {
-  color: var(--ink-strong);
+.pill:disabled,
+.pill--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
-.import-drop span.muted {
-  color: var(--ink-faint);
-  font-size: 0.92rem;
-}
-
-.import-drop:hover {
-  border-color: var(--accent-strong);
-  background: var(--accent-soft);
-}
-
-.import-drop--busy {
-  cursor: progress;
-  opacity: 0.7;
-}
-
-.import-drop input {
+.pill input[type='file'] {
   position: absolute;
   inset: 0;
   opacity: 0;
   cursor: inherit;
+}
+
+.pill--blue {
+  background: var(--pill-blue-bg);
+  border-color: var(--pill-blue-line);
+  color: var(--pill-blue-ink);
+}
+
+.pill--orange {
+  background: var(--pill-orange-bg);
+  border-color: var(--pill-orange-line);
+  color: var(--pill-orange-ink);
+}
+
+.pill--green {
+  background: var(--pill-green-bg);
+  border-color: var(--pill-green-line);
+  color: var(--pill-green-ink);
+}
+
+.pill--purple {
+  background: var(--pill-purple-bg);
+  border-color: var(--pill-purple-line);
+  color: var(--pill-purple-ink);
+}
+
+.import-steps__arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--ink-muted);
+}
+
+.import-file {
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
+}
+
+.import-file--empty {
+  color: var(--ink-strong);
 }
 
 .import-callout {

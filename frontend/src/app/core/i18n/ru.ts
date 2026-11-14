@@ -1022,4 +1022,11 @@ export const RU: Record<string, string> = {
   "Reorder columns by dragging their headers": "Меняйте порядок столбцов, перетаскивая заголовки",
   "Add many counterparties at once from an Excel file (.xlsx), one counterparty per row. Start from the template: it has the right columns and dropdowns. The example shows filled-in rows.": "Добавьте сразу много контрагентов из файла Excel (.xlsx), по одному в строке. Начните с шаблона: в нём нужные столбцы и списки. В примере показаны заполненные строки.",
   "Counterparty name": "Наименование",
+  "Choose a category": "Выберите категорию",
+  "Note text": "Текст примечания",
+  "Template and file": "Шаблон и файл",
+  "Choose file": "Выбрать файл",
+  "No file chosen yet": "Файл ещё не выбран",
+  "Download the template or the example, choose an .xlsx file, check the records and confirm the import. One file can add both clients and suppliers.": "Скачайте шаблон или пример, выберите файл .xlsx, проверьте записи и подтвердите импорт. В одном файле можно добавить и клиентов, и поставщиков.",
+  "Fill in the identification code as text so the leading zeros are kept.": "Заполняйте идентификационный код в текстовом формате, чтобы сохранились начальные нули.",
 };

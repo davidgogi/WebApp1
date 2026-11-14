@@ -19,6 +19,10 @@ import { PartnerType } from '../partner-type.enum.js';
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 const sent = (_: object, value: unknown) => value !== undefined;
+// Optional text fields: blank means "none" (stored as null) and is not validated.
+const blankToNull = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() || null : value;
+const filled = (_: object, value: unknown) => value !== undefined && value !== null;
 
 export class PartnerContactDto {
   @Transform(trim)
@@ -77,33 +81,33 @@ export class CreatePartnerDto {
   @IsBoolean()
   vatPayer!: boolean;
 
-  @Transform(trim)
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  contactPerson!: string;
+  contactPerson?: string | null;
 
-  @Transform(trim)
-  @IsNotEmpty()
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @Matches(/^\+?[0-9 ()-]{7,20}$/, { message: 'phone must be a phone number' })
-  phone!: string;
+  phone?: string | null;
 
-  @Transform(trim)
-  @IsNotEmpty()
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @IsEmail()
-  email!: string;
+  email?: string | null;
 
-  @Transform(trim)
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(240)
-  address!: string;
+  address?: string | null;
 
-  @Transform(trim)
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(80)
-  category!: string;
+  category?: string | null;
 
   @ValidateIf(sent)
   @Transform(trim)
@@ -159,38 +163,33 @@ export class UpdatePartnerDto {
   @IsBoolean()
   vatPayer?: boolean;
 
-  @ValidateIf(sent)
-  @Transform(trim)
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  contactPerson?: string;
+  contactPerson?: string | null;
 
-  @ValidateIf(sent)
-  @Transform(trim)
-  @IsNotEmpty()
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @Matches(/^\+?[0-9 ()-]{7,20}$/, { message: 'phone must be a phone number' })
-  phone?: string;
+  phone?: string | null;
 
-  @ValidateIf(sent)
-  @Transform(trim)
-  @IsNotEmpty()
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @IsEmail()
-  email?: string;
+  email?: string | null;
 
-  @ValidateIf(sent)
-  @Transform(trim)
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(240)
-  address?: string;
+  address?: string | null;
 
-  @ValidateIf(sent)
-  @Transform(trim)
+  @ValidateIf(filled)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(80)
-  category?: string;
+  category?: string | null;
 
   @ValidateIf(sent)
   @Transform(trim)

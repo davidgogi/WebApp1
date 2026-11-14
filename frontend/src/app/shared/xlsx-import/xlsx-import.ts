@@ -1,12 +1,14 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
+  ArrowRight,
+  Check,
   CircleCheck,
   CircleX,
   Download,
-  FileSpreadsheet,
   LucideAngularModule,
   TriangleAlert,
+  Upload,
 } from 'lucide-angular';
 import { ImportIssue, ImportReport, ImportSource, PreviewColumn, saveFile } from './xlsx-import.model';
 import { TranslatePipe } from '../../core/i18n/t.pipe';
@@ -27,12 +29,15 @@ export class XlsxImport<P extends { row: number }> {
   readonly templateName = input.required<string>();
   readonly exampleName = input('');
   readonly codeLabel = input('Code');
+  readonly hint = input('');
 
   readonly imported = output<void>();
   readonly closed = output<void>();
 
   protected readonly DownloadIcon = Download;
-  protected readonly FileIcon = FileSpreadsheet;
+  protected readonly UploadIcon = Upload;
+  protected readonly ArrowIcon = ArrowRight;
+  protected readonly CheckIcon = Check;
   protected readonly ErrorIcon = CircleX;
   protected readonly WarningIcon = TriangleAlert;
   protected readonly DoneIcon = CircleCheck;

@@ -251,7 +251,7 @@ submodules are planned, so keep to the structure below.
 - **Parameters** → **Counterparties** (კონტრაგენტები / Контрагенты; called Partners until 2026-11-11,
   renamed in the **UI only**: every text, Excel sheet / file names and new audit summaries say
   counterparty, while the code, URLs, tables and audit action codes stay `partner(s)`, the user's
-  choice; imports still accept the old "Partners" sheet and "partner" headers. Use "counterparty" in
+  choice (the Excel columns changed again on 2026-11-14, see Import / Export below). Use "counterparty" in
   any new UI text) (`/parameters/partners`; Parameters is the module for company-wide lists, always included; backend `parameters/partners/`,
   API `/parameters/partners`; frontend page `features/parameters/partners/`, and `shared/partners/` for the model, service and form because WMS uses them;
   2026-11-09, renamed from WMS Suppliers). The businesses and people **a tenant** buys from or sells
@@ -262,10 +262,15 @@ submodules are planned, so keep to the structure below.
   unique per company), VAT payer, contact person, phone, email, address, **category** (free text,
   e.g. Groceries / Dishware; the form suggests the company's existing ones from `GET
   /parameters/partners/categories`), optional **note** (multi-line), status.
-  **Every field except the note is required** (2026-11-11, confirmed 2026-11-13 although the mockup
-  starred only six) in the form, the API (create; an update
-  may leave a field out but not empty it) and the import; the columns stay nullable because older
-  partners have empty ones (editing one makes you fill them in).
+  **Only the fields with an asterisk are required** (2026-11-14, following the mockup; from 2026-11-11
+  to 2026-11-13 every field except the note was): name, role, identification code, type, VAT status
+  and status. Category, contact person, phone, email, address and note are optional in the form, the
+  API and the import (checked only when filled in; blank is saved as null; `blankToNull` in
+  `partner.dto.ts`). In the **add / edit form** the labels are the mockup's **Role** and **Type**
+  (the user asked for that on 2026-11-14 and knows it contradicts the table's "Counterparty type" /
+  "Organization type"; the table, filters, View pop-up and Excel keep the new names), the text boxes
+  have no example placeholders, Category is a text box with suggestions styled like a dropdown
+  ("Choose a category", `.combo`), VAT status starts as "VAT payer".
   **Page layout follows the reviewer's mockup** (2026-11-13): header Import / Export / Add; a filter
   card (Search, Counterparty type, Status, "Additional filters" → Organization type, VAT status,
   Category; Clear also clears column filters); toolbar Views ▾ / hint / Columns; columns
@@ -282,7 +287,7 @@ submodules are planned, so keep to the structure below.
   `GET /parameters/partners/:id/history` (date, user, action, source). The company audit log hides
   the per-row import entries (`AuditService.find`). Changes before 2026-11-13 have no link, so older
   counterparties start with an empty history. The RS "+ New supplier" form sends `source: 'rs'`. The RS "+ New supplier" form is the
-  same, so it needs contact, phone, email and address too.
+  same form, so a seller can be saved with just the mandatory fields.
   **Additional contact persons** (2026-11-11, `partner_contacts`, `partner-contact.entity.ts`,
   composite key to the partner, deleted with it): first name, last name, phone, position, email, all
   required. The form has two tabs, **Main information** / **Contacts** (`.form-tabs` in `styles.css`);
@@ -298,9 +303,12 @@ submodules are planned, so keep to the structure below.
   (`@Access(WMS)`). Every change is audited. Products and receipts still use `supplier_id` (only
   entries marked supplier can be picked); a partner on products or receipts must stay a supplier and
   can't be deleted (set it Inactive). Clients are **only a list so far**: nothing uses them yet.
-  **Import / Export** (`partner-excel.service.ts`, same admins as the page): Name, Type (Company /
-  Individual), Role (Supplier / Client / Both), Category, Identification code [Text], VAT payer (Yes /
-  No), Contact person, Phone, Email, Address, Note (optional), Status; no `*` marks
+  **Import / Export** (`partner-excel.service.ts`, same admins as the page): Counterparty name,
+  Organization type (Company / Individual), Counterparty type (Supplier / Client / Both), Category,
+  Identification code [Text], VAT status (VAT payer / Not a VAT payer), Contact person, Phone, Email,
+  Address, Note (optional), Status (the same names as the page's columns since 2026-11-14; the import is
+  **strict**: files with the old headers Name / Type / Role / VAT payer or Yes / No values are
+  rejected, by the user's choice); no `*` marks
   (`addTemplateSheet(..., { markRequired: false })`). `GET import/example` is the template with three
   sample rows (the import window's "Download example"). Name and code must not
   repeat an existing partner or another row, and the code must fit the type; every problem is listed
@@ -545,10 +553,15 @@ count, ...). **.xlsx only** (`exceljs` on the backend; nothing Excel-related in 
   name / barcode that already exists is an error (no updating through a file yet). An exported file
   can be re-imported (e.g. into another company) because the extra columns are ignored.
 - Frontend: `shared/xlsx-import/` (`<app-xlsx-import [source] [columns] [noun] description
-  templateName exampleName codeLabel (imported) (closed)>`) with the service's `importSource`
+  templateName exampleName codeLabel hint (imported) (closed)>`) with the service's `importSource`
   (`example()` optional: the "Download example" button shows only when it and `exampleName` are
-  given). Since 2026-11-13 choosing a file no longer checks it: **Check file** and **Confirm import**
-  are always visible at the bottom right and disabled until usable (every import page); `saveFile` there
+  given; `hint` is an optional small line under the buttons, e.g. "fill the code as text"). Choosing a
+  file doesn't check it. Since 2026-11-14 the window follows the Counterparties mockup (for **every**
+  import page, the user asked for it on that page): description in a dashed box, "Template and file"
+  with coloured pill steps (blue Download template, orange Download example, green Choose file, an
+  arrow, purple **Check file**, disabled until a file is chosen), the file name (or "No file chosen
+  yet") in a box, and only **Cancel** and **Confirm import** (disabled until usable) at the bottom
+  right; `saveFile` there
   downloads a blob (exports are named `<page>-YYYY-MM-DD.xlsx`). Exports contain everything the user
   may see, **not** the current search / filters.
 
