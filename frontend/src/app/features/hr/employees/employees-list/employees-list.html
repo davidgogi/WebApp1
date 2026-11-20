@@ -153,6 +153,13 @@
                             {{ 'Reset password' | t }}
                           </button>
                         </div>
+                        @if (employee.module === 'store') {
+                          <div>
+                            <button type="button" class="link-button" (click)="resetPin(employee)">
+                              {{ 'Reset PIN' | t }}
+                            </button>
+                          </div>
+                        }
                       } @else if (canHaveLogin(employee)) {
                         <button
                           type="button"
@@ -191,15 +198,20 @@
                   }
                 }
                 <td>
-                  @if (canManage(employee)) {
+                  <div class="icon-actions">
+                    <button type="button" class="icon-action" [title]="'View' | t" (click)="viewEmployee(employee)">
+                      <lucide-icon [img]="ViewIcon" [size]="18"></lucide-icon>
+                    </button>
                     <button
                       type="button"
-                      class="button button--secondary button--sm"
+                      class="icon-action icon-action--danger"
+                      [disabled]="!canManage(employee)"
+                      [title]="(canManage(employee) ? 'Remove' : 'You cannot remove this person') | t"
                       (click)="deleteEmployee(employee)"
                     >
-                      {{ 'Remove' | t }}
+                      <lucide-icon [img]="DeleteIcon" [size]="18"></lucide-icon>
                     </button>
-                  }
+                  </div>
                 </td>
               </tr>
             }
@@ -209,6 +221,103 @@
     }
   </div>
 </div>
+
+<app-modal [open]="viewing() !== null" [title]="'Employee' | t" (closed)="viewing.set(null)">
+  @if (viewing(); as person) {
+    <div class="page-stack">
+      <dl class="detail-grid">
+        <div>
+          <dt>{{ 'Name' | t }}</dt>
+          <dd class="cell-strong">{{ person.firstName }} {{ person.lastName }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Role' | t }}</dt>
+          <dd>
+            {{ (person.role ? roleLabels[person.role] : 'No role') | t }}
+            @if (person.module) {
+              · {{ moduleLabels[person.module] | t }}
+            }
+          </dd>
+        </div>
+        <div>
+          <dt>{{ 'Position' | t }}</dt>
+          <dd>{{ person.position || '–' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Login' | t }}</dt>
+          <dd>{{ person.username ?? '–' }}</dd>
+        </div>
+      </dl>
+
+      @if (viewError()) {
+        <p class="field-error">{{ viewError() | t }}</p>
+      } @else if (viewPlaces(); as places) {
+        @if (places.kind === null) {
+          <p class="page-description">{{ 'This person belongs to no store or warehouse.' | t }}</p>
+        } @else {
+          @if (person.role === 'manager' || places.manages.length > 0) {
+            <div>
+              <h3 class="card-title">{{ (places.kind === 'store' ? 'Manages these stores' : 'Manages these warehouses') | t }}</h3>
+              @if (places.manages.length === 0) {
+                <p class="page-description">{{ (places.kind === 'store' ? 'No store yet. The Store admin picks the manager on Store → Stores.' : 'No warehouse yet. The WMS admin picks the manager on WMS → Warehouses.') | t }}</p>
+              } @else {
+                <table class="data-table">
+                  <tbody>
+                    @for (place of places.manages; track place.id) {
+                      <tr>
+                        <td class="cell-strong">
+                          @if (place.code) {
+                            <code class="code-tag">{{ place.code }}</code>
+                          }
+                          {{ place.name }}
+                        </td>
+                        <td>{{ place.address }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </div>
+          }
+          @if (places.worksIn.length > 0 || person.role === 'cashier') {
+            <div>
+              <h3 class="card-title">{{ (places.kind === 'store' ? 'Works in these stores' : 'Works in these warehouses') | t }}</h3>
+              @if (places.worksIn.length === 0) {
+                <p class="page-description">{{ 'None.' | t }}</p>
+              } @else {
+                <table class="data-table">
+                  <tbody>
+                    @for (place of places.worksIn; track place.id) {
+                      <tr>
+                        <td class="cell-strong">
+                          @if (place.code) {
+                            <code class="code-tag">{{ place.code }}</code>
+                          }
+                          {{ place.name }}
+                        </td>
+                        <td>{{ place.address }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </div>
+          }
+          @if (person.role === 'admin') {
+            <p class="page-description">{{ (places.kind === 'store' ? 'A module admin works with all of the company\'s stores.' : 'A module admin works with all of the company\'s warehouses.') | t }}</p>
+          } @else if (places.manages.length === 0 && places.worksIn.length === 0 && person.role !== 'manager' && person.role !== 'cashier') {
+            <p class="page-description">{{ (places.kind === 'store' ? 'Not linked to any store.' : 'Not linked to any warehouse.') | t }}</p>
+          }
+        }
+      } @else {
+        <p class="page-description">{{ 'Loading…' | t }}</p>
+      }
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="viewing.set(null)">{{ 'Close' | t }}</button>
+      </div>
+    </div>
+  }
+</app-modal>
 
 <app-modal [open]="isAddOpen()" [title]="'Add employee' | t" (closed)="closeAddForm()">
   <form class="page-stack" [formGroup]="form" (ngSubmit)="addEmployee()" novalidate>

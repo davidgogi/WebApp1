@@ -1,0 +1,486 @@
+<form class="page-stack" (ngSubmit)="save()">
+  <div class="form-tabs" role="tablist">
+    <button
+      type="button"
+      role="tab"
+      class="form-tabs__tab"
+      [class.form-tabs__tab--active]="tab() === 'main'"
+      [attr.aria-selected]="tab() === 'main'"
+      (click)="tab.set('main')"
+    >
+      {{ 'Main information' | t }}
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="form-tabs__tab"
+      [class.form-tabs__tab--active]="tab() === 'contacts'"
+      [attr.aria-selected]="tab() === 'contacts'"
+      (click)="tab.set('contacts')"
+    >
+      {{ 'Contacts' | t }}
+      @if (contacts().length) {
+        <span class="form-tabs__count">{{ contacts().length }}</span>
+      }
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="form-tabs__tab"
+      [class.form-tabs__tab--active]="tab() === 'history'"
+      [attr.aria-selected]="tab() === 'history'"
+      [disabled]="!counterparty()"
+      [title]="counterparty() ? '' : ('History starts once the counterparty is saved' | t)"
+      (click)="openHistory()"
+    >
+      {{ 'History' | t }}
+    </button>
+  </div>
+
+  @if (hint()) {
+    <p class="field-hint">{{ hint() }}</p>
+  }
+
+  @switch (tab()) {
+    @case ('main') {
+      <div class="form-grid form-grid--two">
+        <div class="field field--full">
+          <label for="counterpartyName"
+            >{{ 'Counterparty name' | t }} <span class="required-mark">*</span></label
+          >
+          <input
+            id="counterpartyName"
+            class="text-input"
+            type="text"
+            name="name"
+            [(ngModel)]="name"
+            [placeholder]="'e.g. Mars Georgia' | t"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="counterpartyType"
+            >{{ 'Counterparty type' | t }} <span class="required-mark">*</span></label
+          >
+          <select
+            id="counterpartyType"
+            class="text-select"
+            name="counterpartyType"
+            [(ngModel)]="counterpartyType"
+            required
+          >
+            <option value="" disabled>{{ 'Choose a counterparty type' | t }}</option>
+            <option value="supplier">{{ 'Supplier' | t }}</option>
+            @if (!supplierOnly()) {
+              <option value="client">{{ 'Client' | t }}</option>
+            }
+            <option value="both">{{ 'Supplier and client' | t }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="counterpartyCode"
+            >{{ 'Identification code' | t }} <span class="required-mark">*</span></label
+          >
+          <input
+            id="counterpartyCode"
+            class="text-input"
+            type="text"
+            inputmode="numeric"
+            name="identificationCode"
+            [(ngModel)]="identificationCode"
+            required
+            [placeholder]="
+              organizationType() === 'company'
+                ? ('9 digits, e.g. 405123456' | t)
+                : ('Personal ID, 11 digits' | t)
+            "
+          />
+        </div>
+
+        <div class="field">
+          <label for="organizationType"
+            >{{ 'Organization type' | t }} <span class="required-mark">*</span></label
+          >
+          <select
+            id="organizationType"
+            class="text-select"
+            name="organizationType"
+            [(ngModel)]="organizationType"
+          >
+            <option value="company">{{ 'Company' | t }}</option>
+            <option value="individual">{{ 'Individual' | t }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="counterpartyLegalForm">{{ 'Legal form' | t }}</label>
+          <select id="counterpartyLegalForm" class="text-select" name="legalForm" [(ngModel)]="legalForm">
+            <option value="">{{ 'Not specified' | t }}</option>
+            @for (form of legalForms(); track form) {
+              <option [value]="form">{{ legalFormLabels[form] | t }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="counterpartyVat"
+            >{{ 'VAT status' | t }} <span class="required-mark">*</span></label
+          >
+          <select id="counterpartyVat" class="text-select" name="vatPayer" [(ngModel)]="vatPayer">
+            <option [ngValue]="true">{{ 'VAT payer' | t }}</option>
+            <option [ngValue]="false">{{ 'Not a VAT payer' | t }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="counterpartyStatus"
+            >{{ 'Status' | t }} <span class="required-mark">*</span></label
+          >
+          <select id="counterpartyStatus" class="text-select" name="status" [(ngModel)]="status">
+            <option value="active">{{ 'Active' | t }}</option>
+            <option value="inactive">{{ 'Inactive' | t }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="counterpartyCategory"
+            >{{ 'Category' | t }} <span class="required-mark">*</span></label
+          >
+          <input
+            id="counterpartyCategory"
+            class="text-input"
+            type="text"
+            name="category"
+            list="counterpartyCategories"
+            autocomplete="off"
+            [(ngModel)]="category"
+            required
+            [placeholder]="'e.g. Groceries' | t"
+          />
+          <datalist id="counterpartyCategories">
+            @for (option of categories(); track option) {
+              <option [value]="option"></option>
+            }
+          </datalist>
+        </div>
+
+        <div class="field">
+          <label for="counterpartyContact"
+            >{{ 'Contact person' | t }} <span class="required-mark">*</span></label
+          >
+          <input
+            id="counterpartyContact"
+            class="text-input"
+            type="text"
+            name="contactPerson"
+            [(ngModel)]="contactPerson"
+            required
+            [placeholder]="'e.g. Nino Beridze' | t"
+          />
+        </div>
+
+        <div class="field">
+          <label for="counterpartyPhone"
+            >{{ 'Phone' | t }} <span class="required-mark">*</span></label
+          >
+          <input
+            id="counterpartyPhone"
+            class="text-input"
+            type="tel"
+            name="phone"
+            [(ngModel)]="phone"
+            required
+            [placeholder]="'e.g. +995 555 12 34 56' | t"
+          />
+        </div>
+
+        <div class="field">
+          <label for="counterpartyEmail"
+            >{{ 'Email' | t }} <span class="required-mark">*</span></label
+          >
+          <input
+            id="counterpartyEmail"
+            class="text-input"
+            type="email"
+            name="email"
+            [(ngModel)]="email"
+            required
+            [placeholder]="'e.g. orders@supplier.ge' | t"
+          />
+        </div>
+
+        @if (isClient()) {
+          <div class="field">
+            <label for="deferredPayment">{{ 'Deferred payment' | t }}</label>
+            <div class="deferred-payment">
+              <input
+                id="deferredPayment"
+                class="deferred-payment__check"
+                type="checkbox"
+                name="deferredPayment"
+                [(ngModel)]="deferredPayment"
+              />
+              @if (deferredPayment()) {
+                <input
+                  id="deferredPaymentDays"
+                  class="text-input deferred-payment__days"
+                  [class.deferred-payment__days--invalid]="deferredPaymentTouched() && deferredPaymentInvalid()"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  max="365"
+                  step="1"
+                  name="deferredPaymentDays"
+                  [attr.aria-label]="'Deferred payment term, days' | t"
+                  [(ngModel)]="deferredPaymentDays"
+                  (blur)="deferredPaymentTouched.set(true)"
+                />
+                <span>{{ 'days' | t }}</span>
+              }
+            </div>
+            @if (deferredPayment()) {
+              @if (deferredPaymentTouched() && deferredPaymentInvalid()) {
+                <p class="field-error">{{ 'Enter the term: 1–365 days' | t }}</p>
+              } @else {
+                <p class="field-hint">{{ 'Calendar days from the date of sale' | t }}</p>
+              }
+            }
+          </div>
+        }
+
+        <div class="field field--full">
+          <label for="counterpartyAddress"
+            >{{ 'Address' | t }} <span class="required-mark">*</span></label
+          >
+          <textarea
+            id="counterpartyAddress"
+            class="text-input text-area"
+            name="address"
+            rows="2"
+            [(ngModel)]="address"
+            required
+            [placeholder]="'e.g. 12 Tsereteli Ave, Tbilisi' | t"
+          ></textarea>
+        </div>
+
+        <div class="field field--full">
+          <label for="counterpartyActualAddress">{{ 'Actual address' | t }}</label>
+          <label class="checkbox-row">
+            <input type="checkbox" name="sameAsAddress" [(ngModel)]="sameAsAddress" />
+            {{ 'Same as the address' | t }}
+          </label>
+          @if (!sameAsAddress()) {
+            <textarea
+              id="counterpartyActualAddress"
+              class="text-input text-area"
+              name="actualAddress"
+              rows="2"
+              [(ngModel)]="actualAddress"
+              [placeholder]="'Where the goods are delivered or picked up' | t"
+            ></textarea>
+          }
+        </div>
+
+        <div class="field field--full">
+          <label for="counterpartyNote">{{ 'Note' | t }}</label>
+          <textarea
+            id="counterpartyNote"
+            class="text-input text-area"
+            name="note"
+            rows="3"
+            maxlength="1000"
+            [(ngModel)]="note"
+            [placeholder]="'Anything worth knowing about this counterparty' | t"
+          ></textarea>
+        </div>
+      </div>
+    }
+
+    @case ('contacts') {
+      <div class="page-stack">
+        <h3 class="card-title contacts-title">{{ 'Additional contact persons' | t }}</h3>
+        <div class="contact-entry" (keydown.enter)="$event.preventDefault(); addContact()">
+          <div class="contact-entry__columns">
+            <div class="contact-entry__column">
+              <div class="field">
+                <label for="contactFirstName"
+                  >{{ 'First name' | t }} <span class="required-mark">*</span></label
+                >
+                <input
+                  id="contactFirstName"
+                  class="text-input"
+                  type="text"
+                  name="contactFirstName"
+                  [(ngModel)]="contactFirstName"
+                  [placeholder]="'e.g. Nino' | t"
+                />
+              </div>
+              <div class="field">
+                <label for="contactLastName"
+                  >{{ 'Last name' | t }} <span class="required-mark">*</span></label
+                >
+                <input
+                  id="contactLastName"
+                  class="text-input"
+                  type="text"
+                  name="contactLastName"
+                  [(ngModel)]="contactLastName"
+                  [placeholder]="'e.g. Beridze' | t"
+                />
+              </div>
+              <div class="field">
+                <label for="contactPhone"
+                  >{{ 'Phone number' | t }} <span class="required-mark">*</span></label
+                >
+                <input
+                  id="contactPhone"
+                  class="text-input"
+                  type="tel"
+                  name="contactPhone"
+                  [(ngModel)]="contactPhone"
+                  [placeholder]="'e.g. +995 555 12 34 56' | t"
+                />
+              </div>
+            </div>
+            <div class="contact-entry__column">
+              <div class="field">
+                <label for="contactPosition"
+                  >{{ 'Position' | t }} <span class="required-mark">*</span></label
+                >
+                <input
+                  id="contactPosition"
+                  class="text-input"
+                  type="text"
+                  name="contactPosition"
+                  [(ngModel)]="contactPosition"
+                  [placeholder]="'e.g. Sales manager' | t"
+                />
+              </div>
+              <div class="field">
+                <label for="contactEmail"
+                  >{{ 'Email' | t }} <span class="required-mark">*</span></label
+                >
+                <input
+                  id="contactEmail"
+                  class="text-input"
+                  type="email"
+                  name="contactEmail"
+                  [(ngModel)]="contactEmail"
+                  [placeholder]="'e.g. orders@supplier.ge' | t"
+                />
+              </div>
+            </div>
+          </div>
+          @if (contactError()) {
+            <p class="field-error">{{ contactError() | t }}</p>
+          }
+          <div class="button-row form-actions">
+            <button type="button" class="button button--primary" (click)="addContact()">
+              <lucide-icon [img]="AddIcon" [size]="16"></lucide-icon>
+              {{ 'Add' | t }}
+            </button>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'First name' | t }}</th>
+                <th>{{ 'Last name' | t }}</th>
+                <th>{{ 'Phone number' | t }}</th>
+                <th>{{ 'Position' | t }}</th>
+                <th>{{ 'Email' | t }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (contact of contacts(); track $index) {
+                <tr>
+                  <td>{{ contact.firstName }}</td>
+                  <td>{{ contact.lastName }}</td>
+                  <td>{{ contact.phone }}</td>
+                  <td>{{ contact.position }}</td>
+                  <td>{{ contact.email }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="icon-action icon-action--danger"
+                      [title]="'Remove contact' | t"
+                      [attr.aria-label]="'Remove contact' | t"
+                      (click)="removeContact($index)"
+                    >
+                      <lucide-icon [img]="RemoveIcon" [size]="14"></lucide-icon>
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="contacts-empty">
+                    {{ 'No additional contacts yet.' | t }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @case ('history') {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'Date' | t }}</th>
+              <th>{{ 'User' | t }}</th>
+              <th>{{ 'Action' | t }}</th>
+              <th>{{ 'Source' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (historyState() === 'loading') {
+              <tr>
+                <td colspan="4" class="contacts-empty">{{ 'Loading…' | t }}</td>
+              </tr>
+            } @else if (historyState() === 'error') {
+              <tr>
+                <td colspan="4" class="contacts-empty">{{ 'Could not load the history.' | t }}</td>
+              </tr>
+            } @else {
+              @for (entry of history(); track entry.id) {
+                <tr>
+                  <td class="cell-nowrap">{{ entry.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                  <td>{{ entry.actorName }}</td>
+                  <td>{{ historyActions[entry.action] ?? entry.action | t }}</td>
+                  <td>{{ entry.source ? (sourceLabels[entry.source] | t) : '—' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="contacts-empty">
+                    {{ 'No history yet. Changes are recorded from now on.' | t }}
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  @if (formError()) {
+    <p class="field-error">{{ formError() | t }}</p>
+  }
+
+  <div class="button-row form-actions">
+    <button type="button" class="button button--outline" (click)="cancelled.emit()">
+      {{ 'Cancel' | t }}
+    </button>
+    <button type="submit" class="button button--primary" [disabled]="isSaving()">
+      {{ isSaving() ? ('Saving…' | t) : ('Save' | t) }}
+    </button>
+  </div>
+</form>

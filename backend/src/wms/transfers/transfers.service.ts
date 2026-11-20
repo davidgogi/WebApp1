@@ -8,7 +8,7 @@ import { RsClient, RsCredentials, RsWaybillDetail } from '../../rs/waybills/rs-c
 import { RsWaybillsService } from '../../rs/waybills/waybills.service.js';
 import { Product } from '../products/product.entity.js';
 import { ProductUnit } from '../products/product-unit.enum.js';
-import { formatDocumentNumber, nextDocumentNumber } from '../stock/document-number.js';
+import { formatDocumentNumber, nextDocumentNumber } from '../../common/document-number.js';
 import { StockMovementKind } from '../stock/stock-movement-kind.enum.js';
 import { matchRsProducts, rememberRsProducts, rsUnitProblem } from '../stock/rs-matching.js';
 import { StockService } from '../stock/stock.service.js';

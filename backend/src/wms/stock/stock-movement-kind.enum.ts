@@ -5,4 +5,6 @@ export enum StockMovementKind {
   TRANSFER_OUT = 'transfer_out',
   TRANSFER_IN = 'transfer_in',
   TRANSFER_CANCEL = 'transfer_cancel',
+  SALE = 'sale',
+  SALE_RETURN = 'sale_return',
 }

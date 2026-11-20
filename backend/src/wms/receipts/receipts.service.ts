@@ -24,7 +24,7 @@ import { ProductUnit } from '../products/product-unit.enum.js';
 import {
   formatDocumentNumber,
   nextDocumentNumber,
-} from '../stock/document-number.js';
+} from '../../common/document-number.js';
 import { ProductWarehouse } from '../stock/product-warehouse.entity.js';
 import { StockMovementKind } from '../stock/stock-movement-kind.enum.js';
 import {
@@ -33,9 +33,9 @@ import {
   rsUnitProblem,
 } from '../stock/rs-matching.js';
 import { StockService } from '../stock/stock.service.js';
-import { Partner } from '../../parameters/partners/partner.entity.js';
-import { PartnerStatus } from '../../parameters/partners/partner-status.enum.js';
-import { PartnersService } from '../../parameters/partners/partners.service.js';
+import { Counterparty } from '../../parameters/counterparties/counterparty.entity.js';
+import { CounterpartyStatus } from '../../parameters/counterparties/counterparty-status.enum.js';
+import { CounterpartiesService } from '../../parameters/counterparties/counterparties.service.js';
 import { Warehouse } from '../warehouses/warehouse.entity.js';
 import { WarehouseStatus } from '../warehouses/warehouse-status.enum.js';
 import { CreateReceiptFromRsDto, SaveReceiptDto } from './dto/receipt.dto.js';
@@ -56,7 +56,7 @@ export type ReceiptView = Omit<Receipt, 'warehouse' | 'lines' | 'supplier'> & {
   total: number;
   warehouse: Pick<Warehouse, 'id' | 'code' | 'name'>;
   supplier: Pick<
-    Partner,
+    Counterparty,
     'id' | 'name' | 'identificationCode' | 'status'
   > | null;
   lines?: (Omit<ReceiptLine, 'product' | 'receipt'> & {
@@ -77,18 +77,19 @@ export class ReceiptsService {
     @InjectRepository(Receipt)
     private readonly receiptsRepository: Repository<Receipt>,
     private readonly stockService: StockService,
-    private readonly partnersService: PartnersService,
+    private readonly counterpartiesService: CounterpartiesService,
     private readonly rsWaybills: RsWaybillsService,
     private readonly rsClient: RsClient,
     private readonly dataSource: DataSource,
     private readonly audit: AuditService,
   ) {}
 
-  async findAll(actor: AuthUser): Promise<ReceiptView[]> {
+  async findAll(actor: AuthUser, supplierId?: string): Promise<ReceiptView[]> {
     const scope = await this.warehouseScope(actor);
     const receipts = await this.receiptsRepository.find({
       where: {
         companyId: actor.companyId!,
+        ...(supplierId ? { supplierId } : {}),
         ...(scope ? { warehouseId: In([...scope]) } : {}),
       },
       relations: { warehouse: true, lines: true, supplier: true },
@@ -556,23 +557,23 @@ export class ReceiptsService {
   private async supplierFor(
     actor: AuthUser,
     sellerTin: string | null,
-  ): Promise<Partner | null> {
+  ): Promise<Counterparty | null> {
     if (!sellerTin) {
       return null;
     }
     const supplier = await this.dataSource
-      .getRepository(Partner)
+      .getRepository(Counterparty)
       .findOneBy({
         companyId: actor.companyId!,
         identificationCode: sellerTin,
       });
-    if (supplier && supplier.status !== PartnerStatus.ACTIVE) {
+    if (supplier && supplier.status !== CounterpartyStatus.ACTIVE) {
       throw new BadRequestException(
         `The supplier ${supplier.name} (${sellerTin}) is inactive. Reactivate it in Counterparties first.`,
       );
     }
     if (supplier) {
-      await this.partnersService.markAsSupplier(actor, supplier);
+      await this.counterpartiesService.markAsSupplier(actor, supplier);
     }
     return supplier;
   }
@@ -584,7 +585,7 @@ export class ReceiptsService {
   ): Promise<void> {
     await this.checkSupplier(actor, supplierId, true);
     const supplier = (await this.dataSource
-      .getRepository(Partner)
+      .getRepository(Counterparty)
       .findOneBy({ id: supplierId, companyId: actor.companyId! }))!;
     if (!sellerTin) {
       return;
@@ -598,7 +599,7 @@ export class ReceiptsService {
       );
     }
     if (!supplier.identificationCode && /^(\d{9}|\d{11})$/.test(sellerTin)) {
-      await this.partnersService.update(
+      await this.counterpartiesService.update(
         actor,
         supplier.id,
         { identificationCode: sellerTin },
@@ -631,12 +632,12 @@ export class ReceiptsService {
     mustBeActive: boolean,
   ): Promise<void> {
     const supplier = await this.dataSource
-      .getRepository(Partner)
+      .getRepository(Counterparty)
       .findOneBy({ id: supplierId, companyId: actor.companyId! });
     if (!supplier?.isSupplier) {
       throw new BadRequestException('Choose a supplier from the list');
     }
-    if (mustBeActive && supplier.status !== PartnerStatus.ACTIVE) {
+    if (mustBeActive && supplier.status !== CounterpartyStatus.ACTIVE) {
       throw new BadRequestException(
         `The supplier ${supplier.name} is inactive`,
       );

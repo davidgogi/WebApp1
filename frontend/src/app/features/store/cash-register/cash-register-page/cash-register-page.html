@@ -4,52 +4,95 @@
       <p class="page-eyebrow">{{ 'Store' | t }}</p>
       <h1 class="page-title">{{ 'Cash register' | t }}</h1>
       <p class="page-description">
-        {{ 'Each time a register is opened it gets its own row, with the transactions rung up on it. {p0}' | t: { p0: sees() | t } }}
+        {{ 'A register is opened with the cash in it and closed by counting the cash. Every sale, return and cash movement in between is kept. {p0}' | t: { p0: sees() | t } }}
       </p>
     </div>
+    @if (canOperate() && hasPin()) {
+      <div class="button-row page-header__actions">
+        <button type="button" class="button button--outline" (click)="openPinDialog()">{{ 'Change PIN' | t }}</button>
+      </div>
+    }
   </div>
+
+  @if (notice()) {
+    <p class="notice-success">{{ notice() | t }}</p>
+  }
 
   @if (canOperate()) {
     <div class="page-card">
-      @if (current(); as open) {
-        <div class="register-open">
-          <div>
-            <span class="badge badge--active">{{ 'Open' | t }}</span>
-            <div class="cell-strong register-open__title">
-              {{ 'Register {p0} · {p1}' | t: { p0: open.registerNo, p1: open.storeName } }}
+      @if (hasPin() === false) {
+        <h2 class="card-title">{{ 'Set your register PIN' | t }}</h2>
+        <p class="page-description">
+          {{ 'You confirm opening and closing a register with a 4-digit PIN. Choose one now; only you know it.' | t }}
+        </p>
+        <form class="register-form" (ngSubmit)="savePin()">
+          <div class="field">
+            <label for="newPin">{{ 'New PIN' | t }}</label>
+            <input id="newPin" class="text-input" type="password" inputmode="numeric" maxlength="4" autocomplete="off" name="newPin" [(ngModel)]="newPin" />
+          </div>
+          <div class="field">
+            <label for="repeatPin">{{ 'Repeat the PIN' | t }}</label>
+            <input id="repeatPin" class="text-input" type="password" inputmode="numeric" maxlength="4" autocomplete="off" name="repeatPin" [(ngModel)]="repeatPin" />
+          </div>
+          <button type="submit" class="button button--primary">{{ 'Save PIN' | t }}</button>
+        </form>
+        @if (pinError()) {
+          <p class="field-error">{{ pinError() | t }}</p>
+        }
+      } @else if (current(); as open) {
+        <div class="page-stack">
+          <div class="register-head">
+            <div>
+              <span class="badge badge--active">{{ 'Open' | t }}</span>
+              <div class="register-head__title">{{ 'Register {p0} · {p1}' | t: { p0: open.registerNo, p1: open.storeName } }}</div>
+              <div class="muted">
+                {{ 'Opened {p0} with ₾{p1}' | t: { p0: (open.openedAt | date: 'dd.MM.yyyy HH:mm'), p1: (open.openingCash | number: '1.2-2') } }}
+                @if (open.openNote) {
+                  · {{ open.openNote }}
+                }
+              </div>
             </div>
-            <div class="cell-sub">
-              {{ 'Opened {p0} with ₾{p1} · {p2} sales · ₾{p3}' | t: { p0: (open.openedAt | date: 'HH:mm'), p1: (open.openingCash | number: '1.2-2'), p2: open.salesCount, p3: (open.total | number: '1.2-2') } }}
+            <div class="button-row">
+              <a class="button button--primary" routerLink="/store/pos">{{ 'Go to POS' | t }}</a>
+              <button type="button" class="button button--outline" (click)="dialog.set('in')">{{ 'Add cash' | t }}</button>
+              <button type="button" class="button button--outline" (click)="dialog.set('out')">{{ 'Take out cash' | t }}</button>
+              <a class="button button--outline" [routerLink]="['/store/cash-register', open.id]">{{ 'Details' | t }}</a>
+              <button type="button" class="button button--dark" (click)="dialog.set('close')">{{ 'Close the register' | t }}</button>
             </div>
           </div>
-          <form class="register-form" (ngSubmit)="close(open)">
-            <div class="field">
-              <label for="closingCash">{{ 'Cash counted (₾)' | t }}</label>
-              <input
-                id="closingCash"
-                class="text-input"
-                type="number"
-                min="0"
-                step="0.01"
-                name="closingCash"
-                [(ngModel)]="closingCash"
-              />
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat__label">{{ 'Sales' | t }}</div>
+              <div class="stat__value">{{ open.metrics.salesCount }}</div>
             </div>
-            <button type="submit" class="button button--primary" [disabled]="isBusy()">{{ 'Close register' | t }}</button>
-            <a class="button button--secondary" routerLink="/store/pos">{{ 'Go to POS' | t }}</a>
-          </form>
+            <div class="stat">
+              <div class="stat__label">{{ 'Cash sales' | t }}</div>
+              <div class="stat__value">₾{{ open.metrics.cashSales | number: '1.2-2' }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Card sales' | t }}</div>
+              <div class="stat__value">₾{{ open.metrics.cardSales | number: '1.2-2' }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Returns' | t }}</div>
+              <div class="stat__value">₾{{ open.metrics.cashReturns + open.metrics.cardReturns | number: '1.2-2' }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Cash added / taken out' | t }}</div>
+              <div class="stat__value">₾{{ open.metrics.cashIn | number: '1.2-2' }} / ₾{{ open.metrics.cashOut | number: '1.2-2' }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Expected cash' | t }}</div>
+              <div class="stat__value">₾{{ open.expectedCash | number: '1.2-2' }}</div>
+            </div>
+          </div>
         </div>
-      } @else {
+      } @else if (hasPin()) {
+        <h2 class="card-title">{{ 'Open a register' | t }}</h2>
         <form class="register-form" (ngSubmit)="open()">
           <div class="field">
             <label for="registerStore">{{ 'Store' | t }}</label>
-            <select
-              id="registerStore"
-              class="text-select"
-              name="storeId"
-              [ngModel]="storeId()"
-              (ngModelChange)="chooseStore($event)"
-            >
+            <select id="registerStore" class="text-select" name="storeId" [ngModel]="storeId()" (ngModelChange)="chooseStore($event)">
               <option value="">{{ 'Choose a store…' | t }}</option>
               @for (store of stores(); track store.id) {
                 <option [value]="store.id">{{ store.name }}</option>
@@ -76,26 +119,31 @@
           </div>
           <div class="field">
             <label for="openingCash">{{ 'Opening cash (₾)' | t }}</label>
-            <input
-              id="openingCash"
-              class="text-input"
-              type="number"
-              min="0"
-              step="0.01"
-              name="openingCash"
-              [(ngModel)]="openingCash"
-            />
+            <input id="openingCash" class="text-input" type="number" min="0" step="0.01" name="openingCash" [(ngModel)]="openingCash" placeholder="0.00" />
+          </div>
+          <div class="field">
+            <label for="openPin">{{ 'Your PIN' | t }}</label>
+            <input id="openPin" class="text-input" type="password" inputmode="numeric" maxlength="4" autocomplete="off" name="openPin" [(ngModel)]="openPin" />
+          </div>
+          <div class="field field--note">
+            <label for="openNote">{{ 'Note' | t }}</label>
+            <input id="openNote" class="text-input" maxlength="500" name="openNote" [(ngModel)]="openNote" [placeholder]="'e.g. Morning shift' | t" />
           </div>
           <button type="submit" class="button button--primary" [disabled]="isBusy() || stores().length === 0">
-            {{ 'Open register' | t }}
+            {{ 'Open the register' | t }}
           </button>
         </form>
+        @if (chosenStore(); as store) {
+          @if (!store.warehouse) {
+            <p class="field-error">{{ '{name} has no sales warehouse yet. Ask the Store admin to choose one.' | t: { name: store.name } }}</p>
+          }
+        }
         @if (stores().length === 0) {
           <p class="field-hint">{{ 'You are not assigned to a store yet. Ask your admin.' | t }}</p>
         }
       }
       @if (errorMessage()) {
-        <p class="field-error register-error">{{ errorMessage() | t }}</p>
+        <p class="field-error">{{ errorMessage() | t }}</p>
       }
     </div>
   } @else if (errorMessage()) {
@@ -103,94 +151,118 @@
   }
 
   <div class="page-card">
+    <h2 class="card-title">{{ 'Register history' | t }}</h2>
+    <div class="history-filters">
+      <div class="field">
+        <label for="historyFrom">{{ 'From' | t }}</label>
+        <input id="historyFrom" class="text-input" type="date" [(ngModel)]="from" (change)="loadHistory()" />
+      </div>
+      <div class="field">
+        <label for="historyTo">{{ 'To' | t }}</label>
+        <input id="historyTo" class="text-input" type="date" [(ngModel)]="to" (change)="loadHistory()" />
+      </div>
+      @if (stores().length > 1) {
+        <div class="field">
+          <label for="historyStore">{{ 'Store' | t }}</label>
+          <select id="historyStore" class="text-select" [(ngModel)]="storeFilter" (ngModelChange)="loadHistory()">
+            <option value="">{{ 'All stores' | t }}</option>
+            @for (store of stores(); track store.id) {
+              <option [value]="store.id">{{ store.name }}</option>
+            }
+          </select>
+        </div>
+      }
+      <button type="button" class="link-button" (click)="clearFilters()">{{ 'Clear' | t }}</button>
+    </div>
+
     @if (isLoading()) {
       <p class="page-description">{{ 'Loading…' | t }}</p>
     } @else if (sessions().length === 0) {
-      <p class="page-description">{{ 'No registers have been opened yet.' | t }}</p>
+      <p class="page-description">{{ 'No registers were opened in this period.' | t }}</p>
     } @else {
       <div class="table-scroll">
         <table class="data-table">
           <thead>
             <tr>
-              <th></th>
               <th>{{ 'Store' | t }}</th>
               <th>{{ 'Register' | t }}</th>
               <th>{{ 'Cashier' | t }}</th>
               <th>{{ 'Opened' | t }}</th>
               <th>{{ 'Closed' | t }}</th>
+              <th>{{ 'Sales' | t }}</th>
+              <th>{{ 'Net sales' | t }}</th>
+              <th>{{ 'Expected cash' | t }}</th>
+              <th>{{ 'Counted cash' | t }}</th>
+              <th>{{ 'Difference' | t }}</th>
               <th>{{ 'Status' | t }}</th>
-              <th class="cell-number">{{ 'Transactions' | t }}</th>
-              <th class="cell-number">{{ 'Total' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            @for (session of sessions(); track session.id) {
-              <tr class="session-row" (click)="toggle(session)">
-                <td class="session-caret">{{ expandedId() === session.id ? '▾' : '▸' }}</td>
-                <td class="cell-strong">{{ session.storeName }}</td>
-                <td>#{{ session.registerNo }}</td>
-                <td>{{ session.cashierName }}</td>
-                <td class="nowrap">{{ session.openedAt | date: 'dd.MM HH:mm' }}</td>
-                <td class="nowrap">
-                  {{ session.closedAt ? (session.closedAt | date: 'dd.MM HH:mm') : '–' }}
+            @for (session of pages.items(); track session.id) {
+              <tr class="session-row" [routerLink]="['/store/cash-register', session.id]">
+                <td class="cell-strong">
+                  <a [routerLink]="['/store/cash-register', session.id]">{{ session.storeName }}</a>
+                </td>
+                <td class="cell-figure">#{{ session.registerNo }}</td>
+                <td class="cell-nowrap">{{ session.cashierName }}</td>
+                <td class="cell-nowrap">{{ session.openedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                <td class="cell-nowrap">{{ session.closedAt ? (session.closedAt | date: 'dd.MM.yyyy HH:mm') : '–' }}</td>
+                <td class="cell-figure">{{ session.metrics.salesCount }}</td>
+                <td class="cell-figure">₾{{ session.metrics.netSales | number: '1.2-2' }}</td>
+                <td class="cell-figure">₾{{ session.expectedCash | number: '1.2-2' }}</td>
+                <td class="cell-figure">{{ session.countedCash === null ? '–' : '₾' + (session.countedCash | number: '1.2-2') }}</td>
+                <td
+                  class="cell-figure"
+                  [class.change-in]="(session.variance ?? 0) > 0"
+                  [class.change-out]="(session.variance ?? 0) < 0"
+                >
+                  {{ session.variance === null ? '–' : '₾' + (session.variance | number: '1.2-2') }}
+                  @if (session.coverageStatus) {
+                    <div class="muted">{{ coverageLabels[session.coverageStatus] | t }}</div>
+                  }
                 </td>
                 <td>
-                  <span
-                    class="badge"
-                    [class.badge--active]="session.status === 'open'"
-                    [class.badge--inactive]="session.status === 'closed'"
-                  >
-                    {{ session.status === 'open' ? ('Open' | t) : ('Closed' | t) }}
+                  <span class="badge" [class.badge--active]="session.status === 'open'" [class.badge--inactive]="session.status === 'closed'">
+                    {{ (session.status === 'open' ? 'Open' : 'Closed') | t }}
                   </span>
                 </td>
-                <td class="cell-number">{{ session.salesCount }}</td>
-                <td class="cell-number">₾{{ session.total | number: '1.2-2' }}</td>
               </tr>
-              @if (expandedId() === session.id) {
-                <tr class="session-detail">
-                  <td></td>
-                  <td colspan="8">
-                    <div class="cell-sub session-cash">
-                      {{ 'Opening cash ₾{p0}' | t: { p0: (session.openingCash | number: '1.2-2') } }}
-                      @if (session.closingCash !== null) {
-                        {{ '· counted at close ₾{p0}' | t: { p0: (session.closingCash | number: '1.2-2') } }}
-                      }
-                    </div>
-                    @if (details()[session.id]; as detail) {
-                      @if (detail.sales.length === 0) {
-                        <p class="page-description">{{ 'No transactions yet.' | t }}</p>
-                      } @else {
-                        <table class="data-table data-table--nested">
-                          <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>{{ 'Time' | t }}</th>
-                              <th>{{ 'Items' | t }}</th>
-                              <th class="cell-number">{{ 'Total' | t }}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            @for (sale of detail.sales; track sale.id) {
-                              <tr>
-                                <td>{{ sale.number }}</td>
-                                <td class="nowrap">{{ sale.createdAt | date: 'HH:mm:ss' }}</td>
-                                <td>{{ itemsOf(sale) }}</td>
-                                <td class="cell-number">₾{{ sale.total | number: '1.2-2' }}</td>
-                              </tr>
-                            }
-                          </tbody>
-                        </table>
-                      }
-                    } @else {
-                      <p class="page-description">{{ 'Loading…' | t }}</p>
-                    }
-                  </td>
-                </tr>
-              }
             }
           </tbody>
         </table>
       </div>
+      <app-pager [pagination]="pages" />
     }
   </div>
 </div>
+
+<app-register-dialog [session]="current()" [mode]="dialog()" (done)="onDialogDone($event)" (closed)="dialog.set(null)" />
+
+<app-modal [open]="pinOpen()" [title]="'Change PIN' | t" (closed)="pinOpen.set(false)">
+  @if (pinOpen()) {
+    <form class="page-stack" (ngSubmit)="savePin()">
+      <div class="field">
+        <label for="currentPin">{{ 'Current PIN' | t }}</label>
+        <input id="currentPin" class="text-input" type="password" inputmode="numeric" maxlength="4" autocomplete="off" name="currentPin" [(ngModel)]="currentPin" />
+        <span class="field-hint">{{ 'Forgot it? Your manager or admin can reset it in HR.' | t }}</span>
+      </div>
+      <div class="form-grid form-grid--two">
+        <div class="field">
+          <label for="changeNewPin">{{ 'New PIN' | t }}</label>
+          <input id="changeNewPin" class="text-input" type="password" inputmode="numeric" maxlength="4" autocomplete="off" name="newPin" [(ngModel)]="newPin" />
+        </div>
+        <div class="field">
+          <label for="changeRepeatPin">{{ 'Repeat the PIN' | t }}</label>
+          <input id="changeRepeatPin" class="text-input" type="password" inputmode="numeric" maxlength="4" autocomplete="off" name="repeatPin" [(ngModel)]="repeatPin" />
+        </div>
+      </div>
+      @if (pinError()) {
+        <p class="field-error">{{ pinError() | t }}</p>
+      }
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="pinOpen.set(false)">{{ 'Cancel' | t }}</button>
+        <button type="submit" class="button button--primary">{{ 'Save PIN' | t }}</button>
+      </div>
+    </form>
+  }
+</app-modal>

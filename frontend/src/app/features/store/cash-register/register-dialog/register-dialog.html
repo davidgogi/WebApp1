@@ -1,0 +1,98 @@
+<app-modal [open]="mode() !== null" [title]="title() | t" (closed)="closed.emit()">
+  @if (mode(); as mode) {
+    @if (session(); as session) {
+      <form class="page-stack" (ngSubmit)="submit()">
+        <p class="page-description">
+          {{ 'Register {p0} · {p1} · {p2}' | t: { p0: session.registerNo, p1: session.storeName, p2: session.cashierName } }}
+        </p>
+
+        @if (mode === 'close') {
+          @if (othersRegister()) {
+            <p class="field-hint">
+              {{ 'You are closing a register someone else opened. Count the cash in it and confirm with your own PIN.' | t }}
+            </p>
+          }
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat__label">{{ 'Expected cash' | t }}</div>
+              <div class="stat__value">₾{{ session.expectedCash | number: '1.2-2' }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Difference' | t }}</div>
+              <div
+                class="stat__value"
+                [class.change-in]="(difference() ?? 0) > 0"
+                [class.change-out]="(difference() ?? 0) < 0"
+              >
+                {{ difference() === null ? '—' : '₾' + (difference()! | number: '1.2-2') }}
+              </div>
+            </div>
+          </div>
+          <div class="form-grid form-grid--two">
+            <div class="field">
+              <label for="dialogAmount">{{ 'Counted cash (₾)' | t }} <span class="required-mark">*</span></label>
+              <input id="dialogAmount" class="text-input" type="number" min="0" step="0.01" name="amount" [(ngModel)]="amount" />
+            </div>
+            <div class="field">
+              <label for="dialogPin">{{ 'Your PIN' | t }} <span class="required-mark">*</span></label>
+              <input
+                id="dialogPin"
+                class="text-input"
+                type="password"
+                inputmode="numeric"
+                autocomplete="off"
+                maxlength="4"
+                name="pin"
+                [(ngModel)]="pin"
+              />
+            </div>
+          </div>
+        } @else if (mode === 'comment') {
+          <p class="field-hint">
+            {{ (session.status === 'closed' ? 'Changes the closing note. Leave it empty to remove both notes.' : 'Changes the opening note. Leave it empty to remove it.') | t }}
+          </p>
+        } @else {
+          @if (mode === 'cover') {
+            <p class="field-hint">
+              {{ 'Records who covered the missing cash. ₾{p0} of the shortage is left.' | t: { p0: (session.shortageLeft | number: '1.2-2') } }}
+            </p>
+          } @else if (mode === 'out') {
+            <p class="field-hint">{{ '₾{p0} should be in the register now.' | t: { p0: (session.expectedCash | number: '1.2-2') } }}</p>
+          }
+          <div class="field">
+            <label for="dialogAmount">{{ 'Amount (₾)' | t }} <span class="required-mark">*</span></label>
+            <input id="dialogAmount" class="text-input" type="number" min="0.01" step="0.01" name="amount" [(ngModel)]="amount" />
+          </div>
+        }
+
+        <div class="field">
+          <label for="dialogNote">
+            {{ (mode === 'comment' ? 'Comment' : 'Note') | t }}
+            @if (mode === 'in' || mode === 'out') {
+              <span class="required-mark">*</span>
+            }
+          </label>
+          <textarea
+            id="dialogNote"
+            class="text-area"
+            rows="3"
+            maxlength="500"
+            name="note"
+            [(ngModel)]="note"
+            [placeholder]="(mode === 'in' ? 'e.g. Small change from the bank' : mode === 'out' ? 'e.g. Cash taken to the bank' : '') | t"
+          ></textarea>
+        </div>
+
+        @if (errorMessage()) {
+          <p class="field-error">{{ errorMessage() | t }}</p>
+        }
+        <div class="button-row form-actions">
+          <button type="button" class="button button--outline" (click)="closed.emit()">{{ 'Cancel' | t }}</button>
+          <button type="submit" class="button button--primary" [disabled]="isBusy()">
+            {{ (mode === 'close' ? 'Close the register' : 'Save') | t }}
+          </button>
+        </div>
+      </form>
+    }
+  }
+</app-modal>

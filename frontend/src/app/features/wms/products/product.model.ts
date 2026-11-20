@@ -1,6 +1,6 @@
 import { ImportReport } from '../../../shared/xlsx-import/xlsx-import.model';
 import { Category } from '../categories/category.model';
-import { Partner } from '../../../shared/partners/partner.model';
+import { Counterparty } from '../../../shared/counterparties/counterparty.model';
 import { Warehouse } from '../warehouses/warehouse.model';
 
 export type ProductStatus = 'active' | 'inactive';
@@ -28,7 +28,7 @@ export interface Product {
   groupId: string | null;
   group: { id: string; name: string; status: 'active' | 'inactive' } | null;
   supplierId: string;
-  supplier: Pick<Partner, 'id' | 'name' | 'status'>;
+  supplier: Pick<Counterparty, 'id' | 'name' | 'status'>;
   status: ProductStatus;
   usage: ProductUsage;
   posStatus: ProductPosStatus;

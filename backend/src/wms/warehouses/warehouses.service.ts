@@ -18,6 +18,7 @@ import { ProductWarehouse } from '../stock/product-warehouse.entity.js';
 import { StockService } from '../stock/stock.service.js';
 import { Warehouse } from './warehouse.entity.js';
 import { WarehouseType } from './warehouse-type.enum.js';
+import { WarehouseStatus } from './warehouse-status.enum.js';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto.js';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto.js';
 
@@ -146,8 +147,17 @@ export class WarehousesService {
       await this.assertNameFree(actor, dto.name, id);
     }
 
-    if (dto.type && dto.type !== warehouse.type) {
-      warehouse.code = await this.nextCode(actor.companyId!, dto.type);
+    const changesType = !!dto.type && dto.type !== warehouse.type;
+    if (changesType || (dto.status && dto.status !== WarehouseStatus.ACTIVE)) {
+      const store = await this.storeUsing(actor, id);
+      if (store) {
+        throw new ConflictException(
+          `${warehouse.code} is the sales warehouse of the store ${store}, so it must stay an active sales warehouse. Give the store another warehouse first.`,
+        );
+      }
+    }
+    if (changesType) {
+      warehouse.code = await this.nextCode(actor.companyId!, dto.type!);
     }
 
     const { managerId, ...fields } = dto;
@@ -198,12 +208,24 @@ export class WarehousesService {
         `${warehouse.code} has stock history, so it can't be deleted. Set it to Inactive instead.`,
       );
     }
+    const store = await this.storeUsing(actor, id);
+    if (store) {
+      throw new ConflictException(`${warehouse.code} is the sales warehouse of the store ${store}, so it can't be deleted`);
+    }
     await this.warehousesRepository.remove(warehouse);
     await this.audit.record(
       actor,
       'warehouse.delete',
       `Deleted warehouse ${warehouse.code} ${warehouse.name}`,
     );
+  }
+
+  private async storeUsing(actor: AuthUser, warehouseId: string): Promise<string | null> {
+    const rows: { name: string }[] = await this.warehousesRepository.query(
+      'SELECT name FROM stores WHERE company_id = $1 AND warehouse_id = $2',
+      [actor.companyId, warehouseId],
+    );
+    return rows[0]?.name ?? null;
   }
 
   private async findEntity(actor: AuthUser, id: string): Promise<Warehouse> {

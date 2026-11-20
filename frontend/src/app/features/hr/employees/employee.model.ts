@@ -43,3 +43,16 @@ export interface CreateEmployeePayload {
   module: AppModule | null;
   workplaceIds?: string[];
 }
+
+export interface Workplace {
+  id: string;
+  code: string | null;
+  name: string;
+  address: string;
+}
+
+export interface Workplaces {
+  kind: 'store' | 'warehouse' | null;
+  manages: Workplace[];
+  worksIn: Workplace[];
+}

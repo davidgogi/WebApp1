@@ -25,7 +25,7 @@ export default [
     loadComponent: () =>
       import('./categories/categories-list/categories-list').then((m) => m.CategoriesList),
   },
-  { path: 'products/suppliers', redirectTo: '/parameters/partners', pathMatch: 'full' },
+  { path: 'products/suppliers', redirectTo: '/parameters/counterparties', pathMatch: 'full' },
   {
     path: 'products/:id',
     canActivate: [accessGuard('wms', ['system_admin', 'module_admin'])],

@@ -1,0 +1,153 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">{{ 'Store' | t }}</p>
+      <h1 class="page-title">{{ 'Reports' | t }}</h1>
+      <p class="page-description">
+        {{ 'Sales per store and day, and every register with its cash: what was expected, what was counted and the difference.' | t }}
+      </p>
+    </div>
+    <div class="button-row page-header__actions">
+      <button type="button" class="button button--outline" (click)="exportDaily()">
+        <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
+        {{ 'Export' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="table-filters">
+      <input class="text-input" type="date" [aria-label]="'From' | t" [(ngModel)]="from" (change)="load()" />
+      <input class="text-input" type="date" [aria-label]="'To' | t" [(ngModel)]="to" (change)="load()" />
+      @if (stores().length > 1) {
+        <select class="text-select" [aria-label]="'Store' | t" [(ngModel)]="storeFilter" (ngModelChange)="load()">
+          <option value="">{{ 'All stores' | t }}</option>
+          @for (store of stores(); track store.id) {
+            <option [value]="store.id">{{ store.name }}</option>
+          }
+        </select>
+      }
+  </div>
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  @if (isLoading() && !report()) {
+    <p class="page-description">{{ 'Loading…' | t }}</p>
+  } @else if (report(); as r) {
+    <div class="page-card">
+      <h2 class="card-title">{{ 'Daily sales summary' | t }}</h2>
+      @if (r.days.length === 0) {
+        <p class="page-description">{{ 'No sales in this period.' | t }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'Date' | t }}</th>
+                <th>{{ 'Store' | t }}</th>
+                <th>{{ 'Sales' | t }}</th>
+                <th>{{ 'Cash sales' | t }}</th>
+                <th>{{ 'Card sales' | t }}</th>
+                <th>{{ 'Returns' | t }}</th>
+                <th>{{ 'Cash returns' | t }}</th>
+                <th>{{ 'Card returns' | t }}</th>
+                <th>{{ 'Net sales' | t }}</th>
+                <th>{{ 'Cash added' | t }}</th>
+                <th>{{ 'Cash taken out' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (day of r.days; track day.date + day.storeId) {
+                <tr>
+                  <td class="cell-nowrap">{{ day.date | date: 'dd.MM.yyyy' }}</td>
+                  <td>{{ day.storeName }}</td>
+                  <td class="cell-figure">{{ day.salesCount }}</td>
+                  <td class="cell-figure">₾{{ day.cashSales | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ day.cardSales | number: '1.2-2' }}</td>
+                  <td class="cell-figure">{{ day.returnsCount }}</td>
+                  <td class="cell-figure">₾{{ day.cashReturns | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ day.cardReturns | number: '1.2-2' }}</td>
+                  <td class="cell-figure cell-strong">₾{{ day.netSales | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ day.cashIn | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ day.cashOut | number: '1.2-2' }}</td>
+                </tr>
+              }
+              @if (dayTotals(); as t) {
+                <tr class="cell-strong">
+                  <td>{{ 'Total' | t }}</td>
+                  <td></td>
+                  <td class="cell-figure">{{ t.salesCount }}</td>
+                  <td class="cell-figure">₾{{ t.cashSales | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ t.cardSales | number: '1.2-2' }}</td>
+                  <td class="cell-figure">{{ t.returnsCount }}</td>
+                  <td class="cell-figure">₾{{ t.cashReturns | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ t.cardReturns | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ t.netSales | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ t.cashIn | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ t.cashOut | number: '1.2-2' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    <div class="page-card">
+      <h2 class="card-title">{{ 'Cash movement by register' | t }}</h2>
+      <p class="page-description">
+        {{ 'Open a register to see each operation with the cash before and after it, or export it to Excel.' | t }}
+      </p>
+      @if (r.shifts.length === 0) {
+        <p class="page-description">{{ 'No registers were opened in this period.' | t }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'Store' | t }}</th>
+                <th>{{ 'Register' | t }}</th>
+                <th>{{ 'Cashier' | t }}</th>
+                <th>{{ 'Opened' | t }}</th>
+                <th>{{ 'Closed' | t }}</th>
+                <th>{{ 'Sales' | t }}</th>
+                <th>{{ 'Net sales' | t }}</th>
+                <th>{{ 'Opening cash' | t }}</th>
+                <th>{{ 'Expected cash' | t }}</th>
+                <th>{{ 'Counted cash' | t }}</th>
+                <th>{{ 'Difference' | t }}</th>
+                <th>{{ 'Actions' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (shift of r.shifts; track shift.id) {
+                <tr>
+                  <td class="cell-strong"><a [routerLink]="['/store/cash-register', shift.id]">{{ shift.storeName }}</a></td>
+                  <td class="cell-figure">#{{ shift.registerNo }}</td>
+                  <td class="cell-nowrap">{{ shift.cashierName }}</td>
+                  <td class="cell-nowrap">{{ shift.openedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                  <td class="cell-nowrap">{{ shift.closedAt ? (shift.closedAt | date: 'dd.MM.yyyy HH:mm') : ('Open' | t) }}</td>
+                  <td class="cell-figure">{{ shift.metrics.salesCount }}</td>
+                  <td class="cell-figure">₾{{ shift.metrics.netSales | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ shift.openingCash | number: '1.2-2' }}</td>
+                  <td class="cell-figure">₾{{ shift.expectedCash | number: '1.2-2' }}</td>
+                  <td class="cell-figure">{{ shift.countedCash === null ? '–' : '₾' + (shift.countedCash | number: '1.2-2') }}</td>
+                  <td class="cell-figure" [class.change-in]="(shift.variance ?? 0) > 0" [class.change-out]="(shift.variance ?? 0) < 0">
+                    {{ shift.variance === null ? '–' : '₾' + (shift.variance | number: '1.2-2') }}
+                  </td>
+                  <td>
+                    <div class="icon-actions">
+                      <button type="button" class="icon-action" [title]="'Export' | t" (click)="exportMovement(shift)">
+                        <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+</div>

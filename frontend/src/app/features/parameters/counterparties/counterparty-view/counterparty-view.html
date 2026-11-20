@@ -1,0 +1,889 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div class="cp-title">
+      <a
+        class="cp-back"
+        routerLink="/parameters/counterparties"
+        [title]="'Back to counterparties' | t"
+        [attr.aria-label]="'Back to counterparties' | t"
+      >
+        <lucide-icon [img]="BackIcon" [size]="18"></lucide-icon>
+      </a>
+      <h1 class="page-title">{{ counterparty()?.name ?? ('Counterparty' | t) }}</h1>
+    </div>
+    @if (counterparty()) {
+      <div class="page-header__actions cp-actions">
+        <button
+          type="button"
+          class="button button--outline cp-icon-button"
+          [title]="'History' | t"
+          [attr.aria-label]="'History' | t"
+          (click)="isHistoryOpen.set(true)"
+        >
+          <lucide-icon [img]="HistoryIcon" [size]="16"></lucide-icon>
+        </button>
+        <button type="button" class="button button--primary" (click)="openForm()">
+          <lucide-icon [img]="EditIcon" [size]="16"></lucide-icon>
+          {{ 'Edit' | t }}
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  @if (counterparty(); as counterparty) {
+    <div class="page-card cp-identity">
+      <div class="cp-avatar" aria-hidden="true">{{ initial() }}</div>
+      <div class="cp-identity__text">
+        <div class="cp-identity__name-row">
+          <strong class="cp-identity__name">{{ counterparty.name }}</strong>
+          @if (counterparty.isClient) {
+            <span class="chip">{{ 'Client' | t }}</span>
+          }
+          @if (counterparty.isSupplier) {
+            <span class="chip">{{ 'Supplier' | t }}</span>
+          }
+          <span class="cp-status" [class.cp-status--inactive]="counterparty.status !== 'active'">
+            {{ counterparty.status === 'active' ? ('Active' | t) : ('Inactive' | t) }}
+          </span>
+        </div>
+        <p class="cp-identity__meta">
+          {{ counterparty.code }} · {{ organizationTypeLabels[counterparty.organizationType] | t }}
+          @if (counterparty.legalForm) {
+            · {{ legalFormLabels[counterparty.legalForm] | t }}
+          }
+          @if (counterparty.identificationCode) {
+            · {{ 'ID' | t }} {{ counterparty.identificationCode }}
+          }
+          · {{ vatLabel(counterparty.vatPayer) | t }}
+        </p>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat__label">{{ 'Balance' | t }}</div>
+        <div class="stat__value cp-placeholder">—</div>
+        <div class="cp-stat-note">{{ 'Not set up yet' | t }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Sales / receipts' | t }}</div>
+        <div class="stat__value cp-placeholder">—</div>
+        <div class="cp-stat-note">{{ 'Not set up yet' | t }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Last operation' | t }}</div>
+        <div class="stat__value cp-placeholder">—</div>
+        <div class="cp-stat-note">{{ 'Not set up yet' | t }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Average sale' | t }}</div>
+        <div class="stat__value cp-placeholder">—</div>
+        <div class="cp-stat-note">{{ 'Not set up yet' | t }}</div>
+      </div>
+    </div>
+
+    <div class="cp-layout">
+      <div class="page-card cp-main">
+        <div class="form-tabs cp-tabs" role="tablist">
+          @for (item of tabs; track item.key) {
+            <button
+              type="button"
+              role="tab"
+              class="form-tabs__tab"
+              [class.form-tabs__tab--active]="tab() === item.key"
+              [attr.aria-selected]="tab() === item.key"
+              (click)="tab.set(item.key)"
+            >
+              {{ item.label | t }}
+              @if (item.key === 'contacts' && contactCount()) {
+                <span class="form-tabs__count">{{ contactCount() }}</span>
+              }
+            </button>
+          }
+        </div>
+
+        @switch (tab()) {
+          @case ('main') {
+            <section class="cp-section" [class.cp-section--editing]="editing() === 'main'">
+              <header class="cp-section__header">
+                <h2 class="cp-section__title">{{ 'Main details' | t }}</h2>
+                @if (editing() !== 'main') {
+                  <button type="button" class="link-button" [disabled]="!!editing()" (click)="startEdit('main')">
+                    {{ 'Change' | t }}
+                  </button>
+                }
+              </header>
+              @if (editing() === 'main' && draft(); as d) {
+                <form class="cp-edit" (ngSubmit)="saveSection()">
+                  <div class="cp-edit__grid">
+                    <div class="field">
+                      <label for="editOrganizationType">{{ 'Organization type' | t }}</label>
+                      <select
+                        id="editOrganizationType"
+                        class="text-select"
+                        name="organizationType"
+                        [ngModel]="d.organizationType"
+                        (ngModelChange)="setDraft('organizationType', $event)"
+                      >
+                        <option value="company">{{ 'Company' | t }}</option>
+                        <option value="individual">{{ 'Individual' | t }}</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="editLegalForm">{{ 'Legal form' | t }}</label>
+                      <select
+                        id="editLegalForm"
+                        class="text-select"
+                        name="legalForm"
+                        [ngModel]="d.legalForm"
+                        (ngModelChange)="setDraft('legalForm', $event)"
+                      >
+                        <option value="">{{ 'Not specified' | t }}</option>
+                        @for (form of draftLegalForms(); track form) {
+                          <option [value]="form">{{ legalFormLabels[form] | t }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="editCode">{{ 'Identification code' | t }}</label>
+                      <input
+                        id="editCode"
+                        class="text-input"
+                        inputmode="numeric"
+                        name="identificationCode"
+                        [ngModel]="d.identificationCode"
+                        (ngModelChange)="setDraft('identificationCode', $event)"
+                      />
+                    </div>
+                    <div class="field">
+                      <label for="editVat">{{ 'VAT status' | t }}</label>
+                      <select
+                        id="editVat"
+                        class="text-select"
+                        name="vatPayer"
+                        [ngModel]="d.vatPayer"
+                        (ngModelChange)="setDraft('vatPayer', $event)"
+                      >
+                        <option [ngValue]="true">{{ 'VAT payer' | t }}</option>
+                        <option [ngValue]="false">{{ 'Not a VAT payer' | t }}</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="editCategory">{{ 'Category' | t }}</label>
+                      <input
+                        id="editCategory"
+                        class="text-input"
+                        name="category"
+                        [ngModel]="d.category"
+                        (ngModelChange)="setDraft('category', $event)"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>{{ 'Internal code' | t }}</label>
+                      <p class="cp-readonly">{{ counterparty.code }}</p>
+                    </div>
+                    <div class="field cp-edit__wide">
+                      <label for="editNote">{{ 'Note' | t }}</label>
+                      <textarea
+                        id="editNote"
+                        class="text-input text-area"
+                        rows="2"
+                        maxlength="1000"
+                        name="note"
+                        [ngModel]="d.note"
+                        (ngModelChange)="setDraft('note', $event)"
+                      ></textarea>
+                    </div>
+                  </div>
+                  <ng-container *ngTemplateOutlet="actions" />
+                </form>
+              } @else {
+                <dl class="cp-section__grid">
+                  <div>
+                    <dt>{{ 'Organization type' | t }}</dt>
+                    <dd>
+                      {{ organizationTypeLabels[counterparty.organizationType] | t }}
+                      @if (counterparty.legalForm) {
+                        · {{ legalFormLabels[counterparty.legalForm] | t }}
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'Identification code' | t }}</dt>
+                    <dd>{{ counterparty.identificationCode ?? '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'VAT status' | t }}</dt>
+                    <dd>{{ vatLabel(counterparty.vatPayer) | t }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'Category' | t }}</dt>
+                    <dd>{{ counterparty.category ?? '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'Internal code' | t }}</dt>
+                    <dd>{{ counterparty.code }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'Created' | t }}</dt>
+                    <dd>
+                      {{ counterparty.createdAt | date: 'dd.MM.yyyy' }}
+                      @if (created()?.source; as source) {
+                        · {{ sourceLabels[source] | t }}
+                      }
+                    </dd>
+                  </div>
+                  @if (counterparty.note) {
+                    <div class="cp-section__wide">
+                      <dt>{{ 'Note' | t }}</dt>
+                      <dd class="cp-note">{{ counterparty.note }}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+            </section>
+
+            <section class="cp-section" [class.cp-section--editing]="editing() === 'contact'">
+              <header class="cp-section__header">
+                <h2 class="cp-section__title">{{ 'Contact and address' | t }}</h2>
+                @if (editing() !== 'contact') {
+                  <button type="button" class="link-button" [disabled]="!!editing()" (click)="startEdit('contact')">
+                    {{ 'Change' | t }}
+                  </button>
+                }
+              </header>
+              @if (editing() === 'contact' && draft(); as d) {
+                <form class="cp-edit" (ngSubmit)="saveSection()">
+                  <div class="cp-edit__grid">
+                    <div class="field">
+                      <label for="editContactPerson">{{ 'Contact person' | t }}</label>
+                      <input
+                        id="editContactPerson"
+                        class="text-input"
+                        name="contactPerson"
+                        [ngModel]="d.contactPerson"
+                        (ngModelChange)="setDraft('contactPerson', $event)"
+                      />
+                    </div>
+                    <div class="field">
+                      <label for="editPhone">{{ 'Phone' | t }}</label>
+                      <input
+                        id="editPhone"
+                        class="text-input"
+                        type="tel"
+                        name="phone"
+                        [ngModel]="d.phone"
+                        (ngModelChange)="setDraft('phone', $event)"
+                      />
+                    </div>
+                    <div class="field">
+                      <label for="editEmail">{{ 'Email' | t }}</label>
+                      <input
+                        id="editEmail"
+                        class="text-input"
+                        type="email"
+                        name="email"
+                        [ngModel]="d.email"
+                        (ngModelChange)="setDraft('email', $event)"
+                      />
+                    </div>
+                    <div class="field cp-edit__wide">
+                      <label for="editAddress">{{ 'Legal address' | t }}</label>
+                      <textarea
+                        id="editAddress"
+                        class="text-input text-area"
+                        rows="2"
+                        name="address"
+                        [ngModel]="d.address"
+                        (ngModelChange)="setDraft('address', $event)"
+                      ></textarea>
+                    </div>
+                    <div class="field cp-edit__wide">
+                      <label for="editActualAddress">{{ 'Actual address' | t }}</label>
+                      <label class="cp-check">
+                        <input
+                          type="checkbox"
+                          name="sameAsAddress"
+                          [ngModel]="d.sameAsAddress"
+                          (ngModelChange)="setDraft('sameAsAddress', $event)"
+                        />
+                        {{ 'Same as the address' | t }}
+                      </label>
+                      @if (!d.sameAsAddress) {
+                        <textarea
+                          id="editActualAddress"
+                          class="text-input text-area"
+                          rows="2"
+                          name="actualAddress"
+                          [ngModel]="d.actualAddress"
+                          (ngModelChange)="setDraft('actualAddress', $event)"
+                        ></textarea>
+                      }
+                    </div>
+                  </div>
+                  <ng-container *ngTemplateOutlet="actions" />
+                </form>
+              } @else {
+                <dl class="cp-section__grid">
+                  <div>
+                    <dt>{{ 'Contact person' | t }}</dt>
+                    <dd>{{ counterparty.contactPerson ?? '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'Phone' | t }}</dt>
+                    <dd>{{ counterparty.phone ?? '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'Email' | t }}</dt>
+                    <dd>{{ counterparty.email ?? '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'Legal address' | t }}</dt>
+                    <dd>{{ counterparty.address ?? '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ 'Actual address' | t }}</dt>
+                    <dd>{{ counterparty.actualAddress ?? ('Same as the legal address' | t) }}</dd>
+                  </div>
+                </dl>
+              }
+            </section>
+
+            @if (counterparty.isClient) {
+              <section class="cp-section" [class.cp-section--editing]="editing() === 'client'">
+                <header class="cp-section__header">
+                  <h2 class="cp-section__title">{{ 'Client terms' | t }}</h2>
+                  @if (editing() !== 'client') {
+                    <button type="button" class="link-button" [disabled]="!!editing()" (click)="startEdit('client')">
+                      {{ 'Change' | t }}
+                    </button>
+                  }
+                </header>
+                @if (editing() === 'client' && draft(); as d) {
+                  <form class="cp-edit" (ngSubmit)="saveSection()">
+                    <div class="cp-edit__grid">
+                      <div class="field">
+                        <label for="editDeferred">{{ 'Payment term' | t }}</label>
+                        <div class="cp-inline">
+                          <label class="cp-check">
+                            <input
+                              id="editDeferred"
+                              type="checkbox"
+                              name="deferredPayment"
+                              [ngModel]="d.deferredPayment"
+                              (ngModelChange)="setDraft('deferredPayment', $event)"
+                            />
+                            {{ 'Deferred payment' | t }}
+                          </label>
+                          @if (d.deferredPayment) {
+                            <input
+                              class="text-input cp-days"
+                              type="number"
+                              min="1"
+                              max="365"
+                              step="1"
+                              name="deferredPaymentDays"
+                              [attr.aria-label]="'Deferred payment term, days' | t"
+                              [ngModel]="d.deferredPaymentDays"
+                              (ngModelChange)="setDraft('deferredPaymentDays', $event)"
+                            />
+                            <span>{{ 'days' | t }}</span>
+                          }
+                        </div>
+                      </div>
+                      <div class="field">
+                        <label>{{ 'Price list' | t }}</label>
+                        <p class="cp-readonly">{{ 'Coming soon' | t }}</p>
+                      </div>
+                      <div class="field">
+                        <label for="editDiscount">{{ 'Discount, %' | t }}</label>
+                        <input
+                          id="editDiscount"
+                          class="text-input"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          name="discountPercent"
+                          [ngModel]="d.discountPercent"
+                          (ngModelChange)="setDraft('discountPercent', $event)"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="editCreditLimit">{{ 'Credit limit, ₾' | t }}</label>
+                        <input
+                          id="editCreditLimit"
+                          class="text-input"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          name="creditLimit"
+                          [ngModel]="d.creditLimit"
+                          (ngModelChange)="setDraft('creditLimit', $event)"
+                        />
+                      </div>
+                    </div>
+                    <ng-container *ngTemplateOutlet="actions" />
+                  </form>
+                } @else {
+                  <dl class="cp-section__grid">
+                    <div>
+                      <dt>{{ 'Payment term' | t }}</dt>
+                      <dd>
+                        {{
+                          counterparty.deferredPaymentDays
+                            ? ('{p0} days' | t: { p0: counterparty.deferredPaymentDays })
+                            : ('Pays at once' | t)
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{{ 'Price list' | t }}</dt>
+                      <dd class="cp-placeholder">—</dd>
+                    </div>
+                    <div>
+                      <dt>{{ 'Discount' | t }}</dt>
+                      <dd>
+                        {{ counterparty.discountPercent !== null ? (counterparty.discountPercent | number: '1.0-2') + '%' : '—' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{{ 'Credit limit' | t }}</dt>
+                      <dd>
+                        {{ counterparty.creditLimit !== null ? (counterparty.creditLimit | number: '1.2-2') + ' ₾' : '—' }}
+                      </dd>
+                    </div>
+                  </dl>
+                }
+              </section>
+            }
+
+            @if (counterparty.isSupplier) {
+              <section class="cp-section" [class.cp-section--editing]="editing() === 'supplier'">
+                <header class="cp-section__header">
+                  <h2 class="cp-section__title">{{ 'Supplier terms' | t }}</h2>
+                  @if (editing() !== 'supplier') {
+                    <button type="button" class="link-button" [disabled]="!!editing()" (click)="startEdit('supplier')">
+                      {{ 'Change' | t }}
+                    </button>
+                  }
+                </header>
+                @if (editing() === 'supplier' && draft(); as d) {
+                  <form class="cp-edit" (ngSubmit)="saveSection()">
+                    <div class="cp-edit__grid">
+                      <div class="field">
+                        <label for="editSupplierPayment">{{ 'Payment term, days' | t }}</label>
+                        <input
+                          id="editSupplierPayment"
+                          class="text-input"
+                          type="number"
+                          min="1"
+                          max="365"
+                          step="1"
+                          name="supplierPaymentDays"
+                          [ngModel]="d.supplierPaymentDays"
+                          (ngModelChange)="setDraft('supplierPaymentDays', $event)"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="editDelivery">{{ 'Delivery term, working days' | t }}</label>
+                        <input
+                          id="editDelivery"
+                          class="text-input"
+                          type="number"
+                          min="1"
+                          max="365"
+                          step="1"
+                          name="deliveryDays"
+                          [ngModel]="d.deliveryDays"
+                          (ngModelChange)="setDraft('deliveryDays', $event)"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="editBankAccount">{{ 'Bank account (IBAN)' | t }}</label>
+                        <input
+                          id="editBankAccount"
+                          class="text-input"
+                          autocomplete="off"
+                          name="bankAccount"
+                          [placeholder]="'e.g. GE29NB0000000101904917' | t"
+                          [ngModel]="d.bankAccount"
+                          (ngModelChange)="setDraft('bankAccount', $event)"
+                        />
+                      </div>
+                    </div>
+                    <ng-container *ngTemplateOutlet="actions" />
+                  </form>
+                } @else {
+                  <dl class="cp-section__grid">
+                    <div>
+                      <dt>{{ 'Payment term' | t }}</dt>
+                      <dd>
+                        {{
+                          counterparty.supplierPaymentDays
+                            ? ('{p0} days' | t: { p0: counterparty.supplierPaymentDays })
+                            : '—'
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{{ 'Delivery term' | t }}</dt>
+                      <dd>
+                        {{
+                          counterparty.deliveryDays
+                            ? ('{p0} working days' | t: { p0: counterparty.deliveryDays })
+                            : '—'
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{{ 'Bank account' | t }}</dt>
+                      <dd>{{ counterparty.bankAccount ?? '—' }}</dd>
+                    </div>
+                  </dl>
+                }
+              </section>
+            }
+          }
+          @case ('contacts') {
+            <section class="cp-section">
+              <header class="cp-section__header">
+                <h2 class="cp-section__title">{{ 'Contact persons' | t }}</h2>
+                <button type="button" class="link-button" (click)="openForm('contacts')">
+                  {{ 'Change' | t }}
+                </button>
+              </header>
+              <div class="table-scroll">
+                <table class="data-table data-table--compact">
+                  <thead>
+                    <tr>
+                      <th>{{ 'Name' | t }}</th>
+                      <th>{{ 'Position' | t }}</th>
+                      <th>{{ 'Phone' | t }}</th>
+                      <th>{{ 'Email' | t }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @if (counterparty.contactPerson) {
+                      <tr>
+                        <td>
+                          <strong>{{ counterparty.contactPerson }}</strong>
+                        </td>
+                        <td class="cp-placeholder">{{ 'Main contact' | t }}</td>
+                        <td>{{ counterparty.phone ?? '—' }}</td>
+                        <td>{{ counterparty.email ?? '—' }}</td>
+                      </tr>
+                    }
+                    @for (contact of counterparty.contacts ?? []; track $index) {
+                      <tr>
+                        <td>{{ contact.firstName }} {{ contact.lastName }}</td>
+                        <td>{{ contact.position }}</td>
+                        <td>{{ contact.phone }}</td>
+                        <td>{{ contact.email }}</td>
+                      </tr>
+                    }
+                    @if (!counterparty.contactPerson && !counterparty.contacts?.length) {
+                      <tr>
+                        <td colspan="4" class="cp-empty">{{ 'No contacts yet.' | t }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          }
+          @case ('documents') {
+            <div class="cp-docs__head">
+              <div>
+                <h2 class="cp-section__title">{{ 'Documents' | t }}</h2>
+                <p class="cp-docs__summary">
+                  {{ '{p0} files' | t: { p0: documents().length } }}
+                  @if (expiredCount()) {
+                    · {{ '{p0} expired' | t: { p0: expiredCount() } }}
+                  }
+                </p>
+              </div>
+              <button type="button" class="button button--outline" (click)="openUpload()">
+                <lucide-icon [img]="UploadIcon" [size]="16"></lucide-icon>
+                {{ 'Upload' | t }}
+              </button>
+            </div>
+            @if (documentsError()) {
+              <p class="field-error">{{ documentsError() | t }}</p>
+            }
+            <div class="table-scroll">
+              <table class="data-table data-table--compact">
+                <thead>
+                  <tr>
+                    <th>{{ 'Name' | t }}</th>
+                    <th>{{ 'Type' | t }}</th>
+                    <th>{{ 'Valid until' | t }}</th>
+                    <th>{{ 'Uploaded by' | t }}</th>
+                    <th>{{ 'Date' | t }}</th>
+                    <th>{{ 'Size' | t }}</th>
+                    <th class="cp-docs__actions-head"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (document of documents(); track document.id) {
+                    <tr>
+                      <td>
+                        <strong class="cp-docs__name">{{ document.name }}</strong>
+                      </td>
+                      <td>
+                        <span class="chip">{{ documentTypeLabels[document.type] | t }}</span>
+                      </td>
+                      <td class="cell-nowrap">
+                        @if (!document.validUntil) {
+                          <span class="cp-placeholder">—</span>
+                        } @else if (isExpired(document)) {
+                          <span class="badge badge--cancelled">
+                            {{ 'Expired' | t }} · {{ document.validUntil | date: 'dd.MM.yyyy' }}
+                          </span>
+                        } @else {
+                          {{ document.validUntil | date: 'dd.MM.yyyy' }}
+                        }
+                      </td>
+                      <td>{{ document.uploadedByName }}</td>
+                      <td class="cell-nowrap">{{ document.createdAt | date: 'dd.MM.yyyy' }}</td>
+                      <td class="cell-nowrap">{{ fileSize(document.size) }}</td>
+                      <td>
+                        <div class="icon-actions">
+                          <button
+                            type="button"
+                            class="icon-action"
+                            [title]="'Download' | t"
+                            [attr.aria-label]="'Download {name}' | t: { name: document.name }"
+                            (click)="download(document)"
+                          >
+                            <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-action icon-action--danger"
+                            [title]="'Delete' | t"
+                            [attr.aria-label]="'Delete {name}' | t: { name: document.name }"
+                            (click)="removeDocument(document)"
+                          >
+                            <lucide-icon [img]="RemoveIcon" [size]="16"></lucide-icon>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="7" class="cp-empty">{{ 'No documents yet.' | t }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          @case ('receipts') {
+            @if (!canSeeReceipts()) {
+              <p class="cp-empty">{{ 'Receipts are part of the WMS module, which you don’t have access to.' | t }}</p>
+            } @else {
+              <div class="cp-docs__head">
+                <div>
+                  <h2 class="cp-section__title">{{ 'Receipts and sales' | t }}</h2>
+                  <p class="cp-docs__summary">
+                    {{ '{p0} documents' | t: { p0: receipts().length } }} ·
+                    {{ 'received {p0} ₾' | t: { p0: (receivedTotal() | number: '1.2-2') } }} ·
+                    {{ 'sales: coming soon' | t }}
+                  </p>
+                </div>
+                <div class="cp-actions">
+                  <select class="text-select cp-kind" [attr.aria-label]="'Type' | t" [(ngModel)]="documentKind">
+                    <option value="all">{{ 'Type: all' | t }}</option>
+                    <option value="receipt">{{ 'Receipts' | t }}</option>
+                    <option value="sale">{{ 'Sales (coming soon)' | t }}</option>
+                  </select>
+                  @if (canAddReceipt()) {
+                    <a class="button button--outline" routerLink="/wms/receipts/new" [queryParams]="{ supplier: counterparty.id }">
+                      + {{ 'Add receipt' | t }}
+                    </a>
+                  }
+                </div>
+              </div>
+              @if (receiptsError()) {
+                <p class="field-error">{{ receiptsError() | t }}</p>
+              }
+              <div class="table-scroll">
+                <table class="data-table data-table--compact cp-receipts">
+                  <thead>
+                    <tr>
+                      <th>{{ 'Document' | t }}</th>
+                      <th>{{ 'Type' | t }}</th>
+                      <th>{{ 'Date' | t }}</th>
+                      <th>{{ 'Basis' | t }}</th>
+                      <th>{{ 'Warehouse' | t }}</th>
+                      <th>{{ 'Lines' | t }}</th>
+                      <th>{{ 'Amount' | t }}</th>
+                      <th>{{ 'RS waybill' | t }}</th>
+                      <th>{{ 'Status' | t }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (receipt of shownReceipts(); track receipt.id) {
+                      <tr>
+                        <td class="cell-nowrap">
+                          <a class="cp-doc-link" [routerLink]="['/wms/receipts', receipt.id]">{{ receipt.code }}</a>
+                        </td>
+                        <td><span class="chip cp-kind-chip">{{ 'Receipt' | t }}</span></td>
+                        <td class="cell-nowrap">{{ receipt.date | date: 'dd.MM.yyyy' }}</td>
+                        <td class="cp-placeholder">—</td>
+                        <td>{{ receipt.warehouse.name }}</td>
+                        <td class="cell-figure">{{ receipt.lineCount }}</td>
+                        <td class="cell-figure cell-nowrap">{{ receipt.total | number: '1.2-2' }} ₾</td>
+                        <td class="cell-nowrap">{{ receipt.waybillNumber ?? '—' }}</td>
+                        <td class="cell-nowrap">
+                          <span [class]="'cp-dot cp-dot--' + receipt.status">
+                            {{ receiptStatusLabels[receipt.status] | t }}
+                          </span>
+                        </td>
+                      </tr>
+                    } @empty {
+                      <tr>
+                        <td colspan="9" class="cp-empty">
+                          {{
+                            documentKind() === 'sale'
+                              ? ('Sales to clients are not built yet.' | t)
+                              : ('No receipts from this counterparty yet.' | t)
+                          }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+          @default {
+            <p class="cp-empty">{{ 'Coming soon' | t }}</p>
+          }
+        }
+      </div>
+
+      <aside class="cp-side">
+        <section class="cp-side-card">
+          <h2 class="cp-side-card__title">{{ 'Balance' | t }}</h2>
+          <dl class="cp-side-card__rows">
+            <div>
+              <dt>{{ 'Balance' | t }}</dt>
+              <dd class="cp-placeholder">—</dd>
+            </div>
+            <div>
+              <dt>{{ 'Overdue' | t }}</dt>
+              <dd class="cp-placeholder">—</dd>
+            </div>
+            <div>
+              <dt>{{ 'Credit limit' | t }}</dt>
+              <dd [class.cp-placeholder]="counterparty.creditLimit === null">
+                {{ counterparty.creditLimit !== null ? (counterparty.creditLimit | number: '1.2-2') + ' ₾' : '—' }}
+              </dd>
+            </div>
+          </dl>
+        </section>
+        <section class="cp-side-card">
+          <h2 class="cp-side-card__title">{{ 'Activity' | t }}</h2>
+          <p class="cp-empty">{{ 'No activity yet.' | t }}</p>
+        </section>
+      </aside>
+    </div>
+  }
+</div>
+
+<ng-template #actions>
+  @if (sectionError()) {
+    <p class="field-error cp-edit__error">{{ sectionError() | t }}</p>
+  }
+  <div class="cp-edit__actions">
+    <button type="button" class="button button--outline" [disabled]="isSaving()" (click)="cancelEdit()">
+      {{ 'Cancel' | t }}
+    </button>
+    <button type="submit" class="button button--primary" [disabled]="isSaving()">
+      {{ isSaving() ? ('Saving…' | t) : ('Save' | t) }}
+    </button>
+  </div>
+</ng-template>
+
+<app-modal [open]="isUploadOpen()" [title]="'Upload a document' | t" (closed)="isUploadOpen.set(false)">
+  @if (isUploadOpen()) {
+    <form class="page-stack" (ngSubmit)="upload()">
+      <div class="field">
+        <label for="documentFile">{{ 'File' | t }} <span class="required-mark">*</span></label>
+        <input id="documentFile" class="text-input cp-file" type="file" [accept]="documentAccept" (change)="onFileChosen($event)" />
+        <p class="field-hint">{{ 'PDF, JPG, PNG, Word or Excel, up to 10 MB.' | t }}</p>
+      </div>
+      <div class="form-grid form-grid--two">
+        <div class="field">
+          <label for="documentType">{{ 'Type' | t }} <span class="required-mark">*</span></label>
+          <select id="documentType" class="text-select" name="type" [(ngModel)]="uploadType">
+            @for (type of documentTypes; track type) {
+              <option [value]="type">{{ documentTypeLabels[type] | t }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="documentValidUntil">{{ 'Valid until' | t }}</label>
+          <input id="documentValidUntil" class="text-input" type="date" name="validUntil" [(ngModel)]="uploadValidUntil" />
+        </div>
+      </div>
+      @if (uploadError()) {
+        <p class="field-error">{{ uploadError() | t }}</p>
+      }
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="isUploadOpen.set(false)">{{ 'Cancel' | t }}</button>
+        <button type="submit" class="button button--primary" [disabled]="isUploading() || !uploadFile()">
+          {{ isUploading() ? ('Uploading…' | t) : ('Upload' | t) }}
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>
+
+<app-modal [open]="isHistoryOpen()" [title]="'History' | t" (closed)="isHistoryOpen.set(false)">
+  @if (isHistoryOpen()) {
+    <div class="table-scroll">
+      <table class="data-table data-table--compact">
+        <thead>
+          <tr>
+            <th>{{ 'Date' | t }}</th>
+            <th>{{ 'User' | t }}</th>
+            <th>{{ 'Action' | t }}</th>
+            <th>{{ 'Source' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of history(); track entry.id) {
+            <tr>
+              <td class="cell-nowrap">{{ entry.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+              <td>{{ entry.actorName }}</td>
+              <td>{{ historyActions[entry.action] ?? entry.action | t }}</td>
+              <td>{{ entry.source ? (sourceLabels[entry.source] | t) : '—' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4" class="cp-empty">{{ 'No history yet.' | t }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</app-modal>
+
+<app-modal [open]="formTab() !== null" [title]="'Edit counterparty' | t" (closed)="formTab.set(null)">
+  @if (formTab(); as startTab) {
+    <app-counterparty-form
+      [counterparty]="counterparty()"
+      [startTab]="startTab"
+      (saved)="onSaved()"
+      (cancelled)="formTab.set(null)"
+    />
+  }
+</app-modal>

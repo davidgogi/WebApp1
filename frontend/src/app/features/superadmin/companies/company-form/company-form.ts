@@ -112,9 +112,12 @@ export class CompanyForm implements OnInit {
   }
 
   protected toggleModule(module: AppModule): void {
-    this.selected.update((list) =>
-      list.includes(module) ? list.filter((m) => m !== module) : [...list, module],
-    );
+    this.selected.update((list) => {
+      if (list.includes(module)) {
+        return list.filter((m) => m !== module && !(module === 'wms' && m === 'store'));
+      }
+      return module === 'store' && !list.includes('wms') ? [...list, 'wms', module] : [...list, module];
+    });
   }
 
   protected toggleTrial(): void {

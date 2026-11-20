@@ -1,0 +1,288 @@
+<div class="page-stack">
+  <div class="page-header">
+    <h1 class="page-title">{{ 'Counterparties' | t }}</h1>
+    <div class="button-row page-header__actions">
+      <button type="button" class="button button--outline" (click)="isImportOpen.set(true)">
+        <lucide-icon [img]="ImportIcon" [size]="16"></lucide-icon>
+        {{ 'Import' | t }}
+      </button>
+      <button
+        type="button"
+        class="button button--outline"
+        [disabled]="isExporting()"
+        (click)="exportCounterparties()"
+      >
+        <lucide-icon [img]="ExportIcon" [size]="16"></lucide-icon>
+        {{ isExporting() ? ('Exporting…' | t) : ('Export' | t) }}
+      </button>
+      <button type="button" class="button button--primary" (click)="openAddForm()">
+        <lucide-icon [img]="PlusIcon" [size]="16"></lucide-icon>
+        {{ 'Add' | t }}
+      </button>
+    </div>
+  </div>
+
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  @if (counterparties().length > 0) {
+    <div class="filter-panel">
+      <div class="field filter-panel__search">
+        <label for="counterpartySearch">{{ 'Search' | t }}</label>
+        <div class="search-input">
+          <lucide-icon [img]="SearchIcon" [size]="16" class="search-input__icon"></lucide-icon>
+          <input
+            id="counterpartySearch"
+            class="text-input"
+            type="search"
+            [(ngModel)]="search"
+            [placeholder]="'Name, identification code, category, contact, phone or email' | t"
+          />
+        </div>
+      </div>
+      <div class="field">
+        <label for="counterpartyTypeFilter">{{ 'Counterparty type' | t }}</label>
+        <select id="counterpartyTypeFilter" class="text-select" [(ngModel)]="counterpartyTypeFilter">
+          <option value="all">{{ 'All' | t }}</option>
+          <option value="supplier">{{ 'Supplier' | t }}</option>
+          <option value="client">{{ 'Client' | t }}</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="counterpartyStatusFilter">{{ 'Status' | t }}</label>
+        <select id="counterpartyStatusFilter" class="text-select" [(ngModel)]="statusFilter">
+          <option value="all">{{ 'All' | t }}</option>
+          <option value="active">{{ 'Active' | t }}</option>
+          <option value="inactive">{{ 'Inactive' | t }}</option>
+        </select>
+      </div>
+      <button
+        type="button"
+        class="button button--outline"
+        [class.button--active]="showMore()"
+        [attr.aria-expanded]="showMore()"
+        (click)="showMore.set(!showMore())"
+      >
+        {{ 'Additional filters' | t }}
+        @if (moreFilterCount()) {
+          <span class="form-tabs__count">{{ moreFilterCount() }}</span>
+        }
+      </button>
+      <button
+        type="button"
+        class="button button--outline"
+        [disabled]="!hasFilters()"
+        (click)="clearFilters()"
+      >
+        {{ 'Clear' | t }}
+      </button>
+
+      @if (showMore()) {
+        <div class="filter-panel__more">
+          <div class="field">
+            <label for="organizationTypeFilter">{{ 'Organization type' | t }}</label>
+            <select id="organizationTypeFilter" class="text-select" [(ngModel)]="organizationTypeFilter">
+              <option value="all">{{ 'All' | t }}</option>
+              <option value="company">{{ 'Company' | t }}</option>
+              <option value="individual">{{ 'Individual' | t }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="counterpartyVatFilter">{{ 'VAT status' | t }}</label>
+            <select id="counterpartyVatFilter" class="text-select" [(ngModel)]="vatFilter">
+              <option value="all">{{ 'All' | t }}</option>
+              <option value="yes">{{ 'VAT payer' | t }}</option>
+              <option value="no">{{ 'Not a VAT payer' | t }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="counterpartyCategoryFilter">{{ 'Category' | t }}</label>
+            <select id="counterpartyCategoryFilter" class="text-select" [(ngModel)]="categoryFilter">
+              <option value="all">{{ 'All' | t }}</option>
+              @for (category of categories(); track category) {
+                <option [value]="category">{{ category }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <div class="page-card">
+    @if (isLoading()) {
+      <p class="page-description">{{ 'Loading…' | t }}</p>
+    } @else if (counterparties().length === 0) {
+      <p class="page-description">
+        {{ 'No counterparties yet. Use “Add” to create the first one.' | t }}
+      </p>
+    } @else {
+      <div class="table-toolbar">
+        <span>
+          @if (hasFilters()) {
+            {{
+              '{p0} of {p1} counterparties' | t: { p0: filtered().length, p1: counterparties().length }
+            }}
+          } @else {
+            {{ '{p0} counterparties' | t: { p0: counterparties().length } }}
+          }
+        </span>
+        <div class="table-toolbar__tools">
+          <app-saved-views [views]="views" [capture]="captureView" (applied)="applyView($event)" />
+          <span>{{ 'Reorder columns by dragging their headers' | t }}</span>
+          <app-column-picker [columnOrder]="columnOrder" />
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table data-table--compact data-table--grips" [appColumns]="columnOrder">
+          <thead>
+            <tr>
+              @for (column of columnOrder.columns(); track column.key) {
+                <th [appColumn]="column.key" [columnOrder]="columnOrder">
+                  <span class="th-content">
+                    {{ column.label | t }}
+                    <app-column-filter
+                      [title]="column.label | t"
+                      [options]="optionsFor(column.key)"
+                      [selected]="selectedFor(column.key)"
+                      (applied)="setColumnFilter(column.key, $event)"
+                    />
+                  </span>
+                </th>
+              }
+              <th>{{ 'Actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (counterparty of pages.items(); track counterparty.id) {
+              <tr>
+                @for (column of columnOrder.columns(); track column.key) {
+                  @switch (column.key) {
+                    @case ('name') {
+                      <td class="cell-strong">{{ counterparty.name }}</td>
+                    }
+                    @case ('idCode') {
+                      <td>
+                        @if (counterparty.identificationCode) {
+                          <code class="code-tag">{{ counterparty.identificationCode }}</code>
+                        } @else {
+                          <span class="muted">—</span>
+                        }
+                      </td>
+                    }
+                    @case ('status') {
+                      <td>
+                        <span
+                          class="badge"
+                          [class]="
+                            counterparty.status === 'active' ? 'badge--active' : 'badge--inactive'
+                          "
+                        >
+                          {{ cell(counterparty, 'status') | t }}
+                        </span>
+                      </td>
+                    }
+                    @case ('counterpartyType') {
+                      <td>{{ cell(counterparty, 'counterpartyType') | t }}</td>
+                    }
+                    @case ('organizationType') {
+                      <td>{{ cell(counterparty, 'organizationType') | t }}</td>
+                    }
+                    @case ('vat') {
+                      <td>{{ cell(counterparty, 'vat') | t }}</td>
+                    }
+                    @default {
+                      <td>
+                        @if (cell(counterparty, column.key)) {
+                          {{ cell(counterparty, column.key) }}
+                        } @else {
+                          <span class="muted">—</span>
+                        }
+                      </td>
+                    }
+                  }
+                }
+                <td>
+                  <div class="icon-actions">
+                    <a
+                      class="icon-action"
+                      [routerLink]="['/parameters/counterparties', counterparty.id]"
+                      [title]="'View' | t"
+                      [attr.aria-label]="'View {name}' | t: { name: counterparty.name }"
+                    >
+                      <lucide-icon [img]="ViewIcon" [size]="18"></lucide-icon>
+                    </a>
+                    <button
+                      type="button"
+                      class="icon-action"
+                      [title]="'Edit' | t"
+                      [attr.aria-label]="'Edit {name}' | t: { name: counterparty.name }"
+                      (click)="editCounterparty(counterparty)"
+                    >
+                      <lucide-icon [img]="EditIcon" [size]="18"></lucide-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-action icon-action--danger"
+                      [disabled]="isUsed(counterparty)"
+                      [title]="deleteTitle(counterparty) | t"
+                      [attr.aria-label]="'Delete {name}' | t: { name: counterparty.name }"
+                      (click)="deleteCounterparty(counterparty)"
+                    >
+                      <lucide-icon [img]="DeleteIcon" [size]="18"></lucide-icon>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td class="muted" [attr.colspan]="columnOrder.columns().length + 1">
+                  {{ 'No counterparties match the search and filters.' | t }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pager [pagination]="pages" />
+    }
+  </div>
+</div>
+
+<app-modal
+  [open]="isFormOpen()"
+  [title]="editing() ? ('Edit counterparty' | t) : ('Add counterparty' | t)"
+  (closed)="isFormOpen.set(false)"
+>
+  @if (isFormOpen()) {
+    <app-counterparty-form
+      [counterparty]="editing()"
+      (saved)="onSaved()"
+      (cancelled)="isFormOpen.set(false)"
+    />
+  }
+</app-modal>
+
+<app-modal
+  [open]="isImportOpen()"
+  [title]="'Import counterparties' | t"
+  (closed)="isImportOpen.set(false)"
+>
+  @if (isImportOpen()) {
+    <app-xlsx-import
+      [source]="counterpartyService.importSource"
+      [columns]="importColumns"
+      [noun]="{ one: 'counterparty', many: 'counterparties' }"
+      [description]="
+        'Add many counterparties at once from an Excel file (.xlsx), one counterparty per row. Start from the template: it has the right columns and dropdowns. The example shows filled-in rows.'
+          | t
+      "
+      templateName="counterparties-template.xlsx"
+      exampleName="counterparties-example.xlsx"
+      codeLabel="Identification code"
+      (imported)="loadCounterparties()"
+      (closed)="isImportOpen.set(false)"
+    />
+  }
+</app-modal>

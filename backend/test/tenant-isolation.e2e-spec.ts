@@ -36,6 +36,15 @@ interface Tenant {
   warehouseId: string;
   productId: string;
   receiptId: string;
+  storeAdmin: string;
+  storeManager: string;
+  cashier: string;
+  cashierEmployeeId: string;
+  salesWarehouseId: string;
+  storeId: string;
+  sessionId: string;
+  saleId: string;
+  saleLineId: string;
 }
 
 interface Reply {
@@ -56,9 +65,9 @@ function digits(count: number): string {
   ).join('');
 }
 
-function partnerDetails() {
+function counterpartyDetails() {
   return {
-    type: 'company',
+    organizationType: 'company',
     identificationCode: digits(9),
     vatPayer: false,
     contactPerson: 'Nino',
@@ -191,8 +200,8 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
       contactPhone: '+995555000000',
       adminFirstName: label,
       adminLastName: 'Admin',
-      modules: ['wms'],
-      modulePrices: { wms: 0 },
+      modules: ['wms', 'store'],
+      modulePrices: { wms: 0, store: 0 },
       subscriptionStart: today,
     },
   );
@@ -226,8 +235,8 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
     wmsAdmin,
     { name: `${secret} group` },
   );
-  const supplier = await ok('POST', '/parameters/partners', wmsAdmin, {
-    ...partnerDetails(),
+  const supplier = await ok('POST', '/parameters/counterparties', wmsAdmin, {
+    ...counterpartyDetails(),
     name: `${secret} supplier`,
     isSupplier: true,
     isClient: false,
@@ -266,6 +275,62 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
     lines: [{ productId: product.id, quantity: 1, unitCost: 1 }],
   });
 
+  const salesWarehouse = await ok('POST', '/wms/warehouses', wmsAdmin, {
+    name: `${secret} sales warehouse`,
+    type: 'sales',
+    branch: 'Vake',
+    address: 'Tbilisi',
+  });
+  const stockReceipt = await ok('POST', '/wms/receipts', wmsAdmin, {
+    warehouseId: salesWarehouse.id,
+    supplierId: supplier.id,
+    date: today,
+    lines: [{ productId: product.id, quantity: 10, unitCost: 1 }],
+  });
+  await ok('POST', `/wms/receipts/${stockReceipt.id}/post`, wmsAdmin);
+
+  const person = (firstName: string, extra: Record<string, unknown>) => ({
+    firstName,
+    lastName: 'Person',
+    personalId: digits(11),
+    email: `${label.toLowerCase()}-${digits(6)}@example.com`,
+    phone: '+995555111111',
+    birthDate: '1990-01-01',
+    hireDate: '2020-01-01',
+    position: 'Store',
+    ...extra,
+  });
+  const withLogin = async (token: string, data: Record<string, unknown>) => {
+    const added = await ok('POST', '/hr/employees', token, data);
+    const access = await ok('POST', `/hr/employees/${added.id}/credentials`, token);
+    return { id: added.id as string, token: await login(access.username, access.password) };
+  };
+  const storeAdmin = await withLogin(systemAdmin, person(`${secret} store admin`, { role: 'admin', module: 'store' }));
+  const store = await ok('POST', '/store/stores', storeAdmin.token, {
+    name: `${secret} store`,
+    address: 'Tbilisi',
+    registers: 2,
+    warehouseId: salesWarehouse.id,
+  });
+  const storeManager = await withLogin(storeAdmin.token, person(`${secret} manager`, { role: 'manager', module: 'store' }));
+  await ok('PATCH', `/store/stores/${store.id}`, storeAdmin.token, { managerId: storeManager.id });
+  const cashier = await withLogin(
+    storeManager.token,
+    person(`${secret} cashier`, { role: 'cashier', module: 'store', workplaceIds: [store.id] }),
+  );
+  await ok('PUT', '/store/cash-register/pin', cashier.token, { newPin: '1234' });
+  await ok('PUT', '/store/cash-register/pin', storeManager.token, { newPin: '1234' });
+  const session = await ok('POST', '/store/cash-register/sessions', cashier.token, {
+    storeId: store.id,
+    registerNo: 1,
+    openingCash: 10,
+    pin: '1234',
+  });
+  const sale = await ok('POST', '/store/pos/sales', cashier.token, {
+    items: [{ productId: product.id, quantity: 1 }],
+    paymentMethod: 'cash',
+  });
+
   return {
     label,
     secret,
@@ -279,6 +344,15 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
     warehouseId: warehouse.id,
     productId: product.id,
     receiptId: receipt.id,
+    storeAdmin: storeAdmin.token,
+    storeManager: storeManager.token,
+    cashier: cashier.token,
+    cashierEmployeeId: cashier.id,
+    salesWarehouseId: salesWarehouse.id,
+    storeId: store.id,
+    sessionId: session.id,
+    saleId: sale.id,
+    saleLineId: sale.lines[0].id,
   };
 }
 
@@ -336,7 +410,7 @@ describe('tenant isolation', () => {
     '/wms/warehouses',
     '/wms/products',
     '/wms/categories',
-    '/parameters/partners',
+    '/parameters/counterparties',
     '/wms/receipts',
   ];
 
@@ -384,19 +458,19 @@ describe('tenant isolation', () => {
     expectRefused(
       await call(
         'GET',
-        `/parameters/partners/${b.supplierId}/history`,
+        `/parameters/counterparties/${b.supplierId}/history`,
         a.wmsAdmin,
       ),
       b,
     );
     const ownHistory = await call(
       'GET',
-      `/parameters/partners/${b.supplierId}/history`,
+      `/parameters/counterparties/${b.supplierId}/history`,
       b.wmsAdmin,
     );
     expect(ownHistory.status).toBe(200);
     expect(ownHistory.body.map((entry: { action: string }) => entry.action)).toContain(
-      'partner.create',
+      'counterparty.create',
     );
   });
 
@@ -433,7 +507,7 @@ describe('tenant isolation', () => {
       b,
     );
     expectRefused(
-      await call('PATCH', `/parameters/partners/${b.supplierId}`, a.wmsAdmin, hacked),
+      await call('PATCH', `/parameters/counterparties/${b.supplierId}`, a.wmsAdmin, hacked),
       b,
     );
     expectRefused(
@@ -490,7 +564,7 @@ describe('tenant isolation', () => {
       b,
     );
     expectRefused(
-      await call('DELETE', `/parameters/partners/${b.supplierId}`, a.wmsAdmin),
+      await call('DELETE', `/parameters/counterparties/${b.supplierId}`, a.wmsAdmin),
       b,
     );
     expectRefused(
@@ -515,27 +589,27 @@ describe('tenant isolation', () => {
     expect((await call('GET', '/wms/categories', b.wmsAdmin)).text).toContain(
       b.categoryId,
     );
-    expect((await call('GET', '/parameters/partners', b.wmsAdmin)).text).toContain(
+    expect((await call('GET', '/parameters/counterparties', b.wmsAdmin)).text).toContain(
       b.supplierId,
     );
   });
 
-  it("a partners import isn't affected by the other company's partners", async () => {
+  it("a counterparties import isn't affected by the other company's counterparties", async () => {
     const name = `${b.secret} imported`;
     const code = digits(9);
-    await ok('POST', '/parameters/partners', b.wmsAdmin, {
-      ...partnerDetails(),
+    await ok('POST', '/parameters/counterparties', b.wmsAdmin, {
+      ...counterpartyDetails(),
       name,
       isSupplier: true,
       isClient: false,
       identificationCode: code,
     });
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Partners');
+    const sheet = workbook.addWorksheet('Counterparties');
     sheet.addRow([
       'Name',
-      'Type',
-      'Role',
+      'Organization type',
+      'Counterparty type',
       'Category',
       'Identification code',
       'VAT payer',
@@ -562,9 +636,9 @@ describe('tenant isolation', () => {
     form.append(
       'file',
       new Blob([(await workbook.xlsx.writeBuffer()) as ArrayBuffer]),
-      'partners.xlsx',
+      'counterparties.xlsx',
     );
-    const response = await fetch(`${baseUrl}/parameters/partners/import/check`, {
+    const response = await fetch(`${baseUrl}/parameters/counterparties/import/check`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${a.wmsAdmin}` },
       body: form,
@@ -572,6 +646,46 @@ describe('tenant isolation', () => {
     const report = await response.json();
     expect(report.errors).toEqual([]);
     expect(report.validRows).toBe(1);
+  });
+
+  it("the other company's counterparty documents cannot be reached", async () => {
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([`${a.secret} contract`], { type: 'application/pdf' }),
+      'contract.pdf',
+    );
+    form.append('type', 'contract');
+    const upload = await fetch(
+      `${baseUrl}/parameters/counterparties/${a.supplierId}/documents`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${a.wmsAdmin}` },
+        body: form,
+      },
+    );
+    expect(upload.status).toBe(201);
+    const document = (await upload.json()) as { id: string };
+    const base = `/parameters/counterparties/${a.supplierId}/documents`;
+    const file = `${base}/${document.id}/file`;
+
+    expect((await call('GET', file, a.wmsAdmin)).text).toContain(a.secret);
+    expect((await call('GET', base, b.wmsAdmin)).status).toBe(404);
+    expect((await call('GET', file, b.wmsAdmin)).status).toBe(404);
+    expect(
+      (await call('GET', `/parameters/counterparties/${b.supplierId}/documents/${document.id}/file`, b.wmsAdmin)).status,
+    ).toBe(404);
+    expect((await call('DELETE', `${base}/${document.id}`, b.wmsAdmin)).status).toBe(404);
+    const intruder = new FormData();
+    intruder.append('file', new Blob(['x']), 'x.pdf');
+    intruder.append('type', 'other');
+    const foreignUpload = await fetch(`${baseUrl}${base}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${b.wmsAdmin}` },
+      body: intruder,
+    });
+    expect(foreignUpload.status).toBe(404);
+    expect((await call('GET', base, a.wmsAdmin)).text).not.toContain('x.pdf');
   });
 
   it("nobody can issue a login for the other company's people", async () => {
@@ -664,6 +778,51 @@ describe('tenant isolation', () => {
     );
   });
 
+  it("the other company's store, registers and sales stay out of reach", async () => {
+    const storeLists = ['/store/stores', '/store/cash-register/sessions', '/store/sales', '/store/reports/daily'];
+    for (const path of storeLists) {
+      const own = await call('GET', path, a.storeAdmin);
+      expect(own.status, path).toBe(200);
+      expect(own.text, path).toContain(a.secret);
+      expect(own.text, path).not.toContain(b.secret);
+      const admin = await call('GET', path, a.systemAdmin);
+      expect(admin.status, path).toBe(200);
+      expect(admin.text, path).not.toContain(b.secret);
+    }
+    expect((await call('GET', '/store/stores/options', a.storeAdmin)).text).not.toContain(b.secret);
+
+    expectRefused(await call('GET', `/store/cash-register/sessions/${b.sessionId}`, a.systemAdmin), b);
+    expectRefused(await call('GET', `/store/sales/${b.saleId}`, a.systemAdmin), b);
+    expectRefused(await call('GET', `/store/reports/cash-movement/${b.sessionId}/export`, a.systemAdmin), b);
+    expectRefused(await call('GET', `/store/cash-register/registers?storeId=${b.storeId}`, a.cashier), b);
+
+    expectRefused(await call('PATCH', `/store/stores/${b.storeId}`, a.storeAdmin, { name: `hacked by ${a.label}` }), b);
+    expectRefused(await call('DELETE', `/store/stores/${b.storeId}`, a.storeAdmin), b);
+    expectRefused(await call('PATCH', `/store/cash-register/sessions/${b.sessionId}/comment`, a.storeAdmin, { comment: 'hacked' }), b);
+    expectRefused(await call('POST', `/store/cash-register/sessions/${b.sessionId}/coverages`, a.storeAdmin, { amount: 1 }), b);
+    expectRefused(await call('POST', `/store/cash-register/sessions/${b.sessionId}/cash-moves`, a.cashier, { kind: 'in', amount: 1, note: 'x' }), b);
+    expectRefused(await call('POST', `/store/cash-register/sessions/${b.sessionId}/close`, a.storeManager, { countedCash: 0, note: 'x', pin: '1234' }), b);
+    expectRefused(await call('POST', `/hr/employees/${b.cashierEmployeeId}/pin-reset`, a.storeManager), b);
+
+    expectRefused(
+      await call('POST', '/store/stores', a.storeAdmin, { name: `${a.secret} borrowed`, address: 'x', registers: 1, warehouseId: b.salesWarehouseId }),
+      b,
+    );
+    expectRefused(await call('PATCH', `/store/stores/${a.storeId}`, a.storeAdmin, { warehouseId: b.salesWarehouseId }), b);
+    expectRefused(
+      await call('POST', '/store/pos/sales', a.cashier, { items: [{ productId: b.productId, quantity: 1 }], paymentMethod: 'card' }),
+      b,
+    );
+    await ok('POST', '/store/cash-register/sessions', a.storeManager, { storeId: a.storeId, registerNo: 2, openingCash: 0, pin: '1234' });
+    expectRefused(await call('POST', `/store/sales/${b.saleId}/returns`, a.storeManager, { lines: [{ lineId: b.saleLineId, quantity: 1 }] }), b);
+    expectRefused(await call('POST', `/store/sales/${a.saleId}/returns`, a.storeManager, { lines: [{ lineId: b.saleLineId, quantity: 1 }] }), b);
+
+    const bSale = await call('GET', `/store/sales/${b.saleId}`, b.storeAdmin);
+    expect(bSale.status).toBe(200);
+    expect(bSale.body.returns).toEqual([]);
+    expect((await call('GET', '/store/stores', b.storeAdmin)).text).not.toContain('hacked');
+  });
+
   it("the database shows the app role only the current company's rows", async () => {
     await asAppRole(async (runner) => {
       const count = async (sql: string, parameters: unknown[] = []) =>
@@ -686,6 +845,9 @@ describe('tenant isolation', () => {
         ]),
       ).toBe(0);
       expect(await count('SELECT count(*) FROM product_groups WHERE id = $1', [b.groupId])).toBe(0);
+      expect(await count('SELECT count(*) FROM sales WHERE id = $1', [b.saleId])).toBe(0);
+      expect(await count('SELECT count(*) FROM register_sessions WHERE id = $1', [b.sessionId])).toBe(0);
+      expect(await count('SELECT count(*) FROM stores WHERE id = $1', [b.storeId])).toBe(0);
       expect(
         await count('SELECT count(*) FROM employees WHERE id = $1', [
           b.employeeId,
@@ -719,6 +881,12 @@ describe('tenant isolation', () => {
       ).rejects.toThrow(/foreign key/);
       await expect(
         connection.query(`UPDATE products SET group_id = $1 WHERE id = $2`, [b.groupId, a.productId]),
+      ).rejects.toThrow(/foreign key/);
+      await expect(
+        connection.query(`UPDATE stores SET warehouse_id = $1 WHERE id = $2`, [b.salesWarehouseId, a.storeId]),
+      ).rejects.toThrow(/foreign key/);
+      await expect(
+        connection.query(`UPDATE sales SET session_id = $1 WHERE id = $2`, [b.sessionId, a.saleId]),
       ).rejects.toThrow(/foreign key/);
     } finally {
       await connection.destroy();

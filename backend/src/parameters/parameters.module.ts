@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { RouterModule } from '@nestjs/core';
-import { PartnersModule } from './partners/partners.module.js';
+import { CounterpartiesModule } from './counterparties/counterparties.module.js';
 
 @Module({
   imports: [
-    PartnersModule,
-    RouterModule.register([{ path: 'parameters', children: [PartnersModule] }]),
+    CounterpartiesModule,
+    RouterModule.register([{ path: 'parameters', children: [CounterpartiesModule] }]),
   ],
 })
 export class ParametersModule {}

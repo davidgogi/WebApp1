@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StockModule } from '../stock/stock.module.js';
 import { Category } from '../categories/category.entity.js';
-import { Partner } from '../../parameters/partners/partner.entity.js';
+import { Counterparty } from '../../parameters/counterparties/counterparty.entity.js';
 import { ProductGroup } from '../categories/product-group.entity.js';
 import { Product } from './product.entity.js';
 import { ProductsService } from './products.service.js';
@@ -10,7 +10,7 @@ import { ProductExcelService } from './product-excel.service.js';
 import { ProductsController } from './products.controller.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Product, Category, ProductGroup, Partner]), StockModule],
+  imports: [TypeOrmModule.forFeature([Product, Category, ProductGroup, Counterparty]), StockModule],
   controllers: [ProductsController],
   providers: [ProductsService, ProductExcelService],
   exports: [ProductsService],

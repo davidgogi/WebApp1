@@ -3,8 +3,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
-import { Partner } from '../../../../shared/partners/partner.model';
-import { PartnerService } from '../../../../shared/partners/partner.service';
+import { Counterparty } from '../../../../shared/counterparties/counterparty.model';
+import { CounterpartyService } from '../../../../shared/counterparties/counterparty.service';
 import { Product, ProductPosStatus, ProductStatus, ProductUnit, ProductUsage } from '../product.model';
 import { ProductService } from '../product.service';
 import { Combobox, ComboOption } from '../../../../shared/combobox/combobox';
@@ -18,7 +18,7 @@ import { TranslatePipe } from '../../../../core/i18n/t.pipe';
 export class ProductForm implements OnInit {
   private readonly productService = inject(ProductService);
   private readonly categoryService = inject(CategoryService);
-  private readonly partnerService = inject(PartnerService);
+  private readonly counterpartyService = inject(CounterpartyService);
 
   readonly product = input<Product | null>(null);
   readonly initial = input<Partial<Pick<Product, 'name' | 'barcode' | 'unit'>> | null>(null);
@@ -43,7 +43,7 @@ export class ProductForm implements OnInit {
   protected readonly isSavingGroup = signal(false);
   protected readonly supplierId = signal('');
   protected readonly allCategories = signal<Category[] | null>(null);
-  protected readonly allSuppliers = signal<Partner[] | null>(null);
+  protected readonly allSuppliers = signal<Counterparty[] | null>(null);
   protected readonly status = signal<ProductStatus>('active');
   protected readonly usage = signal<ProductUsage>('sale');
   protected readonly posStatus = signal<ProductPosStatus>('storage');
@@ -85,8 +85,8 @@ export class ProductForm implements OnInit {
       next: (categories) => this.allCategories.set(categories),
       error: () => this.formError.set('Could not load the categories.'),
     });
-    this.partnerService.list().subscribe({
-      next: (partners) => this.allSuppliers.set(partners.filter((partner) => partner.isSupplier)),
+    this.counterpartyService.list().subscribe({
+      next: (counterparties) => this.allSuppliers.set(counterparties.filter((counterparty) => counterparty.isSupplier)),
       error: () => this.formError.set('Could not load the suppliers.'),
     });
     const product = this.product();

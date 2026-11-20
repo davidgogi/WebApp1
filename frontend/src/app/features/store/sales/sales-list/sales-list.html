@@ -1,0 +1,111 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">{{ 'Store' | t }}</p>
+      <h1 class="page-title">{{ 'Sales' | t }}</h1>
+      <p class="page-description">
+        {{ 'Every sale (S-…) and return (R-…) rung up at the registers. Open a sale to see its lines or to return goods.' | t }}
+      </p>
+    </div>
+  </div>
+
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  <div class="page-card">
+    <div class="table-filters">
+      <div class="search-input table-filters__search">
+        <lucide-icon [img]="SearchIcon" [size]="16" class="search-input__icon"></lucide-icon>
+        <input
+          class="text-input"
+          type="search"
+          [aria-label]="'Search sales' | t"
+          [(ngModel)]="search"
+          [placeholder]="'Number, store or who rang it up' | t"
+        />
+      </div>
+      <input class="text-input" type="date" [aria-label]="'From' | t" [(ngModel)]="from" (change)="load()" />
+      <input class="text-input" type="date" [aria-label]="'To' | t" [(ngModel)]="to" (change)="load()" />
+      @if (stores().length > 1) {
+        <select class="text-select" [aria-label]="'Store' | t" [(ngModel)]="storeFilter" (ngModelChange)="load()">
+          <option value="">{{ 'All stores' | t }}</option>
+          @for (store of stores(); track store.id) {
+            <option [value]="store.id">{{ store.name }}</option>
+          }
+        </select>
+      }
+      <select class="text-select" [aria-label]="'Type' | t" [(ngModel)]="kindFilter">
+        <option value="all">{{ 'Sales and returns' | t }}</option>
+        <option value="sale">{{ 'Sales' | t }}</option>
+        <option value="return">{{ 'Returns' | t }}</option>
+      </select>
+      <select class="text-select" [aria-label]="'Payment' | t" [(ngModel)]="methodFilter">
+        <option value="all">{{ 'Cash and card' | t }}</option>
+        <option value="cash">{{ 'Cash' | t }}</option>
+        <option value="card">{{ 'Card' | t }}</option>
+      </select>
+      <button type="button" class="link-button" (click)="clearFilters()">{{ 'Clear' | t }}</button>
+    </div>
+
+    @if (isLoading()) {
+      <p class="page-description">{{ 'Loading…' | t }}</p>
+    } @else if (filtered().length === 0) {
+      <p class="page-description">{{ 'No sales in this period.' | t }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'Number' | t }}</th>
+              <th>{{ 'Type' | t }}</th>
+              <th>{{ 'Date' | t }}</th>
+              <th>{{ 'Store' | t }}</th>
+              <th>{{ 'Register' | t }}</th>
+              <th>{{ 'Payment' | t }}</th>
+              <th>{{ 'Lines' | t }}</th>
+              <th>{{ 'Total' | t }}</th>
+              <th>{{ 'Returned' | t }}</th>
+              <th>{{ 'Rung up by' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (sale of pages.items(); track sale.id) {
+              <tr>
+                <td class="cell-strong"><a [routerLink]="['/store/sales', sale.id]">{{ sale.code }}</a></td>
+                <td>
+                  <span class="badge" [class.badge--done]="sale.kind === 'sale'" [class.badge--cancelled]="sale.kind === 'return'">
+                    {{ kindLabels[sale.kind] | t }}
+                  </span>
+                  @if (sale.original; as original) {
+                    <div class="muted">
+                      {{ 'Return of' | t }} <a [routerLink]="['/store/sales', original.id]">{{ original.code }}</a>
+                    </div>
+                  }
+                </td>
+                <td class="cell-nowrap">{{ sale.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                <td>{{ sale.storeName }}</td>
+                <td class="cell-figure">
+                  <a [routerLink]="['/store/cash-register', sale.sessionId]">#{{ sale.registerNo }}</a>
+                </td>
+                <td>{{ paymentLabels[sale.paymentMethod] | t }}</td>
+                <td class="cell-figure">{{ sale.lineCount }}</td>
+                <td class="cell-figure" [class.change-out]="sale.kind === 'return'">
+                  {{ sale.kind === 'return' ? '−' : '' }}₾{{ sale.total | number: '1.2-2' }}
+                </td>
+                <td class="cell-figure">{{ sale.returnedTotal ? '₾' + (sale.returnedTotal | number: '1.2-2') : '–' }}</td>
+                <td class="cell-nowrap">{{ sale.createdByName }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="doc-total">
+        <span>{{ 'Sales' | t }}: <strong>₾{{ totals().sales | number: '1.2-2' }}</strong></span>
+        <span>{{ 'Returns' | t }}: <strong>₾{{ totals().returns | number: '1.2-2' }}</strong></span>
+        <span>{{ 'Net sales' | t }}: <strong>₾{{ totals().sales - totals().returns | number: '1.2-2' }}</strong></span>
+      </div>
+      <app-pager [pagination]="pages" />
+    }
+  </div>
+</div>

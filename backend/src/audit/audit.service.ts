@@ -17,7 +17,7 @@ export interface AuditEntry extends AuditDetails {
   summary: string;
 }
 
-const DETAIL_ROW = `NOT (audit.action = 'partner.import' AND audit.entity_id IS NOT NULL)`;
+const DETAIL_ROW = `NOT (audit.action = 'counterparty.import' AND audit.entity_id IS NOT NULL)`;
 
 @Injectable()
 export class AuditService {

@@ -22,7 +22,7 @@ export class StoresList implements OnInit {
     return role === 'system_admin' || role === 'module_admin';
   });
   protected readonly canManage = computed(() => this.auth.user()?.role === 'module_admin');
-  protected readonly options = signal<StoreOptions>({ managers: [] });
+  protected readonly options = signal<StoreOptions>({ managers: [], warehouses: [] });
 
   protected readonly stores = signal<Store[]>([]);
   protected readonly isLoading = signal(false);
@@ -35,6 +35,15 @@ export class StoresList implements OnInit {
   protected readonly address = signal('');
   protected readonly registers = signal(1);
   protected readonly managerId = signal('');
+  protected readonly warehouseId = signal('');
+
+  protected readonly warehouseChoices = computed(() =>
+    this.options().warehouses.filter(
+      (warehouse) =>
+        warehouse.id === this.warehouseId() ||
+        (warehouse.status === 'active' && (!warehouse.storeId || warehouse.storeId === this.editingId())),
+    ),
+  );
 
   ngOnInit(): void {
     this.load();
@@ -62,12 +71,17 @@ export class StoresList implements OnInit {
       this.errorMessage.set('Store name and address are required.');
       return;
     }
+    if (!this.warehouseId()) {
+      this.errorMessage.set('Choose the store\'s sales warehouse.');
+      return;
+    }
 
     const payload = {
       name: this.name().trim(),
       address: this.address().trim(),
       registers: Math.min(50, Math.max(1, Math.round(Number(this.registers()) || 1))),
       managerId: this.managerId() || null,
+      warehouseId: this.warehouseId(),
     };
     const id = this.editingId();
     const request = id ? this.storeService.update(id, payload) : this.storeService.create(payload);
@@ -79,6 +93,7 @@ export class StoresList implements OnInit {
         this.isSaving.set(false);
         this.resetForm();
         this.load();
+        this.storeService.options().subscribe((options) => this.options.set(options));
       },
       error: (error: HttpErrorResponse) => {
         this.isSaving.set(false);
@@ -94,11 +109,12 @@ export class StoresList implements OnInit {
     this.address.set(store.address);
     this.registers.set(store.registers);
     this.managerId.set(store.manager?.id ?? '');
+    this.warehouseId.set(store.warehouse?.id ?? '');
     this.errorMessage.set('');
   }
 
   remove(store: Store): void {
-    if (!this.i18n.confirm(this.i18n.t('Delete {name}? Its register history is deleted too.', { name: store.name }))) {
+    if (!this.i18n.confirm(this.i18n.t('Delete {name}?', { name: store.name }))) {
       return;
     }
     this.storeService.remove(store.id).subscribe({
@@ -108,7 +124,10 @@ export class StoresList implements OnInit {
         }
         this.load();
       },
-      error: () => this.errorMessage.set('Could not delete the store.'),
+      error: (error: HttpErrorResponse) => {
+        const message = error.error?.message;
+        this.errorMessage.set(typeof message === 'string' ? message : 'Could not delete the store.');
+      },
     });
   }
 
@@ -118,5 +137,6 @@ export class StoresList implements OnInit {
     this.address.set('');
     this.registers.set(1);
     this.managerId.set('');
+    this.warehouseId.set('');
   }
 }

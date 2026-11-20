@@ -9,9 +9,9 @@ import { Modal } from '../../../../shared/modal/modal';
 import { ProductForm } from '../../products/product-form/product-form';
 import { Product, ProductOption, ProductUnit } from '../../products/product.model';
 import { ProductService } from '../../products/product.service';
-import { PartnerForm } from '../../../../shared/partners/partner-form/partner-form';
-import { Partner, PartnerPayload } from '../../../../shared/partners/partner.model';
-import { PartnerService } from '../../../../shared/partners/partner.service';
+import { CounterpartyForm } from '../../../../shared/counterparties/counterparty-form/counterparty-form';
+import { Counterparty, CounterpartyPayload } from '../../../../shared/counterparties/counterparty.model';
+import { CounterpartyService } from '../../../../shared/counterparties/counterparty.service';
 import { PickableProduct, ProductPicker } from '../../stock/product-picker/product-picker';
 import { WarehouseOption } from '../../warehouses/warehouse.model';
 import { WarehouseService } from '../../warehouses/warehouse.service';
@@ -57,7 +57,7 @@ const today = () => new Date().toLocaleDateString('sv-SE');
     ProductPicker,
     Modal,
     ProductForm,
-    PartnerForm,
+    CounterpartyForm,
   ],
   templateUrl: './receipt-editor.html',
   styleUrl: './receipt-editor.css',
@@ -82,11 +82,12 @@ export class ReceiptEditor implements OnInit {
   private readonly receiptService = inject(ReceiptService);
   private readonly productService = inject(ProductService);
   private readonly warehouseService = inject(WarehouseService);
-  private readonly partnerService = inject(PartnerService);
+  private readonly counterpartyService = inject(CounterpartyService);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
 
   readonly id = input<string>();
+  readonly supplier = input<string>();
 
   protected readonly DeleteIcon = Trash2;
   protected readonly PlusIcon = Plus;
@@ -118,7 +119,7 @@ export class ReceiptEditor implements OnInit {
   protected readonly linkedSupplier = computed(
     () => this.suppliers().find((s) => s.id === this.supplierId()) ?? null,
   );
-  protected readonly newSupplierDraft = computed<Partial<PartnerPayload> | null>(() => {
+  protected readonly newSupplierDraft = computed<Partial<CounterpartyPayload> | null>(() => {
     const seller = this.rsSeller();
     if (!seller) {
       return null;
@@ -126,7 +127,7 @@ export class ReceiptEditor implements OnInit {
     const tin = seller.tin ?? '';
     return {
       name: seller.name ?? tin,
-      type: tin.length === 11 ? 'individual' : 'company',
+      organizationType: tin.length === 11 ? 'individual' : 'company',
       identificationCode: /^(\d{9}|\d{11})$/.test(tin) ? tin : null,
     };
   });
@@ -152,6 +153,10 @@ export class ReceiptEditor implements OnInit {
   );
 
   ngOnInit(): void {
+    const supplier = this.supplier();
+    if (!this.id() && supplier) {
+      this.supplierId.set(supplier);
+    }
     this.warehouseService.options().subscribe({
       next: (warehouses) => {
         this.warehouses.set(warehouses);
@@ -161,7 +166,7 @@ export class ReceiptEditor implements OnInit {
       },
       error: () => this.errorMessage.set('Could not load warehouses.'),
     });
-    this.partnerService.supplierOptions().subscribe({
+    this.counterpartyService.supplierOptions().subscribe({
       next: (suppliers) =>
         this.suppliers.update((current) => [
           ...suppliers,
@@ -257,7 +262,7 @@ export class ReceiptEditor implements OnInit {
       : null;
   });
 
-  onSupplierCreated(supplier: Partner): void {
+  onSupplierCreated(supplier: Counterparty): void {
     this.isSupplierFormOpen.set(false);
     this.suppliers.update((list) => [
       ...list,

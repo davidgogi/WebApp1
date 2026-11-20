@@ -3,10 +3,9 @@ import { AuthUser } from '../../auth/auth-user.js';
 import { Access, CurrentUser, Roles } from '../../auth/decorators.js';
 import { UserRole } from '../../auth/user-role.enum.js';
 import { AppModuleName } from '../../companies/app-module.enum.js';
-import { Sale } from '../cash-register/sale.entity.js';
-import { CreateSaleDto } from './dto/create-sale.dto.js';
-import { PosService } from './pos.service.js';
-import { StoreProduct } from './store-product.entity.js';
+import { CreateSaleDto } from '../sales/dto/sale.dto.js';
+import { SaleDetail } from '../sales/sales.service.js';
+import { PosCatalog, PosService } from './pos.service.js';
 
 @Controller('pos')
 @Access(AppModuleName.STORE)
@@ -14,13 +13,13 @@ import { StoreProduct } from './store-product.entity.js';
 export class PosController {
   constructor(private readonly posService: PosService) {}
 
-  @Get('products')
-  products(@CurrentUser() user: AuthUser): Promise<StoreProduct[]> {
-    return this.posService.products(user);
+  @Get('catalog')
+  catalog(@CurrentUser() user: AuthUser): Promise<PosCatalog> {
+    return this.posService.catalog(user);
   }
 
   @Post('sales')
-  createSale(@CurrentUser() user: AuthUser, @Body() dto: CreateSaleDto): Promise<Sale> {
-    return this.posService.createSale(user, dto);
+  sell(@CurrentUser() user: AuthUser, @Body() dto: CreateSaleDto): Promise<SaleDetail> {
+    return this.posService.sell(user, dto);
   }
 }

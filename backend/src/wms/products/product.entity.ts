@@ -16,7 +16,7 @@ import { decimalTransformer } from '../../common/decimal.transformer.js';
 import { Category } from '../categories/category.entity.js';
 import { ProductGroup } from '../categories/product-group.entity.js';
 import { ProductWarehouse } from '../stock/product-warehouse.entity.js';
-import { Partner } from '../../parameters/partners/partner.entity.js';
+import { Counterparty } from '../../parameters/counterparties/counterparty.entity.js';
 import { ProductPosStatus } from './product-pos-status.enum.js';
 import { ProductStatus } from './product-status.enum.js';
 import { ProductUnit } from './product-unit.enum.js';
@@ -54,9 +54,9 @@ export class Product extends TenantEntity {
   @Column({ name: 'supplier_id', type: 'uuid' })
   supplierId!: string;
 
-  @ManyToOne(() => Partner, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Counterparty, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'supplier_id' })
-  supplier?: Pick<Partner, 'id' | 'name' | 'status'>;
+  supplier?: Pick<Counterparty, 'id' | 'name' | 'status'>;
 
   @Column({ type: 'enum', enum: ProductStatus, default: ProductStatus.ACTIVE })
   status!: ProductStatus;

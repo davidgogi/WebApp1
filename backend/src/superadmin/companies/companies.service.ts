@@ -17,7 +17,6 @@ import { Company } from '../../companies/company.entity.js';
 import { CompanyStatus } from '../../companies/company-status.enum.js';
 import { LegalForm } from '../../companies/legal-form.enum.js';
 import { Employee } from '../../hr/employees/employee.entity.js';
-import { PosService } from '../../store/pos/pos.service.js';
 import { Billing, billingOf } from './billing.js';
 import { CompanyPayment } from './company-payment.entity.js';
 import { CreateCompanyDto, CreatePaymentDto, UpdateCompanyDto } from './dto/company.dto.js';
@@ -65,7 +64,6 @@ export class CompaniesService {
     @InjectRepository(CompanyPayment)
     private readonly paymentsRepository: Repository<CompanyPayment>,
     private readonly users: UsersService,
-    private readonly pos: PosService,
     private readonly audit: AuditService,
   ) {}
 
@@ -97,7 +95,6 @@ export class CompaniesService {
       displayName: `${adminFirstName} ${adminLastName}`,
     });
 
-    await this.setUpModules(saved);
     await this.audit.record(
       actor,
       'company.create',
@@ -120,7 +117,6 @@ export class CompaniesService {
     );
     this.checkProfile(company);
     await this.save(company);
-    await this.setUpModules(company);
 
     if (company.status !== previousStatus) {
       const action = {
@@ -220,6 +216,10 @@ export class CompaniesService {
       throw new BadRequestException('The trial cannot end before the subscription starts');
     }
 
+    if (company.modules.includes(AppModuleName.STORE) && !company.modules.includes(AppModuleName.WMS)) {
+      throw new BadRequestException('Store needs WMS too: the POS sells WMS products from a sales warehouse');
+    }
+
     const prices: Partial<Record<AppModuleName, number>> = {};
     for (const module of company.modules) {
       const price = company.modulePrices?.[module];
@@ -255,12 +255,6 @@ export class CompaniesService {
       (module) => `${module.toUpperCase()} ₾${(company.modulePrices[module] ?? 0).toFixed(2)}`,
     );
     return parts.length ? `${parts.join(', ')} per month` : 'HR only';
-  }
-
-  private async setUpModules(company: Company): Promise<void> {
-    if (company.modules.includes(AppModuleName.STORE)) {
-      await this.pos.ensureSampleProducts(company.id);
-    }
   }
 
   private async findEntity(id: string): Promise<Company> {

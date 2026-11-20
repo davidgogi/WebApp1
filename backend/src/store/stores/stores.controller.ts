@@ -4,7 +4,7 @@ import { Access, CurrentUser, Roles } from '../../auth/decorators.js';
 import { UserRole } from '../../auth/user-role.enum.js';
 import { AppModuleName } from '../../companies/app-module.enum.js';
 import { CreateStoreDto, UpdateStoreDto } from './dto/store.dto.js';
-import { PersonRef, StoresService, StoreView } from './stores.service.js';
+import { PersonRef, StoresService, StoreView, WarehouseOption } from './stores.service.js';
 
 @Controller('stores')
 @Access(AppModuleName.STORE)
@@ -18,7 +18,7 @@ export class StoresController {
 
   @Get('options')
   @Roles(UserRole.MODULE_ADMIN)
-  options(@CurrentUser() user: AuthUser): Promise<{ managers: PersonRef[] }> {
+  options(@CurrentUser() user: AuthUser): Promise<{ managers: PersonRef[]; warehouses: WarehouseOption[] }> {
     return this.storesService.options(user);
   }
 

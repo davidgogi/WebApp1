@@ -31,6 +31,19 @@ const USER_ROLES: Record<EmployeeRole, UserRole> = {
   [EmployeeRole.CASHIER]: UserRole.CASHIER,
 };
 
+export interface Workplace {
+  id: string;
+  code: string | null;
+  name: string;
+  address: string;
+}
+
+export interface Workplaces {
+  kind: 'store' | 'warehouse' | null;
+  manages: Workplace[];
+  worksIn: Workplace[];
+}
+
 @Injectable()
 export class EmployeesService {
   constructor(
@@ -192,6 +205,60 @@ export class EmployeesService {
       `Issued a login for ${this.nameOf(employee)} (${role})`,
     );
     return credentials;
+  }
+
+  async workplaces(actor: AuthUser, id: string): Promise<Workplaces> {
+    const employee = await this.findOne(actor, id);
+    const companyId = actor.companyId!;
+    const ownOnly = actor.role === UserRole.MANAGER ? actor.employeeId : null;
+    const keep = (place: { managerId: string | null }) => !ownOnly || place.managerId === ownOnly;
+
+    if (employee.module === AppModuleName.STORE) {
+      const [managed, links] = await Promise.all([
+        this.storesRepository.find({ where: { companyId, managerId: id }, order: { name: 'ASC' } }),
+        this.storeEmployeesRepository.find({ where: { companyId, employeeId: id }, relations: { store: true } }),
+      ]);
+      return {
+        kind: 'store',
+        manages: managed.filter(keep).map((store) => ({ id: store.id, code: null, name: store.name, address: store.address })),
+        worksIn: links
+          .map((link) => link.store!)
+          .filter(keep)
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((store) => ({ id: store.id, code: null, name: store.name, address: store.address })),
+      };
+    }
+    if (employee.module === AppModuleName.WMS) {
+      const [managed, links] = await Promise.all([
+        this.warehousesRepository.find({ where: { companyId, managerId: id }, order: { code: 'ASC' } }),
+        this.warehouseEmployeesRepository.find({ where: { companyId, employeeId: id }, relations: { warehouse: true } }),
+      ]);
+      return {
+        kind: 'warehouse',
+        manages: managed.filter(keep).map((w) => ({ id: w.id, code: w.code, name: w.name, address: w.address })),
+        worksIn: links
+          .map((link) => link.warehouse!)
+          .filter(keep)
+          .sort((a, b) => a.code.localeCompare(b.code))
+          .map((w) => ({ id: w.id, code: w.code, name: w.name, address: w.address })),
+      };
+    }
+    return { kind: null, manages: [], worksIn: [] };
+  }
+
+  async resetPin(actor: AuthUser, id: string): Promise<void> {
+    const employee = await this.findOne(actor, id);
+    this.assertCanChange(actor, employee);
+    const user = await this.users.findByEmployeeId(employee.id);
+    if (!user || employee.module !== AppModuleName.STORE) {
+      throw new BadRequestException('Only Store managers and cashiers with a login have a register PIN');
+    }
+    await this.usersRepository.update({ id: user.id, companyId: actor.companyId! }, { pinHash: null });
+    await this.audit.record(
+      actor,
+      'pin.reset',
+      `Reset the register PIN of ${this.nameOf(employee)}`,
+    );
   }
 
   private scope(actor: AuthUser): FindOptionsWhere<Employee> {

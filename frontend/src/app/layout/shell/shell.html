@@ -217,6 +217,22 @@
               }
               <a
                 class="shell-nav__subitem"
+                routerLink="/store/sales"
+                routerLinkActive="shell-nav__subitem--active"
+              >
+                {{ 'Sales' | t }}
+              </a>
+              @if (isAdmin() || isManager()) {
+                <a
+                  class="shell-nav__subitem"
+                  routerLink="/store/reports"
+                  routerLinkActive="shell-nav__subitem--active"
+                >
+                  {{ 'Reports' | t }}
+                </a>
+              }
+              <a
+                class="shell-nav__subitem"
                 routerLink="/store/record-expense"
                 routerLinkActive="shell-nav__subitem--active"
               >
@@ -316,7 +332,7 @@
             <div class="shell-nav__submenu">
               <a
                 class="shell-nav__subitem"
-                routerLink="/parameters/partners"
+                routerLink="/parameters/counterparties"
                 routerLinkActive="shell-nav__subitem--active"
               >
                 {{ 'Counterparties' | t }}

@@ -21,9 +21,9 @@ import {
 } from '../../common/xlsx.js';
 import { Category } from '../categories/category.entity.js';
 import { CategoryStatus } from '../categories/category-status.enum.js';
-import { Partner } from '../../parameters/partners/partner.entity.js';
+import { Counterparty } from '../../parameters/counterparties/counterparty.entity.js';
 import { ProductGroup } from '../categories/product-group.entity.js';
-import { PartnerStatus } from '../../parameters/partners/partner-status.enum.js';
+import { CounterpartyStatus } from '../../parameters/counterparties/counterparty-status.enum.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { Product } from './product.entity.js';
 import { ProductPosStatus } from './product-pos-status.enum.js';
@@ -240,8 +240,8 @@ export class ProductExcelService {
     private readonly categoriesRepository: Repository<Category>,
     @InjectRepository(ProductGroup)
     private readonly groupsRepository: Repository<ProductGroup>,
-    @InjectRepository(Partner)
-    private readonly suppliersRepository: Repository<Partner>,
+    @InjectRepository(Counterparty)
+    private readonly suppliersRepository: Repository<Counterparty>,
     private readonly productsService: ProductsService,
   ) {}
 
@@ -647,7 +647,7 @@ export class ProductExcelService {
   ): Promise<{
     categories: Category[];
     groups: ProductGroup[];
-    suppliers: Partner[];
+    suppliers: Counterparty[];
   }> {
     const [categories, groups, suppliers] = await Promise.all([
       this.categoriesRepository.find({
@@ -661,7 +661,7 @@ export class ProductExcelService {
       this.suppliersRepository.find({
         where: {
           companyId: actor.companyId!,
-          status: PartnerStatus.ACTIVE,
+          status: CounterpartyStatus.ACTIVE,
           isSupplier: true,
         },
         order: { name: 'ASC' },

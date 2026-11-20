@@ -13,9 +13,9 @@ import { nameKey, nameKeySql } from '../../common/name-key.js';
 import { Category } from '../categories/category.entity.js';
 import { CategoryStatus } from '../categories/category-status.enum.js';
 import { StockService } from '../stock/stock.service.js';
-import { Partner } from '../../parameters/partners/partner.entity.js';
+import { Counterparty } from '../../parameters/counterparties/counterparty.entity.js';
 import { ProductGroup } from '../categories/product-group.entity.js';
-import { PartnerStatus } from '../../parameters/partners/partner-status.enum.js';
+import { CounterpartyStatus } from '../../parameters/counterparties/counterparty-status.enum.js';
 import { Product } from './product.entity.js';
 import { ProductStatus } from './product-status.enum.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
@@ -58,8 +58,8 @@ export class ProductsService {
     private readonly categoriesRepository: Repository<Category>,
     @InjectRepository(ProductGroup)
     private readonly groupsRepository: Repository<ProductGroup>,
-    @InjectRepository(Partner)
-    private readonly suppliersRepository: Repository<Partner>,
+    @InjectRepository(Counterparty)
+    private readonly suppliersRepository: Repository<Counterparty>,
     private readonly stockService: StockService,
     private readonly audit: AuditService,
   ) {}
@@ -299,7 +299,7 @@ export class ProductsService {
     if (!supplier?.isSupplier) {
       throw new BadRequestException('Choose a supplier from the list');
     }
-    if (supplier.status !== PartnerStatus.ACTIVE) {
+    if (supplier.status !== CounterpartyStatus.ACTIVE) {
       throw new BadRequestException(
         `The supplier ${supplier.name} is inactive`,
       );

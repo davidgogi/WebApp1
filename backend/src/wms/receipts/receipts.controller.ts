@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { AuthUser } from '../../auth/auth-user.js';
 import { Access, CurrentUser, Roles } from '../../auth/decorators.js';
 import { ADMIN_ROLES, UserRole } from '../../auth/user-role.enum.js';
@@ -15,8 +15,11 @@ export class ReceiptsController {
   constructor(private readonly receiptsService: ReceiptsService) {}
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser): Promise<ReceiptView[]> {
-    return this.receiptsService.findAll(user);
+  findAll(
+    @CurrentUser() user: AuthUser,
+    @Query('supplierId', new ParseUUIDPipe({ optional: true })) supplierId?: string,
+  ): Promise<ReceiptView[]> {
+    return this.receiptsService.findAll(user, supplierId);
   }
 
   @Get('rs-links')

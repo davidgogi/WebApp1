@@ -79,7 +79,7 @@ submodules are planned, so keep to the structure below.
 - **WMS** → **Products** (CRUD by the **WMS admin only**; the system admin sees them read-only;
   managers don't see this page): name, **barcode** [შტრიხკოდი; text, unique per company],
   **category** (broad, e.g. Sweets; picked from the Categories list) and an optional **group** (narrower,
-  inside the category, e.g. Chocolate; picked from that category's groups, `products.group_id`), **supplier** (picked from the Partners marked as supplier), **production status**
+  inside the category, e.g. Chocolate; picked from that category's groups, `products.group_id`), **supplier** (picked from the Counterparties marked as supplier), **production status**
   [`active`/`inactive`, shown as Active / Not active], **use** [`sale`/`ingredient`/`both`],
   **POS status** [`storage` = Storage only / `pos` = Available at POS], **unit** [ერთეული:
   `kg`/`pcs`], **cost price** [თვითღირებულება] and **sale price** [გასაყიდი ფასი] (₾ per unit,
@@ -113,7 +113,7 @@ submodules are planned, so keep to the structure below.
   to "the URL follows the folder": a path under `/wms/products` would collide with `products/:id`).
   Same access as Products: the WMS admin manages, the system admin reads, managers get 403 (they
   see category / supplier names through `GET /wms/products/options`). Suppliers were a third tab
-  until 2026-11-09, now see **Partners**; the old URL redirects there.
+  until 2026-11-09, now see **Counterparties**; the old URL redirects there.
   - *Categories* (`product_categories`): name (unique ignoring capitals / spaces), optional
     description, status, product count.
   - *Groups* (`product_groups`, 2026-11-09, `categories/product-group.entity.ts`, API
@@ -154,7 +154,7 @@ submodules are planned, so keep to the structure below.
   and warehouse pages share `stock/movement-history/`.
   **Roadmap** (steps the user agreed to, in order): 1–2 done (history, read-only stock); 3. Receipts
   and Transfers done (below); next: Write-off (ჩამოწერა), Stock count (ინვენტარიზაცია), Import
-  (catalogue, receipts), POS sales reduce the store's sales warehouse. Each document is a new
+  (catalogue, receipts), POS sales reduce the store's sales warehouse (done 2026-11-18). Each document is a new
   movement kind and posts through `StockService.post`. Until write-offs / sales exist, stock only
   comes in and moves around; nothing takes it out of the company except cancelling a receipt.
 - **WMS** → **Receipts** (მიღება, `wms/receipts/`, `/wms/receipts`, numbers REC-000001 per company):
@@ -162,7 +162,7 @@ submodules are planned, so keep to the structure below.
   list, `supplier_id`, required; until 2026-10-22 it was free text, the old texts were linked to
   suppliers and Demo Company got a supplier named "xxx" for its four test receipts), waybill /
   invoice no., date, note; lines: product, quantity, price per unit. The editor's supplier dropdown
-  uses `GET /parameters/partners/supplier-options` (active suppliers, WMS managers allowed).
+  uses `GET /parameters/counterparties/supplier-options` (active suppliers, WMS managers allowed).
   **Receipt from an RS waybill** (2026-10-22): on RS → RS waybills the **WMS admin** clicks "Create
   receipt" on a purchase waybill (RS types 2 / 3 / 6, status active or closed, not rejected; not
   4 = distribution: that is the seller's own document for a loaded van, the buyer receives its
@@ -172,7 +172,7 @@ submodules are planned, so keep to the structure below.
   else left empty like an unlinked line (`receipts.supplier_id` is nullable only for RS drafts; the
   seller is kept as `rs_seller_tin` / `rs_seller_name`; since 2026-10-23, before that a 409
   `SUPPLIER_MISSING` question auto-created it). In the editor the WMS admin picks a supplier or
-  **+ New supplier** (the shared `shared/partners/partner-form/` with `[supplierOnly]`, pre-filled from the seller; a seller already listed only as a client is marked as a supplier too); picking one
+  **+ New supplier** (the shared `shared/counterparties/counterparty-form/` with `[supplierOnly]`, pre-filled from the seller; a seller already listed only as a client is marked as a supplier too); picking one
   without a code gives it the seller's code, one with a different code is refused. Waybill no. and date from RS, one line per
   goods line with an RS snapshot (`rs_name`, `rs_barcode`, `rs_unit_id`, `rs_unit`) and the
   product matched by a remembered link (`rs_product_links`: seller code + barcode, or the name when
@@ -248,66 +248,133 @@ submodules are planned, so keep to the structure below.
   scan a barcode + Enter); if saving a new draft works but posting / sending fails, the editor moves
   to that draft's edit page instead of creating a second one. Stock history rows link to their
   document. Demo Company has REC-000001 and TR-000001 from the UI test.
-- **Parameters** → **Counterparties** (კონტრაგენტები / Контрагенты; called Partners until 2026-11-11,
-  renamed in the **UI only**: every text, Excel sheet / file names and new audit summaries say
-  counterparty, while the code, URLs, tables and audit action codes stay `partner(s)`, the user's
-  choice; imports still accept the old "Partners" sheet and "partner" headers. Use "counterparty" in
-  any new UI text) (`/parameters/partners`; Parameters is the module for company-wide lists, always included; backend `parameters/partners/`,
-  API `/parameters/partners`; frontend page `features/parameters/partners/`, and `shared/partners/` for the model, service and form because WMS uses them;
-  2026-11-09, renamed from WMS Suppliers). The businesses and people **a tenant** buys from or sells
-  to; `partners` in the code because `companies` already means the tenants. One list, each entry a
+- **Parameters** → **Counterparties** (კონტრაგენტები / Контрагенты; called Partners until 2026-11-11
+  in the UI and until 2026-11-18 in the code: the migration `PartnersBecomeCounterparties` renamed
+  the tables (`counterparties`, `counterparty_contacts.counterparty_id`), the enums, the constraints
+  and the audit action codes `partner.*` → `counterparty.*`. Use "counterparty" everywhere, never
+  "partner"; only the import still accepts the old "partner" headers. The old frontend URL
+  `/parameters/partners` redirects) (`/parameters/counterparties`; Parameters is the module for
+  company-wide lists, always included; backend `parameters/counterparties/`, API
+  `/parameters/counterparties`; frontend page `features/parameters/counterparties/`, and
+  `shared/counterparties/` for the model, service and form because WMS uses them; 2026-11-09,
+  renamed from WMS Suppliers). The businesses and people **a tenant** buys from or sells
+  to (not `companies`, which already means the tenants). One list, each entry a
   supplier, a client or both (`is_supplier` / `is_client`, at least one, also a DB check): one firm,
-  one row, one identification code. Fields: name (unique ignoring capitals / spaces), type
-  `company` / `individual`, identification code (9 digits, or the 11-digit personal ID;
+  one row, one identification code. Fields: name (unique ignoring capitals / spaces),
+  **organization type** `company` / `individual` (`organizationType`, column `organization_type`,
+  enum `OrganizationType`; "type" until 2026-11-18), identification code (9 digits, or the 11-digit personal ID;
   unique per company), VAT payer, contact person, phone, email, address, **category** (free text,
   e.g. Groceries / Dishware; the form suggests the company's existing ones from `GET
-  /parameters/partners/categories`), optional **note** (multi-line), status.
+  /parameters/counterparties/categories`), optional **note** (multi-line), status.
+  **Deferred payment** (2026-11-18, ka კონსიგნაცია, ru Отсрочка платежа: the client pays later, not
+  consignment stock): `deferred_payment_days`, null = pays at once, else 1–365 calendar days from the
+  sale. Clients and "both" only: the form shows the checkbox + days only for them, and the backend
+  clears it whenever the counterparty isn't a client (`applyDeferredPaymentRule`); the import
+  column "Deferred payment, days" is optional (on a supplier row it's ignored with a warning).
+  Nothing uses it yet (no sales to clients). Changes show in History as an edit.
+  **More details** (2026-11-18, migration `CounterpartyDetails`, all optional): an automatic
+  **internal code** `CP-000001` per company (`number` column + `nextDocumentNumber`, now in
+  `common/document-number.ts`; `code` is set in `@AfterLoad`; existing rows were numbered by
+  creation date; not editable, never imported, export-only column), **legal form**
+  (`LegalForm`: company → LLC / JSC / Cooperative / Other, individual → Individual entrepreneur /
+  Natural person, `LEGAL_FORMS_BY_TYPE`; one that doesn't fit is refused when sent and cleared when
+  only the type changed), **actual address** (null = same as the legal `address`), client terms
+  **discount %** (0–100) and **credit limit** (₾), supplier terms **supplier payment term** (days),
+  **delivery term** (working days) and **bank account** (IBAN, spaces removed, upper-cased,
+  mod-97 checked, `common/iban.ts`). `applyDetailRules` clears client terms when the counterparty
+  isn't a client and supplier terms when it isn't a supplier. The Add / Edit form has legal form and actual
+  address on Main information; the client / supplier terms are **only** edited inline on the
+  counterparty page (a Terms tab in the form was removed on 2026-11-18 at the user's request: not in
+  the mockups), so the form never sends them and saving it leaves them alone; the Excel import / export has them as
+  optional columns after Status (terms on the wrong kind of row are ignored with a warning).
+  **Price list** is deliberately not built (no price lists exist yet; the user's choice).
   **Every field except the note is required** (2026-11-11, confirmed 2026-11-13 although the mockup
   starred only six) in the form, the API (create; an update
   may leave a field out but not empty it) and the import; the columns stay nullable because older
-  partners have empty ones (editing one makes you fill them in).
+  counterparties have empty ones (editing one makes you fill them in).
   **Page layout follows the reviewer's mockup** (2026-11-13): header Import / Export / Add; a filter
   card (Search, Counterparty type, Status, "Additional filters" → Organization type, VAT status,
   Category; Clear also clears column filters); toolbar Views ▾ / hint / Columns; columns
-  Counterparty name, Counterparty type (= role), Category, Identification code, Organization type
-  (= type), VAT status, Contact person, Phone, Email, Status (table id `counterparties`; no Products
+  Counterparty name, Counterparty type, Category, Identification code, Organization type, VAT status, Contact person, Phone, Email, Status (table id `counterparties`; no Products
   column, no address under the name). "Counterparty name" is its own English key so Georgian can
-  say დასახელება while `Name` stays სახელი elsewhere. Form: two columns in the mockup's order, Role
-  is a dropdown (Supplier / Client / Supplier and client), Address and Note are textareas, Cancel /
+  say დასახელება while `Name` stays სახელი elsewhere. Form: two columns in the mockup's order, Counterparty type
+  is a dropdown (Supplier / Client / Supplier and client; not stored, `counterpartyTypeOf` derives it
+  from `is_supplier` / `is_client`; called "role" until 2026-11-18), Address and Note are textareas, Cancel /
   Save bottom right, tabs Main information / Contacts / **History**.
   **History** (2026-11-13): `audit_log` got `entity_id` and `source` (`form` / `import` / `rs`);
-  counterparty changes record their id (`partner.create`, `partner.update`, `partner.status` when
-  the status changed, `partner.supplier` when an RS receipt marks a client as supplier,
-  `partner.import` one row per imported counterparty plus the old summary row, `partner.delete`).
-  `GET /parameters/partners/:id/history` (date, user, action, source). The company audit log hides
+  counterparty changes record their id (`counterparty.create`, `counterparty.update`, `counterparty.status` when
+  the status changed, `counterparty.supplier` when an RS receipt marks a client as supplier,
+  `counterparty.import` one row per imported counterparty plus the old summary row, `counterparty.delete`).
+  `GET /parameters/counterparties/:id/history` (date, user, action, source). The company audit log hides
   the per-row import entries (`AuditService.find`). Changes before 2026-11-13 have no link, so older
   counterparties start with an empty history. The RS "+ New supplier" form sends `source: 'rs'`. The RS "+ New supplier" form is the
   same, so it needs contact, phone, email and address too.
-  **Additional contact persons** (2026-11-11, `partner_contacts`, `partner-contact.entity.ts`,
-  composite key to the partner, deleted with it): first name, last name, phone, position, email, all
+  **Additional contact persons** (2026-11-11, `counterparty_contacts`, `counterparty-contact.entity.ts`,
+  composite key to the counterparty, deleted with it): first name, last name, phone, position, email, all
   required. The form has two tabs, **Main information** / **Contacts** (`.form-tabs` in `styles.css`);
-  contacts are kept in the form and sent with the partner as `contacts` on Save, which **replaces the
+  contacts are kept in the form and sent with the counterparty as `contacts` on Save, which **replaces the
   whole list** (`saveContacts`, same transaction); a PATCH without `contacts` leaves them alone. The
-  list returns each partner's `contacts`. Each row has **View** (eye icon, read-only pop-up with the
-  details and contacts, Edit from there), Edit and Delete. Contacts are not in the Excel import /
-  export.
+  list returns each counterparty's `contacts`. Each row has **View**, Edit and Delete. Contacts are not in the
+  Excel import / export.
+  **View page** (2026-11-18, `/parameters/counterparties/:id`, `counterparty-view/`, `GET
+  /parameters/counterparties/:id`; was a pop-up), from the reviewer's mockup: back arrow + name,
+  History button (pop-up) and Edit; an identity card (initial, Client / Supplier chips, status,
+  code · organization type · legal form · ID · VAT); four stat cards (Balance, Sales / receipts, Last operation, Average
+  sale); tabs Main information / Contacts / Documents / Sales receipts / Receipts and sales /
+  Transactions; sections Main details, Contact and address, Client terms (clients only), Supplier
+  terms (suppliers only), each with "Change" = **inline editing** of that section only (the user's
+  choice; one section at a time, Cancel / Save, PATCH with just that section's fields); the Edit
+  button opens the full form, and the Contacts tab's Change opens it on Contacts (`startTab`);
+  a side column Balance + Activity. **Most of it is a placeholder on purpose** (the user's choice:
+  "keep them for show, we'll fill it step by step"): stats, balance, overdue, activity and price
+  list show "—" / "Not set up yet" / "Coming soon", never sample numbers. Everything else is real
+  (the side card's credit limit too). **Pinned until their data exists** (the user's decision,
+  2026-11-18): the **Sales receipts** tab (ჩეკები, needs POS sales linked to a client), the
+  **realization** half of Receipts and sales (sales / deliveries to clients; nothing sells to
+  clients yet) and the **Transactions** tab (payments + sales per counterparty; there is no
+  payments feature: `company_payments` is the superuser's billing of tenants). Transfers don't
+  belong on this page (no counterparty).
+  **Receipts and sales tab** (2026-11-18): the counterparty's WMS receipts, from `GET
+  /wms/receipts?supplierId=` (so WMS access and a manager's warehouse scope still apply; people
+  without WMS see a note instead). The page calls it through `CounterpartyService.receipts` with a
+  minimal `CounterpartyReceipt` type in `shared/counterparties/` instead of importing WMS frontend
+  code. Columns: document (links to the receipt), type, date, basis (placeholder), warehouse,
+  lines, amount, RS waybill (= `waybillNumber`), status; a type filter (Sales: coming soon); the
+  summary's received total counts **posted** receipts only. "+ Add receipt" (WMS admin, active
+  supplier) opens `/wms/receipts/new?supplier=<id>`: the editor's `supplier` input (query param
+  via `withComponentInputBinding`) preselects the supplier.
+  **Documents tab** (2026-11-18, `counterparty_documents`, `counterparty-document.entity.ts`,
+  `CounterpartyDocumentsService`): files attached to an existing counterparty (no upload in the
+  Add form: a file needs a saved counterparty). Name, type (Contract / Extract / Power of
+  attorney / Other), optional valid-until date (red "Expired" once past; "N files · M expired"),
+  uploaded by (display name), date, size; download and delete. **Stored in PostgreSQL** (`bytea`,
+  `select: false`, so lists never carry the content; RLS + composite key to the counterparty;
+  backed up and exported with the database, `data:export` handles it). At most 10 MB
+  (`DOCUMENT_UPLOAD`), PDF / JPG / PNG / Word / Excel by extension; multer's latin1 file names are
+  turned back into UTF-8 (Georgian names). Downloads are always `attachment` with `nosniff`.
+  Endpoints `GET|POST /parameters/counterparties/:id/documents`, `GET .../:documentId/file`,
+  `DELETE .../:documentId` (same access as the page). Audited as `counterparty.document_add` /
+  `counterparty.document_delete`, so they show in the counterparty's History. If files ever get
+  big or many, move the content to object storage and keep the table. Covered by the
+  cross-company test.
   **Always included, like RS, and not separated by module** (the user's agreement): the system admin
-  and every module admin see and edit all of the company's partners (`@Access('parameters')`); hiding
+  and every module admin see and edit all of the company's counterparties (`@Access('parameters')`); hiding
   them by module would cause duplicates or "already exists" errors about invisible rows. Managers
-  and cashiers have no page; WMS managers get id + name + code from `GET /parameters/partners/supplier-options`
+  and cashiers have no page; WMS managers get id + name + code from `GET /parameters/counterparties/supplier-options`
   (`@Access(WMS)`). Every change is audited. Products and receipts still use `supplier_id` (only
-  entries marked supplier can be picked); a partner on products or receipts must stay a supplier and
+  entries marked supplier can be picked); a counterparty on products or receipts must stay a supplier and
   can't be deleted (set it Inactive). Clients are **only a list so far**: nothing uses them yet.
-  **Import / Export** (`partner-excel.service.ts`, same admins as the page): Name, Type (Company /
-  Individual), Role (Supplier / Client / Both), Category, Identification code [Text], VAT payer (Yes /
+  **Import / Export** (`counterparty-excel.service.ts`, same admins as the page): Name, Organization type
+  (Company / Individual), Counterparty type (Supplier / Client / Both; old files' "Type" / "Role"
+  headers still import), Category, Identification code [Text], VAT payer (Yes /
   No), Contact person, Phone, Email, Address, Note (optional), Status; no `*` marks
   (`addTemplateSheet(..., { markRequired: false })`). `GET import/example` is the template with three
   sample rows (the import window's "Download example"). Name and code must not
-  repeat an existing partner or another row, and the code must fit the type; every problem is listed
+  repeat an existing counterparty or another row, and the code must fit the type; every problem is listed
   (Excel row, column, value). The export has the same columns (no Products / Receipts since
-  2026-11-13; old files with them still import). `PartnersService.createMany`.
-  The partners service reads the WMS `Product` and `Receipt` entities for the counts, and WMS
-  imports `PartnersModule`, a deliberate exception like HR's `Employee`.
+  2026-11-13; old files with them still import). `CounterpartiesService.createMany`.
+  The counterparties service reads the WMS `Product` and `Receipt` entities for the counts, and WMS
+  imports `CounterpartiesModule`, a deliberate exception like HR's `Employee`.
 - **RS** → **RS waybills** (its own module since 2026-10-22, first built under WMS the same day;
   backend `rs/rs.module.ts` + submodule `rs/waybills/`, API `/rs/waybills/...`, frontend
   `features/rs/rs.routes.ts` + `features/rs/waybills/`, pages `/rs/waybills` (received) and
@@ -342,24 +409,63 @@ submodules are planned, so keep to the structure below.
   (206322102, the company itself, usually ₾0.00). Internal-transfer waybills are now also issued by the
   app (see WMS → Transfers). Not built yet: sales waybills (see RetailApp's `src/rs-waybill/`). RS dates come in two formats
   (`2026-10-22T14:04:39` and `22-OCT-26`); `rsDate` in `rs-client.ts` turns both into ISO.
-- **Store** → **Stores**, **Cash register**, **POS**, **Recording an expense**.
+- **Store** → **Stores**, **Cash register**, **POS**, **Sales**, **Reports**, **Recording an expense**
+  (2026-11-18: სალარო + საცალო POS, rebuilt from RetailApp's `cashier/` and `sales/` logic, simplified by the
+  user's choice). **Store requires WMS** (the superuser can't sell Store without it; the company form ticks
+  WMS with Store): the POS sells **WMS products** from the store's **sales warehouse**.
   - *Stores* (CRUD by the **Store admin only**; the system admin sees all stores read-only): name,
-    address, **number of cash registers** (default 1, max 50; only
-    the Store admin changes it, everyone else sees it read-only) and one manager (picked from HR; a manager can run
-    several stores). Managers see their stores read-only. Who works in a store (`store_employees`:
-    cashiers, who may open a register there, and role-less people) is set only when a Store manager
-    adds someone in HR; it is not shown or editable on this page.
-  - *Cash register*: a store has Register 1..N. Before opening, the cashier picks the store and the
-    register (registers someone else has open are disabled and show who has them); the database allows
-    only one open session per register (partial unique index). The count can't be lowered below a
-    register that is open. Each opening is one row (store, register no., cashier, opened/closed,
-    transactions, total); click a row to see its transactions. Managers and cashiers open/close their
-    own register (one open at a time). Admins see every row, a manager the rows of his stores, a
-    cashier only his own. A manager can also work a register ("everything a cashier can do").
-  - *POS*: tap catalog products to ring up a sale on your open register. The catalog (`store_products`,
-    10 sample items) is the Store module's own, not the WMS products; prices come from the server.
-    A company gets the sample catalog when it is sold the Store module.
-  - *Recording an expense*: still an empty shell (frontend only).
+    address, **number of cash registers** (default 1, max 50), one manager (picked from HR; a manager can run
+    several stores) and one **sales warehouse** (`stores.warehouse_id`, a WMS warehouse of type sales, active,
+    composite FK, unique: one warehouse per store; required for new stores; stores made before 2026-11-18
+    have none until edited, and their registers can't open). The warehouse can't change while a register is
+    open; WMS refuses to make that warehouse main / inactive or delete it (`storeUsing` in the warehouses
+    service, a raw query so WMS doesn't import Store). A store with register history can't be deleted.
+    Who works in a store (`store_employees`) is set only when a Store manager adds someone in HR.
+  - *Roles*: Store admin = stores + managers + read everything, can't sell; manager = his stores, works a
+    register too, does returns, covers shortages, closes anyone's forgotten register in his store; cashier =
+    opens any free register of a store he works in (no fixed register per cashier, the user's choice), sells,
+    adds / takes out cash, closes his own. The system admin reads everything.
+  - **PIN** (`users.pin_hash`, scrypt like passwords, `select: false`): 4 digits, asked **only to open and to
+    close a register** (the user's decision; RetailApp also asked it to enter the page). Set / changed on the
+    Cash register page (`PUT /store/cash-register/pin`, the current PIN is needed to change it). "Reset PIN" on
+    an HR row (`POST /hr/employees/:id/pin-reset`, whoever may reset that person's password) clears it and the
+    person sets a new one. A manager closing someone else's register confirms with **his own** PIN.
+  - *Cash register* (`cash-register/`, a shift = one `register_sessions` row): open with opening cash + optional
+    note + PIN; one open session per register and per person (partial unique indexes). During the shift
+    **cash in / out** (`register_cash_moves`, note required; out can't exceed the cash that should be there).
+    **Expected cash** = opening + cash sales − cash refunds + cash in − cash out (card never counts). **Close**:
+    counted cash + PIN; `expected_cash` and `variance` (counted − expected) are stored, a note is required when
+    they differ, and a shortage gets `coverage_status` uncovered. **Shortage coverage** (`shortage_coverages`,
+    CV-000001, by the store manager or Store admin, partial or full → partly_covered / covered); in RetailApp
+    it also creates an expense, here only the document until expenses exist. **Comment**: edits the opening
+    note on an open shift, the closing note on a closed one; empty clears both. Shift page
+    `/store/cash-register/:id`: figures, notes, the **cash movement** (every operation with cash before /
+    change / after) and coverages. Row access: admins all, manager his stores (+ his own shifts), cashier his
+    own. Sales lock the open session `FOR SHARE`, close / cash moves / coverage lock it `FOR UPDATE`.
+  - *POS* (`pos/`): `GET /store/pos/catalog` = active WMS products with POS status "Available at POS" and use
+    sale / both, with the stock of the store's warehouse and their categories; search, category chips, barcode
+    scan + Enter. Price = the product's sale price (from the server). kg products take typed weights (3
+    decimals), pcs whole numbers. **Cash** (amount received, change; ≥ total) or **card**, one method per sale.
+    `POST /store/pos/sales` posts stock through `StockService.post` (kind `sale`), so **not enough stock blocks
+    the sale** (the user's choice). No discounts, no customer, no split payment, no receipts printing, one cart
+    (all deliberately left out for now).
+  - *Sales* (`sales/`, `/store/sales`, `/store/sales/:id`): one `sales` table for sales **S-000001** and returns
+    **R-000001** (`kind`, numbered separately: `nextDocumentNumber` takes a column filter now), lines keep a
+    snapshot (name, barcode, unit, price). **Returns** (`POST /store/sales/:id/returns`): **managers only**
+    (cashiers can't: approving by a manager's PIN was dropped when the PIN became open / close only), on the
+    manager's own open register **in the store of the sale**; whole sale or chosen lines, never more than sold
+    minus already returned; the last part of a line gets the rest of its total (no cent drift); money back the
+    way the sale was paid (cash comes out of the manager's register); goods back into the sale's warehouse
+    (kind `sale_return`). No voids.
+  - *Reports* (`reports/`, `/store/reports`, admins + managers): **daily sales summary** per store and day
+    (sales / returns by cash and card, net, cash in / out; days in Asia/Tbilisi) and **cash movement by
+    register** (every shift with opening, expected, counted, difference); Excel exports `GET
+    /store/reports/daily/export` (sheets Days + Shifts) and `GET /store/reports/cash-movement/:sessionId/export`.
+    Periods are at most 366 days (`store-scope.ts`).
+  - WMS stock history shows the kinds "Store sale" / "Store return" and links them to the sale for people with
+    Store access.
+  - *Recording an expense*: still an empty shell; the user wants expenses next (RetailApp: categories, types,
+    bank accounts, expenses paid from a register, which then lower the expected cash).
 - **Restaurant** → **Table service**, **Menu management**, **Kitchen screen**, **Waiter view**
   (`/restaurant/table-service`, `/restaurant/menu-management`, `/restaurant/kitchen-screen`,
   `/restaurant/waiter-view`). Empty shells for now: frontend only, "Coming soon". Only admins can reach
@@ -489,8 +595,9 @@ Read this before adding any module, endpoint or page.
   in `package.json` but points at a non-existent file — ignore or remove it). To get sample data now,
   use the superuser area to create a company by hand, or restore data with `npm run data:import` from
   a snapshot. **Demo Company** holds the sample data (filled 2026-10-15 through the API, following
-  the role hierarchy): ~37 people, 6 warehouses, 42 products with stock, 4 stores, 8 cashiers, 36
-  sales (two registers left open). On 2026-10-15 it was grown to 68 warehouses and 342 products
+  the role hierarchy): ~37 people, 6 warehouses, 42 products with stock, 4 stores, 8 cashiers (its 36
+  old toy sales and register sessions are deleted by the `StoreCashRegisterPos` migration, and its stores
+  need a sales warehouse before their registers can open). On 2026-10-15 it was grown to 68 warehouses and 342 products
   (generated names, barcodes 48699…) so pagination, search and filters can be tried out. Only 5 are
   main (WH-MAIN-01..05: Tbilisi, Rustavi, Batumi, Kutaisi, Gori); the rest are sales warehouses. The new logins are in `demo company logins.txt` in the repo root;
   the older Demo Company logins (system admin, Giorgi = WMS admin, Levan = WMS manager) weren't
@@ -514,8 +621,8 @@ companyId-only version and an optional RLS version). Remaining risks and next st
   company setting, only A's with it, and can't write B's rows; plus the composite foreign key. It
   drops the database and role afterwards. Shown to catch a permissive RLS policy and a missing
   `companyId` filter (once RLS is also off). CI runs it in its own job (`tenant-isolation`) before
-  the image build, so a failure blocks the deploy. Covers HR, Partners and WMS (including groups) only so far: add Store
-  (stores, registers, sales) and RS when touching them. It also guards the patch on TypeORM's
+  the image build, so a failure blocks the deploy. Covers HR, Counterparties, WMS (including groups) and Store (stores, registers, sales, returns; 2026-11-18) so far: add
+  RS when touching it. It also guards the patch on TypeORM's
   internal `PostgresQueryRunner` against upgrades.
 
 **Test data** (created 2026-10-30 through the API on the first laptop's database, so it exists only
@@ -526,7 +633,7 @@ are deliberate exceptions to "clean up throwaway companies".
 
 ## Excel import / export
 
-Used by WMS Warehouses and Products (2026-10-21) and Partners (2026-11-09); reuse it for any future import (receipts, stock
+Used by WMS Warehouses and Products (2026-10-21) and Counterparties (2026-11-09); reuse it for any future import (receipts, stock
 count, ...). **.xlsx only** (`exceljs` on the backend; nothing Excel-related in the frontend bundle).
 - Endpoints per page: `GET <page>/export`, `GET <page>/import/template`, `POST <page>/import/check`
   and `POST <page>/import` (multipart field `file`, `XLSX_UPLOAD` = 5 MB, at most 1000 rows). Declare
@@ -588,11 +695,11 @@ browser in localStorage). **English text is the key**: there are no message ids.
   by following the hierarchy, call the API as each role, then delete the company. Never use the
   seeded or real test companies (Apple, Demo Company) for that, and clean up anything you add.
   For UI checks, headless Chrome through the DevTools protocol worked well.
-- Not built yet: editing an employee (so a role can't change after creation), voiding / correcting
-  a sale (a manager covering a cashier can't undo a wrong scan), real invites / email / auth,
-  per-store or per-warehouse editing of members from the admin pages, and the empty shells (Recording
-  an expense, all Restaurant pages). The Store POS ignores WMS products and their POS status (selling doesn't
-  lower WMS quantities), and there are no stock documents yet (see WMS stock → Roadmap).
+- Not built yet: editing an employee (so a role can't change after creation), voiding a sale (a
+  wrong scan is undone by a manager's return), real invites / email / auth,
+  per-store or per-warehouse editing of members from the admin pages, the empty shells (Recording
+  an expense, all Restaurant pages), and write-offs / stock counts (see WMS stock → Roadmap). POS: no
+  discounts, customers, split payments, receipt printing or fiscal / RS (left out on purpose for now).
 
 ## Working state and conventions to know
 
@@ -624,11 +731,13 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
   `audit/` (audit log), `superadmin/` (the superuser's `/superadmin/companies` API). HR employees are
   the shared core: other modules may reference the `Employee` entity (managers, cashiers).
 - `rs/` has `waybills/` (RS connection + received waybills; `rs-client.ts` talks SOAP to RS).
-- `parameters/` has `partners/` (company-wide lists, always included like HR and RS).
+- `parameters/` has `counterparties/` (company-wide lists, always included like HR and RS).
 - `wms/` has `warehouses/`, `products/`, `categories/`, `stock/` (balances, movement history, `StockService`, document
   numbers), `receipts/`, `transfers/` (documents that post through `StockService`).
-- `store/` has `stores/`, `pos/`, `cash-register/` (POS uses the register sessions that Cash register
-  opens: same module, so allowed).
+- `store/` has `stores/`, `cash-register/` (shifts, PIN, cash moves, coverage; also holds the `Sale` /
+  `SaleLine` entities), `pos/` (catalogue + checkout), `sales/` (list, view, returns; `SalesService.record`
+  writes every sale / return and posts its stock), `reports/`, and `store-scope.ts` (periods, Tbilisi days).
+  Store reads WMS `Product`, `Warehouse` and `StockService`: a deliberate exception, Store requires WMS.
 - `data-snapshot.ts` — export/import of the whole database (see Running It). (`seed.ts` was
   deleted; its `npm run seed` script in package.json is now dead.)
 
@@ -749,7 +858,7 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
   a migration file, delete its `.js` in `dist/` too (`tsc` doesn't remove it; `start:dev` does).
   **Adopting old databases**: a database built by `synchronize` (has `companies`, no rows in
   `migrations`) is brought up to date once more with backfill + `synchronize` and every migration is
-  marked done without running (`fake`). Migrations that move data (suppliers → partners, group text
+  marked done without running (`fake`). Migrations that move data (suppliers → partners → counterparties, group text
   → `product_groups`, superuser → `platform_admins`) run their `up` first (`runDataMigrations`), because `synchronize` would
   otherwise lose that data: **add any new data-moving migration to that list.** This laptop's database was adopted on 2026-11-06 (backup
   before it: `pg_dump` in the session scratchpad); the test cluster's database and other laptops

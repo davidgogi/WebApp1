@@ -9,14 +9,14 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { LucideAngularModule, Plus, Search } from 'lucide-angular';
+import { LucideAngularModule, Package, Plus, Search, Trash2 } from 'lucide-angular';
 import { AppModule, Credentials, MODULE_LABELS } from '../../../../core/auth/auth.model';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { CredentialsModal } from '../../../../shared/credentials-modal/credentials-modal';
 import { Modal } from '../../../../shared/modal/modal';
 import { StoreService } from '../../../store/stores/store.service';
 import { WarehouseService } from '../../../wms/warehouses/warehouse.service';
-import { EMPLOYEE_ROLE_LABELS, Employee, EmployeeRole, EmployeeStatus } from '../employee.model';
+import { EMPLOYEE_ROLE_LABELS, Employee, EmployeeRole, EmployeeStatus, Workplaces } from '../employee.model';
 import { EmployeeService } from '../employee.service';
 import { TranslatePipe } from '../../../../core/i18n/t.pipe';
 import { I18nService } from '../../../../core/i18n/i18n.service';
@@ -131,6 +131,11 @@ export class EmployeesList implements OnInit {
 
   protected readonly PlusIcon = Plus;
   protected readonly SearchIcon = Search;
+  protected readonly ViewIcon = Package;
+  protected readonly DeleteIcon = Trash2;
+  protected readonly viewing = signal<Employee | null>(null);
+  protected readonly viewPlaces = signal<Workplaces | null>(null);
+  protected readonly viewError = signal('');
   protected readonly today = localToday();
 
   protected readonly employees = signal<Employee[]>([]);
@@ -399,6 +404,40 @@ export class EmployeesList implements OnInit {
       error: (error: HttpErrorResponse) => {
         const message = error.error?.message;
         this.loginError.set(typeof message === 'string' ? message : 'Could not issue the login.');
+      },
+    });
+  }
+
+  resetPin(employee: Employee): void {
+    if (
+      !this.i18n.confirm(
+        this.i18n.t('Reset the register PIN of {firstName} {lastName}? They choose a new one the next time they open the Cash register page.', {
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+        }),
+      )
+    ) {
+      return;
+    }
+    this.loginError.set('');
+    this.employeeService.resetPin(employee.id).subscribe({
+      next: () => this.loginError.set(''),
+      error: (error: HttpErrorResponse) => {
+        const message = error.error?.message;
+        this.loginError.set(typeof message === 'string' ? message : 'Could not reset the PIN.');
+      },
+    });
+  }
+
+  viewEmployee(employee: Employee): void {
+    this.viewing.set(employee);
+    this.viewPlaces.set(null);
+    this.viewError.set('');
+    this.employeeService.workplaces(employee.id).subscribe({
+      next: (places) => this.viewPlaces.set(places),
+      error: (error: HttpErrorResponse) => {
+        const message = error.error?.message;
+        this.viewError.set(typeof message === 'string' ? message : 'Could not load the details.');
       },
     });
   }

@@ -46,6 +46,9 @@ export class User {
   @Column({ name: 'employee_id', type: 'uuid', nullable: true })
   employeeId!: string | null;
 
+  @Column({ name: 'pin_hash', type: 'varchar', nullable: true, select: false })
+  pinHash!: string | null;
+
   @Column({ type: 'varchar', length: 2, default: 'en' })
   language!: string;
 

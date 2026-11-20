@@ -24,6 +24,8 @@ export class CreateStoreDto {
   @IsUUID()
   managerId?: string | null;
 
+  @IsUUID()
+  warehouseId!: string;
 }
 
 export class UpdateStoreDto {
@@ -49,4 +51,7 @@ export class UpdateStoreDto {
   @IsUUID()
   managerId?: string | null;
 
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
 }

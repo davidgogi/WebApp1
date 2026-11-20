@@ -1,16 +1,39 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
-import { isUniqueViolation } from '../../common/is-unique-violation.js';
+import { EntityManager, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import { AuditService } from '../../audit/audit.service.js';
 import { AuthUser } from '../../auth/auth-user.js';
+import { hashPassword, verifyPassword } from '../../auth/password.js';
+import { User } from '../../auth/user.entity.js';
 import { UserRole } from '../../auth/user-role.enum.js';
-import { Employee } from '../../hr/employees/employee.entity.js';
+import { formatDocumentNumber, nextDocumentNumber } from '../../common/document-number.js';
+import { isUniqueViolation } from '../../common/is-unique-violation.js';
+import { localDaySql, period, round2 } from '../store-scope.js';
 import { StoreEmployee } from '../stores/store-employee.entity.js';
 import { Store } from '../stores/store.entity.js';
+import { CashMoveKind } from './cash-move-kind.enum.js';
+import { CoverageStatus } from './coverage-status.enum.js';
+import { PaymentMethod } from './payment-method.enum.js';
+import { RegisterCashMove } from './register-cash-move.entity.js';
 import { RegisterSession } from './register-session.entity.js';
+import { SaleKind } from './sale-kind.enum.js';
 import { Sale } from './sale.entity.js';
-import { CloseRegisterDto, OpenRegisterDto } from './dto/register.dto.js';
+import { ShortageCoverage } from './shortage-coverage.entity.js';
+import { CashMoveDto, CloseRegisterDto, CommentDto, CoverageDto, OpenRegisterDto, PeriodQuery, PinDto } from './dto/register.dto.js';
+
+export interface SessionMetrics {
+  salesCount: number;
+  returnsCount: number;
+  cashSales: number;
+  cardSales: number;
+  cashReturns: number;
+  cardReturns: number;
+  cashIn: number;
+  cashOut: number;
+  netSales: number;
+  expectedCash: number;
+  covered: number;
+}
 
 export interface SessionView {
   id: string;
@@ -22,14 +45,58 @@ export interface SessionView {
   closedAt: Date | null;
   status: 'open' | 'closed';
   openingCash: number;
-  closingCash: number | null;
-  salesCount: number;
-  total: number;
+  openNote: string | null;
+  countedCash: number | null;
+  expectedCash: number;
+  variance: number | null;
+  closeNote: string | null;
+  closedByName: string | null;
+  coverageStatus: CoverageStatus | null;
+  shortageLeft: number;
+  metrics: SessionMetrics;
+  mine: boolean;
+  canClose: boolean;
+  canMoveCash: boolean;
+  canComment: boolean;
+  canCover: boolean;
+}
+
+export type ActivityType = 'open' | 'sale' | 'return' | 'cash_in' | 'cash_out' | 'close';
+
+export interface ActivityRow {
+  at: Date;
+  type: ActivityType;
+  code: string | null;
+  saleId: string | null;
+  paymentMethod: PaymentMethod | null;
+  amount: number;
+  cashEffect: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  by: string;
+  note: string | null;
+}
+
+export interface CoverageView {
+  id: string;
+  code: string;
+  amount: number;
+  note: string | null;
+  coveredByName: string;
+  createdAt: Date;
 }
 
 export interface SessionDetail extends SessionView {
-  sales: Sale[];
+  activity: ActivityRow[];
+  coverages: CoverageView[];
 }
+
+export interface RegisterAvailability {
+  no: number;
+  inUseBy: string | null;
+}
+
+const MAX_SESSIONS = 1000;
 
 @Injectable()
 export class CashRegisterService {
@@ -38,73 +105,115 @@ export class CashRegisterService {
     private readonly sessionsRepository: Repository<RegisterSession>,
     @InjectRepository(Sale)
     private readonly salesRepository: Repository<Sale>,
+    @InjectRepository(RegisterCashMove)
+    private readonly cashMovesRepository: Repository<RegisterCashMove>,
+    @InjectRepository(ShortageCoverage)
+    private readonly coveragesRepository: Repository<ShortageCoverage>,
     @InjectRepository(Store)
     private readonly storesRepository: Repository<Store>,
     @InjectRepository(StoreEmployee)
     private readonly storeEmployeesRepository: Repository<StoreEmployee>,
-    @InjectRepository(Employee)
-    private readonly employeesRepository: Repository<Employee>,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
     private readonly audit: AuditService,
   ) {}
 
-  async findAll(actor: AuthUser): Promise<SessionView[]> {
-    const sessions = await this.sessionsRepository.find({
-      where: await this.visibleWhere(actor),
-      relations: { store: true },
-      order: { openedAt: 'DESC' },
-      take: 100,
-    });
-    return this.withTotals(actor, sessions);
+  async pinStatus(actor: AuthUser): Promise<{ hasPin: boolean }> {
+    return { hasPin: !!(await this.pinHashOf(actor)) };
+  }
+
+  async setPin(actor: AuthUser, dto: PinDto): Promise<{ hasPin: boolean }> {
+    const current = await this.pinHashOf(actor);
+    if (current && !verifyPassword(dto.currentPin ?? '', current)) {
+      throw new BadRequestException('The current PIN is wrong');
+    }
+    await this.usersRepository.update({ id: actor.userId, companyId: actor.companyId! }, { pinHash: hashPassword(dto.newPin) });
+    await this.audit.record(actor, 'register.pin', current ? 'Changed their register PIN' : 'Set their register PIN');
+    return { hasPin: true };
+  }
+
+  async findAll(actor: AuthUser, query: PeriodQuery): Promise<SessionView[]> {
+    const { from, to } = period(query.from, query.to);
+    const builder = this.visibleSessions(actor)
+      .andWhere(`${localDaySql('session.opened_at')} BETWEEN :from AND :to`, { from, to })
+      .orderBy('session.opened_at', 'DESC')
+      .take(MAX_SESSIONS);
+    if (query.storeId) {
+      builder.andWhere('session.store_id = :storeId', { storeId: query.storeId });
+    }
+    return this.toViews(actor, await builder.getMany());
   }
 
   async findOne(actor: AuthUser, id: string): Promise<SessionDetail> {
-    const session = await this.sessionsRepository.findOne({
-      where: { ...(await this.visibleWhere(actor)), id },
-      relations: { store: true },
-    });
-
+    const session = await this.visibleSessions(actor).andWhere('session.id = :id', { id }).getOne();
     if (!session) {
       throw new NotFoundException(`Register session ${id} not found`);
     }
-
-    const sales = await this.salesRepository.find({
-      where: { companyId: actor.companyId!, sessionId: id },
-      relations: { lines: true },
-      order: { number: 'ASC' },
-    });
-    const [view] = await this.withTotals(actor, [session]);
-    return { ...view, sales };
+    const [view] = await this.toViews(actor, [session]);
+    const [sales, moves, coverages] = await Promise.all([
+      this.salesRepository.find({
+        where: { companyId: actor.companyId!, sessionId: id },
+        order: { createdAt: 'ASC' },
+      }),
+      this.cashMovesRepository.find({
+        where: { companyId: actor.companyId!, sessionId: id },
+        order: { createdAt: 'ASC' },
+      }),
+      this.coveragesRepository.find({
+        where: { companyId: actor.companyId!, sessionId: id },
+        order: { createdAt: 'ASC' },
+      }),
+    ]);
+    return {
+      ...view,
+      activity: activityOf(session, sales, moves),
+      coverages: coverages.map((coverage) => ({
+        id: coverage.id,
+        code: formatDocumentNumber('CV', coverage.number),
+        amount: coverage.amount,
+        note: coverage.note,
+        coveredByName: coverage.coveredByName,
+        createdAt: coverage.createdAt,
+      })),
+    };
   }
 
-  async current(actor: AuthUser): Promise<SessionView | null> {
-    const session = await this.findOpenSession(actor);
-    if (!session) {
+  async current(actor: AuthUser): Promise<SessionDetail | null> {
+    if (!actor.employeeId) {
       return null;
     }
-    session.store = (await this.storesRepository.findOneByOrFail({ id: session.storeId }));
-    return (await this.withTotals(actor, [session]))[0];
+    const session = await this.sessionsRepository.findOne({
+      select: { id: true },
+      where: { companyId: actor.companyId!, cashierId: actor.employeeId, closedAt: IsNull() },
+    });
+    return session ? this.findOne(actor, session.id) : null;
   }
 
-  async registers(actor: AuthUser, storeId: string): Promise<{ no: number; inUseBy: string | null }[]> {
+  async registers(actor: AuthUser, storeId: string): Promise<RegisterAvailability[]> {
     const store = await this.storeIWorkIn(actor, storeId);
-    const open = await this.sessionsRepository.find({ where: { storeId: store.id, closedAt: IsNull() } });
+    const open = await this.sessionsRepository.find({
+      where: { companyId: actor.companyId!, storeId: store.id, closedAt: IsNull() },
+    });
     return Array.from({ length: store.registers }, (_, index) => ({
       no: index + 1,
       inUseBy: open.find((session) => session.registerNo === index + 1)?.cashierName ?? null,
     }));
   }
 
-  async open(actor: AuthUser, dto: OpenRegisterDto): Promise<SessionView> {
-    if (await this.findOpenSession(actor)) {
+  async open(actor: AuthUser, dto: OpenRegisterDto): Promise<SessionDetail> {
+    await this.verifyPin(actor, dto.pin);
+    if (await this.current(actor)) {
       throw new BadRequestException('You already have a register open. Close it first.');
     }
-
     const store = await this.storeIWorkIn(actor, dto.storeId);
+    if (!store.warehouseId) {
+      throw new BadRequestException(`${store.name} has no sales warehouse yet. Ask the Store admin to choose one.`);
+    }
     if (dto.registerNo > store.registers) {
       throw new BadRequestException(`${store.name} has ${store.registers} register${store.registers === 1 ? '' : 's'}`);
     }
     const taken = await this.sessionsRepository.findOne({
-      where: { storeId: store.id, registerNo: dto.registerNo, closedAt: IsNull() },
+      where: { companyId: actor.companyId!, storeId: store.id, registerNo: dto.registerNo, closedAt: IsNull() },
     });
     if (taken) {
       throw new ConflictException(`Register ${dto.registerNo} is already open (${taken.cashierName})`);
@@ -120,6 +229,7 @@ export class CashRegisterService {
           cashierName: actor.displayName,
           registerNo: dto.registerNo,
           openingCash: dto.openingCash,
+          openNote: dto.note || null,
         }),
       );
     } catch (error) {
@@ -128,20 +238,329 @@ export class CashRegisterService {
       }
       throw error;
     }
-    session.store = store;
-    await this.audit.record(actor, 'register.open', `${actor.displayName} opened register ${dto.registerNo} in ${store.name}`);
-    return (await this.withTotals(actor, [session]))[0];
+    await this.audit.record(
+      actor,
+      'register.open',
+      `Opened register ${dto.registerNo} in ${store.name} with ₾${dto.openingCash.toFixed(2)}`,
+    );
+    return this.findOne(actor, session.id);
+  }
+
+  async close(actor: AuthUser, id: string, dto: CloseRegisterDto): Promise<SessionDetail> {
+    await this.verifyPin(actor, dto.pin);
+    const closed = await this.sessionsRepository.manager.transaction(async (manager) => {
+      const { session, store } = await this.lockSession(manager, actor, id);
+      if (session.closedAt) {
+        throw new BadRequestException('This register is already closed');
+      }
+      if (!this.isOwner(actor, session) && !this.isStoreManager(actor, store)) {
+        throw new ForbiddenException('Only the person who opened this register or the store manager can close it');
+      }
+      const metrics = (await this.metricsFor(manager, actor, [session])).get(session.id)!;
+      const difference = round2(dto.countedCash - metrics.expectedCash);
+      if (difference !== 0 && !dto.note) {
+        throw new BadRequestException('The counted cash differs from the expected cash, so write a note');
+      }
+      await manager.update(
+        RegisterSession,
+        { id: session.id, companyId: actor.companyId! },
+        {
+          closedAt: new Date(),
+          countedCash: dto.countedCash,
+          expectedCash: metrics.expectedCash,
+          variance: difference,
+          closeNote: dto.note || null,
+          closedByName: actor.displayName,
+          coverageStatus: difference < 0 ? CoverageStatus.UNCOVERED : null,
+        },
+      );
+      return { difference, store, session };
+    });
+    await this.audit.record(
+      actor,
+      'register.close',
+      `Closed register ${closed.session.registerNo} in ${closed.store.name} (${closed.session.cashierName}), counted ₾${dto.countedCash.toFixed(2)}, difference ₾${closed.difference.toFixed(2)}`,
+    );
+    return this.findOne(actor, id);
+  }
+
+  async moveCash(actor: AuthUser, id: string, dto: CashMoveDto): Promise<SessionDetail> {
+    const store = await this.sessionsRepository.manager.transaction(async (manager) => {
+      const { session, store } = await this.lockSession(manager, actor, id);
+      if (session.closedAt) {
+        throw new BadRequestException('This register is already closed');
+      }
+      if (!this.isOwner(actor, session)) {
+        throw new ForbiddenException('Only the person who opened this register can add or take out cash');
+      }
+      if (dto.kind === CashMoveKind.OUT) {
+        const metrics = (await this.metricsFor(manager, actor, [session])).get(session.id)!;
+        if (dto.amount > metrics.expectedCash) {
+          throw new BadRequestException(`Only ₾${metrics.expectedCash.toFixed(2)} should be in the register`);
+        }
+      }
+      await manager.save(
+        manager.create(RegisterCashMove, {
+          companyId: actor.companyId!,
+          sessionId: session.id,
+          kind: dto.kind,
+          amount: dto.amount,
+          note: dto.note,
+          createdByName: actor.displayName,
+        }),
+      );
+      return store;
+    });
+    await this.audit.record(
+      actor,
+      dto.kind === CashMoveKind.IN ? 'register.cash_in' : 'register.cash_out',
+      `${dto.kind === CashMoveKind.IN ? 'Added' : 'Took out'} ₾${dto.amount.toFixed(2)} in ${store.name}: ${dto.note}`,
+    );
+    return this.findOne(actor, id);
+  }
+
+  async comment(actor: AuthUser, id: string, dto: CommentDto): Promise<SessionDetail> {
+    const view = await this.findOne(actor, id);
+    if (!view.canComment) {
+      throw new ForbiddenException('You cannot change the comment of this register');
+    }
+    const comment = dto.comment || null;
+    await this.sessionsRepository.update(
+      { id, companyId: actor.companyId! },
+      comment === null ? { openNote: null, closeNote: null } : view.closedAt ? { closeNote: comment } : { openNote: comment },
+    );
+    await this.audit.record(actor, 'register.comment', `Changed the comment of register ${view.registerNo} in ${view.storeName}`);
+    return this.findOne(actor, id);
+  }
+
+  async cover(actor: AuthUser, id: string, dto: CoverageDto): Promise<SessionDetail> {
+    const code = await this.sessionsRepository.manager.transaction(async (manager) => {
+      const { session, store } = await this.lockSession(manager, actor, id);
+      if (!this.isStoreManager(actor, store) && actor.role !== UserRole.MODULE_ADMIN) {
+        throw new ForbiddenException('Only the store manager or the Store admin can cover a shortage');
+      }
+      if (!session.closedAt) {
+        throw new BadRequestException('A shortage can only be covered after the register is closed');
+      }
+      if ((session.variance ?? 0) >= 0) {
+        throw new BadRequestException('This register has no shortage');
+      }
+      const covered = await this.coveredAmount(manager, actor, session.id);
+      const shortage = round2(-session.variance!);
+      const left = round2(shortage - covered);
+      if (left <= 0) {
+        throw new BadRequestException('This shortage is already covered');
+      }
+      if (dto.amount > left) {
+        throw new BadRequestException(`At most ₾${left.toFixed(2)} of the shortage is left to cover`);
+      }
+      const number = await nextDocumentNumber(manager, ShortageCoverage, actor.companyId!, 'shortage-coverage');
+      await manager.save(
+        manager.create(ShortageCoverage, {
+          companyId: actor.companyId!,
+          sessionId: session.id,
+          number,
+          amount: dto.amount,
+          note: dto.note || null,
+          coveredByName: actor.displayName,
+        }),
+      );
+      await manager.update(
+        RegisterSession,
+        { id: session.id, companyId: actor.companyId! },
+        { coverageStatus: round2(covered + dto.amount) >= shortage ? CoverageStatus.COVERED : CoverageStatus.PARTLY_COVERED },
+      );
+      return `${formatDocumentNumber('CV', number)} (register ${session.registerNo} in ${store.name}, ${session.cashierName})`;
+    });
+    await this.audit.record(actor, 'register.cover', `Covered ₾${dto.amount.toFixed(2)} of a shortage: ${code}`);
+    return this.findOne(actor, id);
+  }
+
+  async openSessionForSale(
+    manager: EntityManager,
+    actor: AuthUser,
+    lock = true,
+  ): Promise<{ session: RegisterSession; store: Store }> {
+    const session = actor.employeeId
+      ? await manager.findOne(RegisterSession, {
+          where: { companyId: actor.companyId!, cashierId: actor.employeeId, closedAt: IsNull() },
+          ...(lock ? { lock: { mode: 'pessimistic_read' as const } } : {}),
+        })
+      : null;
+    if (!session) {
+      throw new BadRequestException('Open a register first (Store → Cash register)');
+    }
+    const store = await manager.findOneByOrFail(Store, { id: session.storeId, companyId: actor.companyId! });
+    return { session, store };
+  }
+
+  visibleSessions(actor: AuthUser): SelectQueryBuilder<RegisterSession> {
+    const query = this.sessionsRepository
+      .createQueryBuilder('session')
+      .innerJoinAndSelect('session.store', 'store')
+      .where('session.company_id = :companyId', { companyId: actor.companyId });
+    if (actor.role === UserRole.CASHIER) {
+      query.andWhere('session.cashier_id = :employeeId', { employeeId: actor.employeeId });
+    } else if (actor.role === UserRole.MANAGER) {
+      query.andWhere('(store.manager_id = :employeeId OR session.cashier_id = :employeeId)', { employeeId: actor.employeeId });
+    }
+    return query;
+  }
+
+  async toViews(actor: AuthUser, sessions: RegisterSession[]): Promise<SessionView[]> {
+    const metrics = await this.metricsFor(this.sessionsRepository.manager, actor, sessions);
+    return sessions.map((session) => {
+      const values = metrics.get(session.id)!;
+      const closed = !!session.closedAt;
+      const owner = this.isOwner(actor, session);
+      const storeManager = this.isStoreManager(actor, session.store);
+      const shortageLeft = closed && (session.variance ?? 0) < 0 ? round2(-session.variance! - values.covered) : 0;
+      return {
+        id: session.id,
+        storeId: session.storeId,
+        storeName: session.store.name,
+        registerNo: session.registerNo,
+        cashierName: session.cashierName,
+        openedAt: session.openedAt,
+        closedAt: session.closedAt,
+        status: closed ? 'closed' : 'open',
+        openingCash: session.openingCash,
+        openNote: session.openNote,
+        countedCash: session.countedCash,
+        expectedCash: closed && session.expectedCash !== null ? session.expectedCash : values.expectedCash,
+        variance: session.variance,
+        closeNote: session.closeNote,
+        closedByName: session.closedByName,
+        coverageStatus: session.coverageStatus,
+        shortageLeft,
+        metrics: values,
+        mine: owner,
+        canClose: !closed && (owner || storeManager),
+        canMoveCash: !closed && owner,
+        canComment: owner || storeManager || actor.role === UserRole.MODULE_ADMIN,
+        canCover: shortageLeft > 0 && (storeManager || actor.role === UserRole.MODULE_ADMIN),
+      };
+    });
+  }
+
+  private async metricsFor(manager: EntityManager, actor: AuthUser, sessions: RegisterSession[]): Promise<Map<string, SessionMetrics>> {
+    const result = new Map<string, SessionMetrics>();
+    for (const session of sessions) {
+      result.set(session.id, {
+        salesCount: 0,
+        returnsCount: 0,
+        cashSales: 0,
+        cardSales: 0,
+        cashReturns: 0,
+        cardReturns: 0,
+        cashIn: 0,
+        cashOut: 0,
+        netSales: 0,
+        expectedCash: session.openingCash,
+        covered: 0,
+      });
+    }
+    if (sessions.length === 0) {
+      return result;
+    }
+    const ids = sessions.map((session) => session.id);
+    const companyId = actor.companyId;
+    const [sales, moves, coverages] = await Promise.all([
+      manager
+        .createQueryBuilder(Sale, 'sale')
+        .select('sale.session_id', 'sessionId')
+        .addSelect('sale.kind', 'kind')
+        .addSelect('sale.payment_method', 'method')
+        .addSelect('COUNT(*)', 'count')
+        .addSelect('COALESCE(SUM(sale.total), 0)', 'total')
+        .where('sale.company_id = :companyId', { companyId })
+        .andWhere('sale.session_id IN (:...ids)', { ids })
+        .groupBy('sale.session_id')
+        .addGroupBy('sale.kind')
+        .addGroupBy('sale.payment_method')
+        .getRawMany<{ sessionId: string; kind: SaleKind; method: PaymentMethod; count: string; total: string }>(),
+      manager
+        .createQueryBuilder(RegisterCashMove, 'move')
+        .select('move.session_id', 'sessionId')
+        .addSelect('move.kind', 'kind')
+        .addSelect('COALESCE(SUM(move.amount), 0)', 'total')
+        .where('move.company_id = :companyId', { companyId })
+        .andWhere('move.session_id IN (:...ids)', { ids })
+        .groupBy('move.session_id')
+        .addGroupBy('move.kind')
+        .getRawMany<{ sessionId: string; kind: CashMoveKind; total: string }>(),
+      manager
+        .createQueryBuilder(ShortageCoverage, 'coverage')
+        .select('coverage.session_id', 'sessionId')
+        .addSelect('COALESCE(SUM(coverage.amount), 0)', 'total')
+        .where('coverage.company_id = :companyId', { companyId })
+        .andWhere('coverage.session_id IN (:...ids)', { ids })
+        .groupBy('coverage.session_id')
+        .getRawMany<{ sessionId: string; total: string }>(),
+    ]);
+    for (const row of sales) {
+      const metrics = result.get(row.sessionId)!;
+      const total = Number(row.total);
+      const cash = row.method === PaymentMethod.CASH;
+      if (row.kind === SaleKind.SALE) {
+        metrics.salesCount += Number(row.count);
+        if (cash) metrics.cashSales = total;
+        else metrics.cardSales = total;
+      } else {
+        metrics.returnsCount += Number(row.count);
+        if (cash) metrics.cashReturns = total;
+        else metrics.cardReturns = total;
+      }
+    }
+    for (const row of moves) {
+      const metrics = result.get(row.sessionId)!;
+      if (row.kind === CashMoveKind.IN) metrics.cashIn = Number(row.total);
+      else metrics.cashOut = Number(row.total);
+    }
+    for (const row of coverages) {
+      result.get(row.sessionId)!.covered = Number(row.total);
+    }
+    for (const session of sessions) {
+      const metrics = result.get(session.id)!;
+      metrics.netSales = round2(metrics.cashSales + metrics.cardSales - metrics.cashReturns - metrics.cardReturns);
+      metrics.expectedCash = round2(
+        session.openingCash + metrics.cashSales - metrics.cashReturns + metrics.cashIn - metrics.cashOut,
+      );
+    }
+    return result;
+  }
+
+  private async coveredAmount(manager: EntityManager, actor: AuthUser, sessionId: string): Promise<number> {
+    const row = await manager
+      .createQueryBuilder(ShortageCoverage, 'coverage')
+      .select('COALESCE(SUM(coverage.amount), 0)', 'total')
+      .where('coverage.company_id = :companyId', { companyId: actor.companyId })
+      .andWhere('coverage.session_id = :sessionId', { sessionId })
+      .getRawOne<{ total: string }>();
+    return Number(row?.total ?? 0);
+  }
+
+  private async lockSession(manager: EntityManager, actor: AuthUser, id: string): Promise<{ session: RegisterSession; store: Store }> {
+    const visible = await this.visibleSessions(actor).andWhere('session.id = :id', { id }).getOne();
+    if (!visible) {
+      throw new NotFoundException(`Register session ${id} not found`);
+    }
+    const session = await manager.findOneOrFail(RegisterSession, {
+      where: { id, companyId: actor.companyId! },
+      lock: { mode: 'pessimistic_write' },
+    });
+    session.store = visible.store;
+    return { session, store: visible.store };
   }
 
   private async storeIWorkIn(actor: AuthUser, storeId: string): Promise<Store> {
-    const store = await this.storesRepository.findOne({
-      where: { id: storeId, companyId: actor.companyId! },
-    });
+    const store = await this.storesRepository.findOne({ where: { id: storeId, companyId: actor.companyId! } });
     const allowed =
       store &&
       (actor.role === UserRole.MANAGER
         ? store.managerId === actor.employeeId
-        : !!actor.employeeId &&
+        : actor.role === UserRole.CASHIER &&
+          !!actor.employeeId &&
           (await this.storeEmployeesRepository.existsBy({
             companyId: actor.companyId!,
             storeId: store.id,
@@ -153,83 +572,101 @@ export class CashRegisterService {
     return store;
   }
 
-  async close(actor: AuthUser, id: string, dto: CloseRegisterDto): Promise<SessionView> {
-    const session = await this.sessionsRepository.findOne({
-      where: { id, companyId: actor.companyId! },
-      relations: { store: true },
-    });
-    if (!session) {
-      throw new NotFoundException(`Register session ${id} not found`);
-    }
-    if (session.closedAt) {
-      throw new BadRequestException('This register is already closed');
-    }
-    if (session.cashierId !== actor.employeeId && session.store.managerId !== actor.employeeId) {
-      throw new ForbiddenException('Only the cashier who opened this register or the store manager can close it');
-    }
-
-    session.closedAt = new Date();
-    session.closingCash = dto.closingCash;
-    await this.sessionsRepository.save(session);
-    await this.audit.record(actor, 'register.close', `${actor.displayName} closed register ${session.registerNo} in ${session.store.name}`);
-    return (await this.withTotals(actor, [session]))[0];
+  private async pinHashOf(actor: AuthUser): Promise<string | null> {
+    const user = await this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.pinHash')
+      .where('user.id = :id', { id: actor.userId })
+      .andWhere('user.company_id = :companyId', { companyId: actor.companyId })
+      .getOne();
+    return user?.pinHash ?? null;
   }
 
-  findOpenSession(actor: AuthUser): Promise<RegisterSession | null> {
-    if (!actor.employeeId) {
-      return Promise.resolve(null);
+  private async verifyPin(actor: AuthUser, pin: string): Promise<void> {
+    const hash = await this.pinHashOf(actor);
+    if (!hash) {
+      throw new BadRequestException('Set your register PIN first');
     }
-    return this.sessionsRepository.findOne({
-      where: { companyId: actor.companyId!, cashierId: actor.employeeId, closedAt: IsNull() },
-    });
+    if (!verifyPassword(pin, hash)) {
+      throw new BadRequestException('The PIN is wrong');
+    }
   }
 
-  private async visibleWhere(actor: AuthUser): Promise<FindOptionsWhere<RegisterSession>> {
-    const where: FindOptionsWhere<RegisterSession> = { companyId: actor.companyId! };
-
-    if (actor.role === UserRole.CASHIER) {
-      where.cashierId = actor.employeeId!;
-    } else if (actor.role === UserRole.MANAGER) {
-      const stores = await this.storesRepository.find({
-        select: { id: true },
-        where: { companyId: actor.companyId!, managerId: actor.employeeId! },
-      });
-      where.storeId = In(stores.map((store) => store.id));
-    }
-    return where;
+  private isOwner(actor: AuthUser, session: RegisterSession): boolean {
+    return !!actor.employeeId && session.cashierId === actor.employeeId;
   }
 
-  private async withTotals(actor: AuthUser, sessions: RegisterSession[]): Promise<SessionView[]> {
-    const totals = new Map<string, { count: number; total: number }>();
-
-    if (sessions.length > 0) {
-      const rows = await this.salesRepository
-        .createQueryBuilder('sale')
-        .select('sale.session_id', 'sessionId')
-        .addSelect('COUNT(*)', 'count')
-        .addSelect('COALESCE(SUM(sale.total), 0)', 'total')
-        .where('sale.company_id = :companyId', { companyId: actor.companyId })
-        .andWhere('sale.session_id IN (:...ids)', { ids: sessions.map((s) => s.id) })
-        .groupBy('sale.session_id')
-        .getRawMany<{ sessionId: string; count: string; total: string }>();
-      for (const row of rows) {
-        totals.set(row.sessionId, { count: Number(row.count), total: Number(row.total) });
-      }
-    }
-
-    return sessions.map((session) => ({
-      id: session.id,
-      storeId: session.storeId,
-      storeName: session.store.name,
-      registerNo: session.registerNo,
-      cashierName: session.cashierName,
-      openedAt: session.openedAt,
-      closedAt: session.closedAt,
-      status: session.closedAt ? 'closed' : 'open',
-      openingCash: session.openingCash,
-      closingCash: session.closingCash,
-      salesCount: totals.get(session.id)?.count ?? 0,
-      total: totals.get(session.id)?.total ?? 0,
-    }));
+  private isStoreManager(actor: AuthUser, store: Store): boolean {
+    return actor.role === UserRole.MANAGER && !!actor.employeeId && store.managerId === actor.employeeId;
   }
 }
+
+export function saleCode(sale: Pick<Sale, 'kind' | 'number'>): string {
+  return formatDocumentNumber(sale.kind === SaleKind.SALE ? 'S' : 'R', sale.number);
+}
+
+function activityOf(session: RegisterSession, sales: Sale[], moves: RegisterCashMove[]): ActivityRow[] {
+  const events: Omit<ActivityRow, 'balanceBefore' | 'balanceAfter'>[] = [
+    {
+      at: session.openedAt,
+      type: 'open',
+      code: null,
+      saleId: null,
+      paymentMethod: null,
+      amount: session.openingCash,
+      cashEffect: session.openingCash,
+      by: session.cashierName,
+      note: session.openNote,
+    },
+  ];
+  for (const sale of sales) {
+    const cash = sale.paymentMethod === PaymentMethod.CASH;
+    const sign = sale.kind === SaleKind.SALE ? 1 : -1;
+    events.push({
+      at: sale.createdAt,
+      type: sale.kind === SaleKind.SALE ? 'sale' : 'return',
+      code: saleCode(sale),
+      saleId: sale.id,
+      paymentMethod: sale.paymentMethod,
+      amount: sale.total,
+      cashEffect: cash ? sign * sale.total : 0,
+      by: sale.createdByName,
+      note: sale.note,
+    });
+  }
+  for (const move of moves) {
+    const sign = move.kind === CashMoveKind.IN ? 1 : -1;
+    events.push({
+      at: move.createdAt,
+      type: move.kind === CashMoveKind.IN ? 'cash_in' : 'cash_out',
+      code: null,
+      saleId: null,
+      paymentMethod: PaymentMethod.CASH,
+      amount: move.amount,
+      cashEffect: sign * move.amount,
+      by: move.createdByName,
+      note: move.note,
+    });
+  }
+  events.sort((a, b) => (a.type === 'open' ? -1 : b.type === 'open' ? 1 : a.at.getTime() - b.at.getTime()));
+  if (session.closedAt) {
+    events.push({
+      at: session.closedAt,
+      type: 'close',
+      code: null,
+      saleId: null,
+      paymentMethod: null,
+      amount: session.countedCash ?? 0,
+      cashEffect: 0,
+      by: session.closedByName ?? session.cashierName,
+      note: session.closeNote,
+    });
+  }
+  let balance = 0;
+  return events.map((event) => {
+    const before = balance;
+    balance = round2(balance + event.cashEffect);
+    return { ...event, balanceBefore: before, balanceAfter: balance };
+  });
+}
+

@@ -1,0 +1,207 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">
+        <a routerLink="/store/cash-register" class="link-button">
+          <lucide-icon [img]="BackIcon" [size]="14"></lucide-icon> {{ 'Cash register' | t }}
+        </a>
+      </p>
+      @if (session(); as s) {
+        <div class="page-header__title-row">
+          <h1 class="page-title">{{ 'Register {p0} · {p1}' | t: { p0: s.registerNo, p1: s.storeName } }}</h1>
+          <span class="badge" [class.badge--active]="s.status === 'open'" [class.badge--inactive]="s.status === 'closed'">
+            {{ (s.status === 'open' ? 'Open' : 'Closed') | t }}
+          </span>
+        </div>
+        <p class="page-description">
+          {{ s.cashierName }} · {{ s.openedAt | date: 'dd.MM.yyyy HH:mm' }} – {{ s.closedAt ? (s.closedAt | date: 'dd.MM.yyyy HH:mm') : ('now' | t) }}
+        </p>
+      }
+    </div>
+    @if (session(); as s) {
+      <div class="button-row page-header__actions">
+        @if (s.canMoveCash) {
+          <button type="button" class="button button--outline" (click)="dialog.set('in')">{{ 'Add cash' | t }}</button>
+          <button type="button" class="button button--outline" (click)="dialog.set('out')">{{ 'Take out cash' | t }}</button>
+        }
+        @if (s.canComment) {
+          <button type="button" class="button button--outline" (click)="dialog.set('comment')">{{ 'Comment' | t }}</button>
+        }
+        @if (s.canCover) {
+          <button type="button" class="button button--outline" (click)="dialog.set('cover')">{{ 'Cover the shortage' | t }}</button>
+        }
+        @if (canExport()) {
+          <button type="button" class="button button--outline" (click)="exportMovement()">
+            <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
+            {{ 'Export' | t }}
+          </button>
+        }
+        @if (s.canClose) {
+          <button type="button" class="button button--dark" (click)="dialog.set('close')">{{ 'Close the register' | t }}</button>
+        }
+      </div>
+    }
+  </div>
+
+  @if (notice()) {
+    <p class="notice-success">{{ notice() | t }}</p>
+  }
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  @if (session(); as s) {
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat__label">{{ 'Opening cash' | t }}</div>
+        <div class="stat__value">₾{{ s.openingCash | number: '1.2-2' }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Cash sales' | t }}</div>
+        <div class="stat__value">₾{{ s.metrics.cashSales | number: '1.2-2' }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Card sales' | t }}</div>
+        <div class="stat__value">₾{{ s.metrics.cardSales | number: '1.2-2' }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Returns: cash / card' | t }}</div>
+        <div class="stat__value">₾{{ s.metrics.cashReturns | number: '1.2-2' }} / ₾{{ s.metrics.cardReturns | number: '1.2-2' }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Cash added / taken out' | t }}</div>
+        <div class="stat__value">₾{{ s.metrics.cashIn | number: '1.2-2' }} / ₾{{ s.metrics.cashOut | number: '1.2-2' }}</div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat__label">{{ 'Expected cash' | t }}</div>
+        <div class="stat__value">₾{{ s.expectedCash | number: '1.2-2' }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Counted cash' | t }}</div>
+        <div class="stat__value">{{ s.countedCash === null ? '—' : '₾' + (s.countedCash | number: '1.2-2') }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Difference' | t }}</div>
+        <div class="stat__value" [class.change-in]="(s.variance ?? 0) > 0" [class.change-out]="(s.variance ?? 0) < 0">
+          {{ s.variance === null ? '—' : '₾' + (s.variance | number: '1.2-2') }}
+        </div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Shortage covered' | t }}</div>
+        <div class="stat__value">
+          @if (s.coverageStatus) {
+            ₾{{ s.metrics.covered | number: '1.2-2' }}
+          } @else {
+            —
+          }
+        </div>
+        @if (s.coverageStatus) {
+          <div class="muted">{{ coverageLabels[s.coverageStatus] | t }}</div>
+        }
+      </div>
+    </div>
+
+    <div class="page-card">
+      <dl class="detail-grid">
+        <div>
+          <dt>{{ 'Opening note' | t }}</dt>
+          <dd>{{ s.openNote || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Closing note' | t }}</dt>
+          <dd>{{ s.closeNote || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Closed by' | t }}</dt>
+          <dd>{{ s.closedByName || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Net sales' | t }}</dt>
+          <dd>₾{{ s.metrics.netSales | number: '1.2-2' }} · {{ '{p0} sales, {p1} returns' | t: { p0: s.metrics.salesCount, p1: s.metrics.returnsCount } }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="page-card">
+      <h2 class="card-title">{{ 'Cash movement' | t }}</h2>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'Time' | t }}</th>
+              <th>{{ 'Operation' | t }}</th>
+              <th>{{ 'Document' | t }}</th>
+              <th>{{ 'Payment' | t }}</th>
+              <th>{{ 'Amount' | t }}</th>
+              <th>{{ 'Cash before' | t }}</th>
+              <th>{{ 'Cash change' | t }}</th>
+              <th>{{ 'Cash after' | t }}</th>
+              <th>{{ 'By' | t }}</th>
+              <th>{{ 'Note' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of s.activity; track $index) {
+              <tr>
+                <td class="cell-nowrap">{{ row.at | date: 'dd.MM HH:mm:ss' }}</td>
+                <td class="cell-nowrap">{{ activityLabels[row.type] | t }}</td>
+                <td>
+                  @if (row.saleId) {
+                    <a [routerLink]="['/store/sales', row.saleId]">{{ row.code }}</a>
+                  } @else {
+                    –
+                  }
+                </td>
+                <td>{{ row.paymentMethod ? (paymentLabels[row.paymentMethod] | t) : '–' }}</td>
+                <td class="cell-figure">₾{{ row.amount | number: '1.2-2' }}</td>
+                <td class="cell-figure">₾{{ row.balanceBefore | number: '1.2-2' }}</td>
+                <td class="cell-figure" [class.change-in]="row.cashEffect > 0" [class.change-out]="row.cashEffect < 0">
+                  {{ row.cashEffect === 0 ? '–' : (row.cashEffect > 0 ? '+' : '') + (row.cashEffect | number: '1.2-2') }}
+                </td>
+                <td class="cell-figure">₾{{ row.balanceAfter | number: '1.2-2' }}</td>
+                <td class="cell-nowrap">{{ row.by }}</td>
+                <td>{{ row.note || '' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @if (s.coverages.length > 0) {
+      <div class="page-card">
+        <h2 class="card-title">{{ 'Shortage coverage' | t }}</h2>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'Document' | t }}</th>
+                <th>{{ 'Date' | t }}</th>
+                <th>{{ 'Amount' | t }}</th>
+                <th>{{ 'Covered by' | t }}</th>
+                <th>{{ 'Note' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (coverage of s.coverages; track coverage.id) {
+                <tr>
+                  <td class="cell-strong">{{ coverage.code }}</td>
+                  <td class="cell-nowrap">{{ coverage.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                  <td class="cell-figure">₾{{ coverage.amount | number: '1.2-2' }}</td>
+                  <td>{{ coverage.coveredByName }}</td>
+                  <td>{{ coverage.note || '' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  } @else if (!errorMessage()) {
+    <p class="page-description">{{ 'Loading…' | t }}</p>
+  }
+</div>
+
+<app-register-dialog [session]="session()" [mode]="dialog()" (done)="onDialogDone($event)" (closed)="dialog.set(null)" />

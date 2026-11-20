@@ -11,7 +11,7 @@ import { AuthUser } from '../../auth/auth-user.js';
 import { Access, CurrentUser, Roles } from '../../auth/decorators.js';
 import { ADMIN_ROLES, UserRole } from '../../auth/user-role.enum.js';
 import { Credentials } from '../../auth/users.service.js';
-import { EmployeesService } from './employees.service.js';
+import { EmployeesService, Workplaces } from './employees.service.js';
 import { CreateEmployeeDto } from './dto/create-employee.dto.js';
 import { UpdateEmployeeDto } from './dto/update-employee.dto.js';
 import { Employee } from './employee.entity.js';
@@ -58,6 +58,22 @@ export class EmployeesController {
     @Param('id') id: string,
   ): Promise<void> {
     return this.employeesService.remove(user, id);
+  }
+
+  @Get(':id/workplaces')
+  workplaces(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ): Promise<Workplaces> {
+    return this.employeesService.workplaces(user, id);
+  }
+
+  @Post(':id/pin-reset')
+  resetPin(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ): Promise<void> {
+    return this.employeesService.resetPin(user, id);
   }
 
   @Post(':id/credentials')

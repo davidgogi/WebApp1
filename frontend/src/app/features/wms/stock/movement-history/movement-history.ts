@@ -1,10 +1,12 @@
-import { Component, input } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Pager } from '../../../../shared/pager/pager';
 import { Pagination } from '../../../../shared/pager/pagination';
 import { STOCK_MOVEMENT_LABELS, StockMovement, movementDocumentLink } from '../stock.model';
 import { TranslatePipe } from '../../../../core/i18n/t.pipe';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { canAccessModule } from '../../../../core/auth/access';
 import { ColumnHeader, ColumnTable } from '../../../../shared/column-order/column-header';
 import { ColumnTools } from '../../../../shared/column-order/column-tools';
 import { ColumnOrder } from '../../../../shared/column-order/column-order';
@@ -35,6 +37,8 @@ export class MovementHistory {
   );
 
   protected readonly labels = STOCK_MOVEMENT_LABELS;
-  protected readonly documentLink = movementDocumentLink;
+  private readonly auth = inject(AuthService);
+  private readonly canSeeStore = computed(() => canAccessModule(this.auth.user(), 'store'));
+  protected readonly documentLink = (movement: StockMovement) => movementDocumentLink(movement, this.canSeeStore());
   protected readonly pages = new Pagination(() => this.movements());
 }

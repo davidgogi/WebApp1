@@ -3,94 +3,195 @@
     <div>
       <p class="page-eyebrow">{{ 'Store' | t }}</p>
       <h1 class="page-title">{{ 'POS' | t }}</h1>
-      <p class="page-description">{{ 'Tap products to ring up a sale on your open register.' | t }}</p>
+      @if (catalog(); as c) {
+        <p class="page-description">
+          {{ 'Register {p0} · {p1} · stock from {p2}' | t: { p0: c.registerNo, p1: c.store.name, p2: c.warehouse.code + ' ' + c.warehouse.name } }}
+        </p>
+      }
     </div>
-    @if (session(); as current) {
-      <span class="badge badge--active">
-        {{ 'Register {p0} · {p1}' | t: { p0: current.registerNo, p1: current.storeName } }}
-      </span>
+    @if (catalog()) {
+      <div class="button-row page-header__actions">
+        <a class="button button--outline" routerLink="/store/sales">{{ 'Sales' | t }}</a>
+        <a class="button button--outline" routerLink="/store/cash-register">{{ 'Cash register' | t }}</a>
+      </div>
     }
   </div>
 
-  @if (!isLoading() && !session()) {
-    <div class="page-card pos-banner">
-      <div>
-        <div class="cell-strong">{{ 'No register is open' | t }}</div>
-        <div class="cell-sub">{{ 'Open a register in Cash register before ringing up sales.' | t }}</div>
-      </div>
-      <a class="button button--primary" routerLink="/store/cash-register">{{ 'Open a register' | t }}</a>
-    </div>
-  }
-
-  @if (errorMessage()) {
-    <p class="field-error">{{ errorMessage() | t }}</p>
-  }
-
   @if (lastSale(); as sale) {
-    <div class="pos-success">{{ 'Sale #{p0} recorded: ₾{p1}' | t: { p0: sale.number, p1: (sale.total | number: '1.2-2') } }}</div>
+    <p class="notice-success">
+      <a [routerLink]="['/store/sales', sale.id]">{{ sale.code }}</a>
+      · ₾{{ sale.total | number: '1.2-2' }}
+      @if (sale.paymentMethod === 'cash') {
+        · {{ 'change ₾{p0}' | t: { p0: (sale.changeGiven ?? 0 | number: '1.2-2') } }}
+      } @else {
+        · {{ 'Card' | t }}
+      }
+    </p>
   }
 
-  <div class="pos-layout">
+  @if (isLoading() && !catalog()) {
+    <p class="page-description">{{ 'Loading…' | t }}</p>
+  } @else if (noRegister()) {
     <div class="page-card">
-      <div class="pos-grid">
-        @for (product of products(); track product.id) {
-          <button
-            type="button"
-            class="pos-product"
-            [disabled]="!session()"
-            (click)="add(product)"
-          >
-            <span class="pos-product__name">{{ product.name }}</span>
-            <span class="pos-product__price">₾{{ product.price | number: '1.2-2' }}</span>
-          </button>
-        } @empty {
-          <p class="page-description">{{ 'No products to sell yet.' | t }}</p>
-        }
-      </div>
-    </div>
-
-    <div class="page-card pos-cart">
-      <h2 class="pos-cart__title">{{ 'Current sale' | t }}</h2>
-
-      @if (cart().length === 0) {
-        <p class="page-description">{{ 'Nothing added yet.' | t }}</p>
-      } @else {
-        <ul class="pos-cart__lines">
-          @for (line of cart(); track line.product.id) {
-            <li class="pos-cart__line">
-              <div class="pos-cart__name">
-                <div class="cell-strong">{{ line.product.name }}</div>
-                <div class="cell-sub">{{ '₾{p0} each' | t: { p0: (line.product.price | number: '1.2-2') } }}</div>
-              </div>
-              <div class="pos-qty">
-                <button type="button" class="pos-qty__button" [aria-label]="'One less' | t" (click)="change(line, -1)">−</button>
-                <span>{{ line.quantity }}</span>
-                <button type="button" class="pos-qty__button" [aria-label]="'One more' | t" (click)="change(line, 1)">+</button>
-              </div>
-              <div class="pos-cart__amount">₾{{ line.product.price * line.quantity | number: '1.2-2' }}</div>
-            </li>
-          }
-        </ul>
-      }
-
-      <div class="pos-cart__total">
-        <span>{{ 'Total ({p0} items)' | t: { p0: itemCount() } }}</span>
-        <strong>₾{{ total() | number: '1.2-2' }}</strong>
-      </div>
-
+      <p class="page-description">{{ 'Open a register first, then come back here to sell.' | t }}</p>
       <div class="button-row">
-        <button
-          type="button"
-          class="button button--primary pos-cart__charge"
-          [disabled]="cart().length === 0 || !session() || isCharging()"
-          (click)="charge()"
-        >
-          {{ isCharging() ? ('Recording…' | t) : ('Charge ₾{amount}' | t: { amount: total() | number: '1.2-2' }) }}
-        </button>
-        @if (cart().length > 0) {
-          <button type="button" class="button button--secondary" (click)="clear()">{{ 'Clear' | t }}</button>
-        }
+        <a class="button button--primary" routerLink="/store/cash-register">{{ 'Open a register' | t }}</a>
       </div>
     </div>
-  </div>
+  } @else if (catalog(); as c) {
+    @if (errorMessage()) {
+      <p class="field-error">{{ errorMessage() | t }}</p>
+    }
+    <div class="pos">
+      <div class="page-card">
+        <div class="search-input">
+          <lucide-icon [img]="SearchIcon" [size]="16" class="search-input__icon"></lucide-icon>
+          <input
+            #searchBox
+            class="text-input"
+            type="search"
+            [aria-label]="'Search or scan' | t"
+            [placeholder]="'Name or barcode; scan and press Enter' | t"
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
+            (keydown.enter)="onSearchEnter()"
+          />
+        </div>
+        <div class="pos-categories">
+          <button type="button" class="check-chip" [class.check-chip--on]="!categoryId()" (click)="categoryId.set('')">
+            {{ 'All' | t }}
+          </button>
+          @for (category of c.categories; track category.id) {
+            <button
+              type="button"
+              class="check-chip"
+              [class.check-chip--on]="categoryId() === category.id"
+              (click)="categoryId.set(category.id)"
+            >
+              {{ category.name }}
+            </button>
+          }
+        </div>
+        @if (c.products.length === 0) {
+          <p class="page-description">
+            {{ 'No products can be sold yet. In WMS → Products, set a product\'s POS status to "Available at POS".' | t }}
+          </p>
+        } @else if (products().length === 0) {
+          <p class="page-description">{{ 'Nothing matches.' | t }}</p>
+        } @else {
+          <div class="pos-grid">
+            @for (product of products(); track product.id) {
+              <button type="button" class="pos-tile" [disabled]="product.stock <= 0" (click)="add(product)">
+                <span class="pos-tile__name">{{ product.name }}</span>
+                <span class="muted" [class.short]="product.stock <= 0">
+                  {{ '{p0} {p1} in stock' | t: { p0: product.stock, p1: (product.unit | t) } }}
+                </span>
+                <span class="pos-tile__price">₾{{ product.price | number: '1.2-2' }} / {{ product.unit | t }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="page-card pos-cart">
+        <h2 class="card-title">{{ 'Cart' | t }}</h2>
+        @if (cart().length === 0) {
+          <p class="page-description">{{ 'Tap a product or scan a barcode.' | t }}</p>
+        } @else {
+          <div class="pos-cart__lines">
+            @for (line of cart(); track line.product.id) {
+              <div class="pos-line">
+                <div>
+                  <div class="cell-strong">{{ line.product.name }}</div>
+                  <div class="muted">₾{{ line.product.price | number: '1.2-2' }} / {{ line.product.unit | t }}</div>
+                  @if (line.quantity > line.product.stock) {
+                    <div class="short">{{ 'Only {p0} {p1} in stock' | t: { p0: line.product.stock, p1: (line.product.unit | t) } }}</div>
+                  } @else if (!wholeOk(line)) {
+                    <div class="short">{{ 'Counted in pcs: whole numbers only' | t }}</div>
+                  }
+                </div>
+                <input
+                  class="line-input"
+                  type="number"
+                  [min]="line.product.unit === 'pcs' ? 1 : 0.001"
+                  [step]="line.product.unit === 'pcs' ? 1 : 0.001"
+                  [aria-label]="'Quantity' | t"
+                  [ngModel]="line.quantity"
+                  (ngModelChange)="setQuantity(line, $event)"
+                />
+                <span class="pos-line__total">₾{{ lineTotal(line) | number: '1.2-2' }}</span>
+                <button type="button" class="icon-action icon-action--danger" [title]="'Remove' | t" (click)="remove(line)">
+                  <lucide-icon [img]="DeleteIcon" [size]="16"></lucide-icon>
+                </button>
+              </div>
+            }
+          </div>
+        }
+        <div class="pos-total">
+          <span>{{ 'Total' | t }}</span>
+          <span>₾{{ total() | number: '1.2-2' }}</span>
+        </div>
+        <div class="button-row">
+          <button type="button" class="button button--outline" [disabled]="cart().length === 0" (click)="clearCart()">
+            {{ 'Empty the cart' | t }}
+          </button>
+          <button type="button" class="button button--primary" [disabled]="cart().length === 0 || hasProblem()" (click)="openPay()">
+            {{ 'Pay' | t }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 </div>
+
+<app-modal [open]="payOpen()" [title]="'Payment' | t" (closed)="payOpen.set(false)">
+  @if (payOpen()) {
+    <form class="page-stack" (ngSubmit)="pay()">
+      <div class="pos-total">
+        <span>{{ 'Total' | t }}</span>
+        <span>₾{{ total() | number: '1.2-2' }}</span>
+      </div>
+      <div class="pos-methods">
+        <button type="button" class="button" [class.button--dark]="method() === 'cash'" [class.button--outline]="method() !== 'cash'" (click)="method.set('cash')">
+          {{ 'Cash' | t }}
+        </button>
+        <button type="button" class="button" [class.button--dark]="method() === 'card'" [class.button--outline]="method() !== 'card'" (click)="method.set('card')">
+          {{ 'Card' | t }}
+        </button>
+      </div>
+      @if (method() === 'cash') {
+        <div class="form-grid form-grid--two">
+          <div class="field">
+            <label for="cashReceived">{{ 'Cash received (₾)' | t }}</label>
+            <input
+              id="cashReceived"
+              class="text-input"
+              type="number"
+              min="0"
+              step="0.01"
+              name="received"
+              [placeholder]="total() | number: '1.2-2'"
+              [(ngModel)]="received"
+            />
+            <span class="field-hint">{{ 'Leave empty if the customer paid the exact amount.' | t }}</span>
+          </div>
+          <div class="stat">
+            <div class="stat__label">{{ 'Change' | t }}</div>
+            <div class="stat__value" [class.change-out]="(change() ?? 0) < 0">₾{{ change() ?? 0 | number: '1.2-2' }}</div>
+          </div>
+        </div>
+      } @else {
+        <p class="field-hint">{{ 'Take the payment on the card terminal, then confirm here.' | t }}</p>
+      }
+      @if (payError()) {
+        <p class="field-error">{{ payError() | t }}</p>
+      }
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="payOpen.set(false)">{{ 'Cancel' | t }}</button>
+        <button type="submit" class="button button--primary" [disabled]="isPaying()">
+          {{ isPaying() ? ('Saving…' | t) : ('Confirm the sale' | t) }}
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>

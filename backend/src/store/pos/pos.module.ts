@@ -1,16 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { Product } from '../../wms/products/product.entity.js';
+import { ProductWarehouse } from '../../wms/stock/product-warehouse.entity.js';
 import { CashRegisterModule } from '../cash-register/cash-register.module.js';
-import { Sale } from '../cash-register/sale.entity.js';
-import { SaleLine } from '../cash-register/sale-line.entity.js';
+import { SalesModule } from '../sales/sales.module.js';
 import { PosController } from './pos.controller.js';
 import { PosService } from './pos.service.js';
-import { StoreProduct } from './store-product.entity.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StoreProduct, Sale, SaleLine]), CashRegisterModule],
+  imports: [TypeOrmModule.forFeature([Product, ProductWarehouse]), CashRegisterModule, SalesModule],
   controllers: [PosController],
   providers: [PosService],
-  exports: [PosService],
 })
 export class PosModule {}

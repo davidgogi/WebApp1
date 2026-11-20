@@ -6,6 +6,8 @@ import { addMissingCompanyIds } from './company-id-backfill.js';
 import { SuppliersBecomePartners1794225600000 } from './migrations/1794225600000-SuppliersBecomePartners.js';
 import { ProductGroupsBecomeRecords1794312000000 } from './migrations/1794312000000-ProductGroupsBecomeRecords.js';
 import { SuperuserBecomesPlatformAdmin1794398400000 } from './migrations/1794398400000-SuperuserBecomesPlatformAdmin.js';
+import { PartnersBecomeCounterparties1794657600000 } from './migrations/1794657600000-PartnersBecomeCounterparties.js';
+import { CounterpartyDetails1795000000000 } from './migrations/1795000000000-CounterpartyDetails.js';
 
 const compiledRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -52,6 +54,16 @@ async function runDataMigrations(dataSource: DataSource): Promise<void> {
       (await runner.hasTable('users')) &&
       !(await runner.hasTable('platform_admins'))
         ? new SuperuserBecomesPlatformAdmin1794398400000()
+        : null,
+      (await runner.hasTable('suppliers')) ||
+      (await runner.hasTable('partners'))
+        ? new PartnersBecomeCounterparties1794657600000()
+        : null,
+      ((await runner.hasTable('suppliers')) ||
+        (await runner.hasTable('partners')) ||
+        (await runner.hasTable('counterparties'))) &&
+      !(await runner.hasColumn('counterparties', 'number'))
+        ? new CounterpartyDetails1795000000000()
         : null,
     ].filter((migration) => migration !== null);
     for (const migration of pending) {

@@ -1,0 +1,205 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">
+        <a routerLink="/store/sales" class="link-button">
+          <lucide-icon [img]="BackIcon" [size]="14"></lucide-icon> {{ 'Sales' | t }}
+        </a>
+      </p>
+      @if (sale(); as s) {
+        <div class="page-header__title-row">
+          <h1 class="page-title">{{ s.code }}</h1>
+          <span class="badge" [class.badge--done]="s.kind === 'sale'" [class.badge--cancelled]="s.kind === 'return'">
+            {{ kindLabels[s.kind] | t }}
+          </span>
+        </div>
+        <p class="page-description">
+          {{ s.createdAt | date: 'dd.MM.yyyy HH:mm:ss' }} · {{ s.storeName }} · {{ 'Register {p0}' | t: { p0: s.registerNo } }}
+        </p>
+      }
+    </div>
+    @if (sale(); as s) {
+      @if (s.canReturn) {
+        <div class="button-row page-header__actions">
+          <button type="button" class="button button--dark" (click)="openReturn()">{{ 'Return goods' | t }}</button>
+        </div>
+      }
+    }
+  </div>
+
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  @if (sale(); as s) {
+    <div class="page-card">
+      <dl class="detail-grid">
+        <div>
+          <dt>{{ 'Total' | t }}</dt>
+          <dd class="cell-strong">₾{{ s.total | number: '1.2-2' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Payment' | t }}</dt>
+          <dd>{{ paymentLabels[s.paymentMethod] | t }}</dd>
+        </div>
+        @if (s.cashReceived !== null) {
+          <div>
+            <dt>{{ 'Cash received / change' | t }}</dt>
+            <dd>₾{{ s.cashReceived | number: '1.2-2' }} / ₾{{ s.changeGiven ?? 0 | number: '1.2-2' }}</dd>
+          </div>
+        }
+        <div>
+          <dt>{{ 'Rung up by' | t }}</dt>
+          <dd>{{ s.createdByName }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'Register' | t }}</dt>
+          <dd>
+            <a [routerLink]="['/store/cash-register', s.sessionId]">{{ 'Register {p0}' | t: { p0: s.registerNo } }} · {{ s.cashierName }}</a>
+          </dd>
+        </div>
+        <div>
+          <dt>{{ 'Warehouse' | t }}</dt>
+          <dd><code class="code-tag">{{ s.warehouse.code }}</code> {{ s.warehouse.name }}</dd>
+        </div>
+        @if (s.original; as original) {
+          <div>
+            <dt>{{ 'Return of' | t }}</dt>
+            <dd><a [routerLink]="['/store/sales', original.id]">{{ original.code }}</a></dd>
+          </div>
+        }
+        @if (s.note) {
+          <div>
+            <dt>{{ 'Note' | t }}</dt>
+            <dd>{{ s.note }}</dd>
+          </div>
+        }
+      </dl>
+    </div>
+
+    <div class="page-card">
+      <h2 class="card-title">{{ 'Lines' | t }}</h2>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>{{ 'Product' | t }}</th>
+              <th>{{ 'Barcode' | t }}</th>
+              <th>{{ 'Quantity' | t }}</th>
+              <th>{{ 'Price' | t }}</th>
+              <th>{{ 'Amount' | t }}</th>
+              @if (s.kind === 'sale') {
+                <th>{{ 'Returned' | t }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of s.lines; track line.id) {
+              <tr>
+                <td class="cell-figure">{{ line.position }}</td>
+                <td class="cell-strong">{{ line.productName }}</td>
+                <td>{{ line.barcode }}</td>
+                <td class="cell-figure">{{ line.quantity }} {{ line.unit | t }}</td>
+                <td class="cell-figure">₾{{ line.unitPrice | number: '1.2-2' }}</td>
+                <td class="cell-figure">₾{{ line.lineTotal | number: '1.2-2' }}</td>
+                @if (s.kind === 'sale') {
+                  <td class="cell-figure">{{ line.returnedQuantity ? line.returnedQuantity + ' ' + (line.unit | t) : '–' }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @if (s.returns.length > 0) {
+      <div class="page-card">
+        <h2 class="card-title">{{ 'Returns' | t }}</h2>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'Number' | t }}</th>
+                <th>{{ 'Date' | t }}</th>
+                <th>{{ 'Amount' | t }}</th>
+                <th>{{ 'By' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of s.returns; track item.id) {
+                <tr>
+                  <td class="cell-strong"><a [routerLink]="['/store/sales', item.id]">{{ item.code }}</a></td>
+                  <td class="cell-nowrap">{{ item.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                  <td class="cell-figure">₾{{ item.total | number: '1.2-2' }}</td>
+                  <td>{{ item.createdByName }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  } @else if (!errorMessage()) {
+    <p class="page-description">{{ 'Loading…' | t }}</p>
+  }
+</div>
+
+<app-modal [open]="returnOpen()" [title]="'Return goods' | t" (closed)="returnOpen.set(false)">
+  @if (returnOpen()) {
+    @if (sale(); as s) {
+      <form class="page-stack" (ngSubmit)="confirmReturn()">
+        <p class="field-hint">
+          {{ 'The goods go back to {p0} and the money is paid back the way the sale was paid ({p1}). A cash refund comes out of your open register.' | t: { p0: s.warehouse.code, p1: (paymentLabels[s.paymentMethod] | t) } }}
+        </p>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'Product' | t }}</th>
+                <th>{{ 'Can return' | t }}</th>
+                <th>{{ 'Returning' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of s.lines; track line.id) {
+                <tr>
+                  <td>{{ line.productName }}</td>
+                  <td class="cell-figure">{{ left(line) }} {{ line.unit | t }}</td>
+                  <td>
+                    <input
+                      class="line-input"
+                      type="number"
+                      min="0"
+                      [max]="left(line)"
+                      [step]="line.unit === 'pcs' ? 1 : 0.001"
+                      [disabled]="left(line) <= 0"
+                      [name]="'q' + line.id"
+                      [ngModel]="quantities()[line.id]"
+                      (ngModelChange)="setQuantity(line, $event)"
+                    />
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <button type="button" class="link-button" (click)="returnAll()">{{ 'Return everything that is left' | t }}</button>
+        <div class="field">
+          <label for="returnNote">{{ 'Reason' | t }}</label>
+          <input id="returnNote" class="text-input" maxlength="500" name="note" [(ngModel)]="returnNote" [placeholder]="'e.g. Damaged packaging' | t" />
+        </div>
+        <div class="doc-total">
+          <span>{{ 'To pay back' | t }}: <strong>₾{{ returnTotal() | number: '1.2-2' }}</strong></span>
+        </div>
+        @if (returnError()) {
+          <p class="field-error">{{ returnError() | t }}</p>
+        }
+        <div class="button-row form-actions">
+          <button type="button" class="button button--outline" (click)="returnOpen.set(false)">{{ 'Cancel' | t }}</button>
+          <button type="submit" class="button button--primary" [disabled]="isReturning()">{{ 'Confirm the return' | t }}</button>
+        </div>
+      </form>
+    }
+  }
+</app-modal>

@@ -888,6 +888,10 @@ lucide-icon.search-input__icon {
   max-width: 230px;
 }
 
+.table-filters .text-input[type='date'] {
+  width: auto;
+}
+
 .table-toolbar__hint {
   display: flex;
   align-items: center;

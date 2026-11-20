@@ -7,7 +7,9 @@ export type StockMovementKind =
   | 'receipt_cancel'
   | 'transfer_out'
   | 'transfer_in'
-  | 'transfer_cancel';
+  | 'transfer_cancel'
+  | 'sale'
+  | 'sale_return';
 
 export const STOCK_MOVEMENT_LABELS: Record<StockMovementKind, string> = {
   opening: 'Opening balance',
@@ -16,11 +18,16 @@ export const STOCK_MOVEMENT_LABELS: Record<StockMovementKind, string> = {
   transfer_out: 'Transfer sent',
   transfer_in: 'Transfer received',
   transfer_cancel: 'Transfer cancelled',
+  sale: 'Store sale',
+  sale_return: 'Store return',
 };
 
-export function movementDocumentLink(movement: StockMovement): string[] | null {
+export function movementDocumentLink(movement: StockMovement, canSeeStore = false): string[] | null {
   if (!movement.documentId) {
     return null;
+  }
+  if (movement.kind === 'sale' || movement.kind === 'sale_return') {
+    return canSeeStore ? ['/store/sales', movement.documentId] : null;
   }
   return movement.kind.startsWith('receipt')
     ? ['/wms/receipts', movement.documentId]
