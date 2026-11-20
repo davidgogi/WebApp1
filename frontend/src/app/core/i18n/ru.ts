@@ -1274,4 +1274,11 @@ export const RU: Record<string, string> = {
   "Not linked to any warehouse.": "Не привязан ни к одному складу.",
   "A module admin works with all of the company's stores.": "Администратор модуля работает со всеми магазинами компании.",
   "A module admin works with all of the company's warehouses.": "Администратор модуля работает со всеми складами компании.",
+  "Choose a category": "Выберите категорию",
+  "Note text": "Текст примечания",
+  "Template and file": "Шаблон и файл",
+  "Choose file": "Выбрать файл",
+  "No file chosen yet": "Файл ещё не выбран",
+  "Download the template or the example, choose an .xlsx file, check the records and confirm the import. One file can add both clients and suppliers.": "Скачайте шаблон или пример, выберите файл .xlsx, проверьте записи и подтвердите импорт. В одном файле можно добавить и клиентов, и поставщиков.",
+  "Fill in the identification code as text so the leading zeros are kept.": "Заполняйте идентификационный код в текстовом формате, чтобы сохранились начальные нули.",
 };

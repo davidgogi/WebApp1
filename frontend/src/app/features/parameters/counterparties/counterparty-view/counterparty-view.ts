@@ -273,17 +273,10 @@ export class CounterpartyView implements OnInit {
             ? "A company's identification code has 9 digits."
             : "An individual's identification code is the 11-digit personal ID.";
         }
-        return d.category.trim() ? '' : 'The category is required.';
+        return '';
       }
-      case 'contact': {
-        const missing: [string, string][] = [
-          [d.contactPerson, 'The contact person is required.'],
-          [d.phone, 'The phone is required.'],
-          [d.email, 'The email is required.'],
-          [d.address, 'The address is required.'],
-        ];
-        return missing.find(([value]) => !value.trim())?.[1] ?? '';
-      }
+      case 'contact':
+        return '';
       case 'client':
         if (d.deferredPayment && (d.deferredPaymentDays === null || !isDays(d.deferredPaymentDays))) {
           return 'Enter the deferred payment term: 1–365 days.';

@@ -79,24 +79,13 @@ const STATUS_LABELS: Record<CounterpartyStatus, string> = {
 const COLUMNS: SheetColumn<Field>[] = [
   {
     field: 'name',
-    header: 'Name',
-    aliases: [
-      'counterparty',
-      'counterparty name',
-      'partner',
-      'partner name',
-      'სახელი',
-      'კონტრაგენტი',
-      'პარტნიორი',
-      'контрагент',
-    ],
+    header: 'Counterparty name',
     width: 30,
     required: true,
   },
   {
     field: 'organizationType',
     header: 'Organization type',
-    aliases: ['type', 'ტიპი', 'тип'],
     width: 13,
     required: true,
     choices: Object.values(ORGANIZATION_TYPE_LABELS),
@@ -105,7 +94,6 @@ const COLUMNS: SheetColumn<Field>[] = [
   {
     field: 'counterpartyType',
     header: 'Counterparty type',
-    aliases: ['role', 'როლი', 'роль'],
     width: 18,
     required: true,
     choices: Object.values(COUNTERPARTY_TYPE_LABELS),
@@ -128,7 +116,6 @@ const COLUMNS: SheetColumn<Field>[] = [
     header: 'Category',
     aliases: ['კატეგორია', 'категория'],
     width: 18,
-    required: true,
   },
   {
     field: 'identificationCode',
@@ -140,10 +127,9 @@ const COLUMNS: SheetColumn<Field>[] = [
   },
   {
     field: 'vatPayer',
-    header: 'VAT payer',
-    aliases: ['vat', 'დღგ'],
-    width: 11,
-    choices: ['Yes', 'No'],
+    header: 'VAT status',
+    width: 18,
+    choices: ['VAT payer', 'Not a VAT payer'],
     required: true,
     translated: true,
   },
@@ -152,7 +138,6 @@ const COLUMNS: SheetColumn<Field>[] = [
     header: 'Contact person',
     aliases: ['contact', 'საკონტაქტო პირი'],
     width: 22,
-    required: true,
   },
   {
     field: 'phone',
@@ -160,21 +145,18 @@ const COLUMNS: SheetColumn<Field>[] = [
     aliases: ['ტელეფონი'],
     width: 18,
     text: true,
-    required: true,
   },
   {
     field: 'email',
     header: 'Email',
     aliases: ['ელფოსტა'],
     width: 26,
-    required: true,
   },
   {
     field: 'address',
     header: 'Address',
     aliases: ['მისამართი'],
     width: 34,
-    required: true,
   },
   {
     field: 'note',
@@ -246,7 +228,7 @@ const EXAMPLE_ROWS = [
     '',
     'Groceries',
     '405123456',
-    'Yes',
+    'VAT payer',
     'Nino Beridze',
     '+995 555 12 34 56',
     'orders@mars.ge',
@@ -268,7 +250,7 @@ const EXAMPLE_ROWS = [
     '30',
     'Dishware',
     '205987654',
-    'No',
+    'Not a VAT payer',
     'Giorgi Maisuradze',
     '599 44 22 11',
     'sales@dishware.ge',
@@ -290,7 +272,7 @@ const EXAMPLE_ROWS = [
     '14',
     'Catering',
     '01024012345',
-    'No',
+    'Not a VAT payer',
     'Levan Kapanadze',
     '+995 577 10 20 30',
     'levan@example.com',
@@ -335,8 +317,8 @@ const LEGAL_FORMS: Record<string, LegalForm> = {
   ...Object.fromEntries(Object.values(LegalForm).map((form) => [form, form])),
 };
 const VAT: Record<string, boolean> = {
-  ...Object.fromEntries(choiceKeys('Yes').map((key) => [key, true])),
-  ...Object.fromEntries(choiceKeys('No').map((key) => [key, false])),
+  ...Object.fromEntries(choiceKeys('VAT payer').map((key) => [key, true])),
+  ...Object.fromEntries(choiceKeys('Not a VAT payer').map((key) => [key, false])),
 };
 
 export interface CounterpartyPreviewRow {
@@ -382,13 +364,13 @@ export class CounterpartyExcelService {
       SHEET_NAME,
       [
         { header: 'Internal code', width: 12 },
-        { header: 'Name', width: 30 },
-        { header: 'Organization type', width: 13, translated: true },
+        { header: 'Counterparty name', width: 30 },
+        { header: 'Organization type', width: 18, translated: true },
         { header: 'Counterparty type', width: 18, translated: true },
         { header: 'Deferred payment, days', width: 14 },
         { header: 'Category', width: 18 },
         { header: 'Identification code', width: 20, text: true },
-        { header: 'VAT payer', width: 11, translated: true },
+        { header: 'VAT status', width: 18, translated: true },
         { header: 'Contact person', width: 22 },
         { header: 'Phone', width: 18, text: true },
         { header: 'Email', width: 26 },
@@ -411,7 +393,7 @@ export class CounterpartyExcelService {
         p.deferredPaymentDays ?? '',
         p.category ?? '',
         p.identificationCode ?? '',
-        p.vatPayer ? 'Yes' : 'No',
+        p.vatPayer ? 'VAT payer' : 'Not a VAT payer',
         p.contactPerson ?? '',
         p.phone ?? '',
         p.email ?? '',
@@ -443,12 +425,17 @@ export class CounterpartyExcelService {
     const sheet = addTemplateSheet(workbook, SHEET_NAME, COLUMNS, {
       markRequired: false,
     });
-    sheet.addRows(rows);
+    // Not addRows: the dropdown setup already created rows 2..1001, so appending would put the examples at row 1002.
+    rows.forEach((values, index) =>
+      values.forEach((value, column) => {
+        sheet.getCell(index + 2, column + 1).value = value;
+      }),
+    );
     addInstructionsSheet(
       workbook,
       [
         [
-          'Name',
+          'Counterparty name',
           'Yes',
           'Must not repeat an existing counterparty or another row (capitals and extra spaces are ignored).',
           'Mars Georgia',
@@ -463,7 +450,7 @@ export class CounterpartyExcelService {
         ],
         [
           'Category',
-          'Yes',
+          'No',
           'Free text: what the counterparty deals in.',
           'Groceries',
         ],
@@ -473,16 +460,16 @@ export class CounterpartyExcelService {
           '9 digits for a company, the 11-digit personal ID for an individual. Must not repeat an existing counterparty or another row.',
           '405123456',
         ],
-        ['VAT payer', 'Yes', 'Yes or No.', 'Yes'],
-        ['Contact person', 'Yes', 'Free text.', 'Nino Beridze'],
+        ['VAT status', 'Yes', 'VAT payer or Not a VAT payer.', 'VAT payer'],
+        ['Contact person', 'No', 'Free text.', 'Nino Beridze'],
         [
           'Phone',
-          'Yes',
+          'No',
           'Digits, with an optional + at the start.',
           '+995 555 12 34 56',
         ],
-        ['Email', 'Yes', 'A valid email address.', 'orders@supplier.ge'],
-        ['Address', 'Yes', 'Free text.', '12 Tsereteli Ave, Tbilisi'],
+        ['Email', 'No', 'A valid email address.', 'orders@supplier.ge'],
+        ['Address', 'No', 'Free text.', '12 Tsereteli Ave, Tbilisi'],
         ['Note', 'No', 'Free text.', 'Delivers on Mondays'],
         ['Status', 'Yes', 'Active or Inactive.', 'Active'],
         [
@@ -501,7 +488,7 @@ export class CounterpartyExcelService {
       [
         `The sheet named "${SHEET_NAME}" is read (or the first sheet). Empty rows are skipped.`,
         'An exported counterparties file can be imported too: its extra columns (Products, Receipts) are ignored.',
-        'Every column up to Status, except Note, must be filled in for every counterparty; the columns after Status are optional.',
+        'Counterparty name, Organization type, Counterparty type, Identification code, VAT status and Status must be filled in for every counterparty; the other columns are optional.',
         'At most 1000 counterparties per file. If any row has an error, nothing is imported.',
         'This only adds new counterparties: a counterparty that already exists is reported as an error, not updated.',
       ],
@@ -574,7 +561,7 @@ export class CounterpartyExcelService {
 
       const name = values.name ?? '';
       if (!name) {
-        error('name', 'Name is required');
+        error('name', 'Counterparty name is required');
       } else {
         tooLong('name', 140);
         const key = nameKey(name);
@@ -773,9 +760,9 @@ export class CounterpartyExcelService {
       const vatText = values.vatPayer ?? '';
       const vatPayer = VAT[choiceKey(vatText)];
       if (!vatText) {
-        error('vatPayer', 'VAT payer is required: Yes or No');
+        error('vatPayer', 'VAT status is required: VAT payer or Not a VAT payer');
       } else if (vatPayer === undefined) {
-        error('vatPayer', 'VAT payer must be Yes or No');
+        error('vatPayer', 'VAT status must be VAT payer or Not a VAT payer');
       }
 
       const statusText = values.status ?? '';
@@ -787,29 +774,16 @@ export class CounterpartyExcelService {
       }
 
       const phone = values.phone ?? '';
-      if (!phone) {
-        error('phone', 'Phone is required');
-      } else if (!PHONE.test(phone)) {
+      if (phone && !PHONE.test(phone)) {
         error('phone', 'Phone must be a valid phone number');
       }
       const email = values.email ?? '';
-      if (!email) {
-        error('email', 'Email is required');
-      } else if (!isEmail(email)) {
+      if (email && !isEmail(email)) {
         error('email', 'Email must be a valid email address');
       }
       const contactPerson = values.contactPerson ?? '';
-      if (!contactPerson) {
-        error('contactPerson', 'Contact person is required');
-      }
       const address = values.address ?? '';
-      if (!address) {
-        error('address', 'Address is required');
-      }
       const category = values.category ?? '';
-      if (!category) {
-        error('category', 'Category is required');
-      }
       const note = values.note ?? '';
       tooLong('contactPerson', 120);
       tooLong('address', 240);
@@ -825,11 +799,11 @@ export class CounterpartyExcelService {
           deferredPaymentDays,
           identificationCode,
           vatPayer,
-          contactPerson,
-          phone,
-          email,
-          address,
-          category,
+          contactPerson: contactPerson || null,
+          phone: phone || null,
+          email: email || null,
+          address: address || null,
+          category: category || null,
           note: note || null,
           status,
           legalForm,

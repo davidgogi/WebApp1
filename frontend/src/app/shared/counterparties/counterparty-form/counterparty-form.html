@@ -54,7 +54,6 @@
             type="text"
             name="name"
             [(ngModel)]="name"
-            [placeholder]="'e.g. Mars Georgia' | t"
             required
           />
         </div>
@@ -91,11 +90,6 @@
             name="identificationCode"
             [(ngModel)]="identificationCode"
             required
-            [placeholder]="
-              organizationType() === 'company'
-                ? ('9 digits, e.g. 405123456' | t)
-                : ('Personal ID, 11 digits' | t)
-            "
           />
         </div>
 
@@ -145,19 +139,16 @@
         </div>
 
         <div class="field">
-          <label for="counterpartyCategory"
-            >{{ 'Category' | t }} <span class="required-mark">*</span></label
-          >
+          <label for="counterpartyCategory">{{ 'Category' | t }}</label>
           <input
             id="counterpartyCategory"
-            class="text-input"
+            class="text-input combo"
             type="text"
             name="category"
             list="counterpartyCategories"
             autocomplete="off"
             [(ngModel)]="category"
-            required
-            [placeholder]="'e.g. Groceries' | t"
+            [placeholder]="'Choose a category' | t"
           />
           <datalist id="counterpartyCategories">
             @for (option of categories(); track option) {
@@ -167,47 +158,35 @@
         </div>
 
         <div class="field">
-          <label for="counterpartyContact"
-            >{{ 'Contact person' | t }} <span class="required-mark">*</span></label
-          >
+          <label for="counterpartyContact">{{ 'Contact person' | t }}</label>
           <input
             id="counterpartyContact"
             class="text-input"
             type="text"
             name="contactPerson"
             [(ngModel)]="contactPerson"
-            required
-            [placeholder]="'e.g. Nino Beridze' | t"
           />
         </div>
 
         <div class="field">
-          <label for="counterpartyPhone"
-            >{{ 'Phone' | t }} <span class="required-mark">*</span></label
-          >
+          <label for="counterpartyPhone">{{ 'Phone' | t }}</label>
           <input
             id="counterpartyPhone"
             class="text-input"
             type="tel"
             name="phone"
             [(ngModel)]="phone"
-            required
-            [placeholder]="'e.g. +995 555 12 34 56' | t"
           />
         </div>
 
         <div class="field">
-          <label for="counterpartyEmail"
-            >{{ 'Email' | t }} <span class="required-mark">*</span></label
-          >
+          <label for="counterpartyEmail">{{ 'Email' | t }}</label>
           <input
             id="counterpartyEmail"
             class="text-input"
             type="email"
             name="email"
             [(ngModel)]="email"
-            required
-            [placeholder]="'e.g. orders@supplier.ge' | t"
           />
         </div>
 
@@ -251,17 +230,13 @@
         }
 
         <div class="field field--full">
-          <label for="counterpartyAddress"
-            >{{ 'Address' | t }} <span class="required-mark">*</span></label
-          >
+          <label for="counterpartyAddress">{{ 'Address' | t }}</label>
           <textarea
             id="counterpartyAddress"
             class="text-input text-area"
             name="address"
             rows="2"
             [(ngModel)]="address"
-            required
-            [placeholder]="'e.g. 12 Tsereteli Ave, Tbilisi' | t"
           ></textarea>
         </div>
 
@@ -292,7 +267,7 @@
             rows="3"
             maxlength="1000"
             [(ngModel)]="note"
-            [placeholder]="'Anything worth knowing about this counterparty' | t"
+            [placeholder]="'Note text' | t"
           ></textarea>
         </div>
       </div>

@@ -252,7 +252,7 @@ submodules are planned, so keep to the structure below.
   in the UI and until 2026-11-18 in the code: the migration `PartnersBecomeCounterparties` renamed
   the tables (`counterparties`, `counterparty_contacts.counterparty_id`), the enums, the constraints
   and the audit action codes `partner.*` → `counterparty.*`. Use "counterparty" everywhere, never
-  "partner"; only the import still accepts the old "partner" headers. The old frontend URL
+  "partner". The old frontend URL
   `/parameters/partners` redirects) (`/parameters/counterparties`; Parameters is the module for
   company-wide lists, always included; backend `parameters/counterparties/`, API
   `/parameters/counterparties`; frontend page `features/parameters/counterparties/`, and
@@ -288,10 +288,15 @@ submodules are planned, so keep to the structure below.
   the mockups), so the form never sends them and saving it leaves them alone; the Excel import / export has them as
   optional columns after Status (terms on the wrong kind of row are ignored with a warning).
   **Price list** is deliberately not built (no price lists exist yet; the user's choice).
-  **Every field except the note is required** (2026-11-11, confirmed 2026-11-13 although the mockup
-  starred only six) in the form, the API (create; an update
-  may leave a field out but not empty it) and the import; the columns stay nullable because older
-  counterparties have empty ones (editing one makes you fill them in).
+  **Only the fields with an asterisk are required** (2026-11-14, following the mockup; from 2026-11-11
+  to 2026-11-13 every field except the note was): name, counterparty type, identification code,
+  organization type, VAT status and status. Category, contact person, phone, email, address and note
+  are optional in the form, the inline sections of the counterparty page, the API and the import
+  (checked only when filled in; blank is saved as null, `blankToNull` in `counterparty.dto.ts`). The
+  form uses the same names as the table (Counterparty type / Organization type; the user chose that
+  on 2026-11-19 over the mockup's Role / Type), its text boxes have no example placeholders, Category
+  is a text box with suggestions styled like a dropdown ("Choose a category", `.combo`), and VAT
+  status starts as "VAT payer".
   **Page layout follows the reviewer's mockup** (2026-11-13): header Import / Export / Add; a filter
   card (Search, Counterparty type, Status, "Additional filters" → Organization type, VAT status,
   Category; Clear also clears column filters); toolbar Views ▾ / hint / Columns; columns
@@ -308,7 +313,7 @@ submodules are planned, so keep to the structure below.
   `GET /parameters/counterparties/:id/history` (date, user, action, source). The company audit log hides
   the per-row import entries (`AuditService.find`). Changes before 2026-11-13 have no link, so older
   counterparties start with an empty history. The RS "+ New supplier" form sends `source: 'rs'`. The RS "+ New supplier" form is the
-  same, so it needs contact, phone, email and address too.
+  same form, so a seller can be saved with just the mandatory fields.
   **Additional contact persons** (2026-11-11, `counterparty_contacts`, `counterparty-contact.entity.ts`,
   composite key to the counterparty, deleted with it): first name, last name, phone, position, email, all
   required. The form has two tabs, **Main information** / **Contacts** (`.form-tabs` in `styles.css`);
@@ -364,10 +369,12 @@ submodules are planned, so keep to the structure below.
   (`@Access(WMS)`). Every change is audited. Products and receipts still use `supplier_id` (only
   entries marked supplier can be picked); a counterparty on products or receipts must stay a supplier and
   can't be deleted (set it Inactive). Clients are **only a list so far**: nothing uses them yet.
-  **Import / Export** (`counterparty-excel.service.ts`, same admins as the page): Name, Organization type
-  (Company / Individual), Counterparty type (Supplier / Client / Both; old files' "Type" / "Role"
-  headers still import), Category, Identification code [Text], VAT payer (Yes /
-  No), Contact person, Phone, Email, Address, Note (optional), Status; no `*` marks
+  **Import / Export** (`counterparty-excel.service.ts`, same admins as the page): Counterparty name,
+  Organization type (Company / Individual), Counterparty type (Supplier / Client / Both), Category,
+  Identification code [Text], VAT status (VAT payer / Not a VAT payer), Contact person, Phone, Email,
+  Address, Note (optional), Status (the same names as the page's columns since 2026-11-14; the import is
+  **strict**: files with the old headers Name / Type / Role / VAT payer or Yes / No values are
+  rejected, by the user's choice, confirmed 2026-11-19); no `*` marks
   (`addTemplateSheet(..., { markRequired: false })`). `GET import/example` is the template with three
   sample rows (the import window's "Download example"). Name and code must not
   repeat an existing counterparty or another row, and the code must fit the type; every problem is listed
@@ -652,10 +659,15 @@ count, ...). **.xlsx only** (`exceljs` on the backend; nothing Excel-related in 
   name / barcode that already exists is an error (no updating through a file yet). An exported file
   can be re-imported (e.g. into another company) because the extra columns are ignored.
 - Frontend: `shared/xlsx-import/` (`<app-xlsx-import [source] [columns] [noun] description
-  templateName exampleName codeLabel (imported) (closed)>`) with the service's `importSource`
+  templateName exampleName codeLabel hint (imported) (closed)>`) with the service's `importSource`
   (`example()` optional: the "Download example" button shows only when it and `exampleName` are
-  given). Since 2026-11-13 choosing a file no longer checks it: **Check file** and **Confirm import**
-  are always visible at the bottom right and disabled until usable (every import page); `saveFile` there
+  given; `hint` is an optional small line under the buttons, e.g. "fill the code as text"). Choosing a
+  file doesn't check it. Since 2026-11-14 the window follows the Counterparties mockup (for **every**
+  import page, the user asked for it on that page): description in a dashed box, "Template and file"
+  with coloured pill steps (blue Download template, orange Download example, green Choose file, an
+  arrow, purple **Check file**, disabled until a file is chosen), the file name (or "No file chosen
+  yet") in a box, and only **Cancel** and **Confirm import** (disabled until usable) at the bottom
+  right; `saveFile` there
   downloads a blob (exports are named `<page>-YYYY-MM-DD.xlsx`). Exports contain everything the user
   may see, **not** the current search / filters.
 

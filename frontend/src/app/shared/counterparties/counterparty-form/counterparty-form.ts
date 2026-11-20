@@ -68,7 +68,7 @@ export class CounterpartyForm implements OnInit {
     const days = this.deferredPaymentDays();
     return days === null || !Number.isInteger(days) || days < 1 || days > 365;
   });
-  protected readonly vatPayer = signal(false);
+  protected readonly vatPayer = signal(true);
   protected readonly contactPerson = signal('');
   protected readonly phone = signal('');
   protected readonly email = signal('');
@@ -111,7 +111,7 @@ export class CounterpartyForm implements OnInit {
     this.legalForm.set(values?.legalForm ?? '');
     this.sameAsAddress.set(!values?.actualAddress);
     this.actualAddress.set(values?.actualAddress ?? '');
-    this.vatPayer.set(values?.vatPayer ?? false);
+    this.vatPayer.set(values?.vatPayer ?? true);
     this.contactPerson.set(values?.contactPerson ?? '');
     this.phone.set(values?.phone ?? '');
     this.email.set(values?.email ?? '');
@@ -208,17 +208,8 @@ export class CounterpartyForm implements OnInit {
       this.showError('Choose a counterparty type.');
       return;
     }
-    const missing: [string, string][] = [
-      [code, 'The identification code is required.'],
-      [this.category().trim(), 'The category is required.'],
-      [this.contactPerson().trim(), 'The contact person is required.'],
-      [this.phone().trim(), 'The phone is required.'],
-      [this.email().trim(), 'The email is required.'],
-      [this.address().trim(), 'The address is required.'],
-    ];
-    const empty = missing.find(([value]) => !value);
-    if (empty) {
-      this.showError(empty[1]);
+    if (!code) {
+      this.showError('The identification code is required.');
       return;
     }
     const deferred = this.isClient() && this.deferredPayment();

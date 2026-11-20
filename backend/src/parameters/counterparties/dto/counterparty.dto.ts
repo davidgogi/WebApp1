@@ -26,6 +26,8 @@ const trim = ({ value }: { value: unknown }) =>
 const sent = (_: object, value: unknown) => value !== undefined;
 const given = (_: object, value: unknown) =>
   value !== undefined && value !== null;
+const blankToNull = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() || null : value;
 const DEFERRED_PAYMENT_DAYS = 'The deferred payment term is 1–365 days';
 const SUPPLIER_PAYMENT_DAYS = "The supplier's payment term is 1–365 days";
 const DELIVERY_DAYS = 'The delivery term is 1–365 working days';
@@ -137,33 +139,33 @@ export class CreateCounterpartyDto extends CounterpartyDetailsDto {
   @IsBoolean()
   vatPayer!: boolean;
 
-  @Transform(trim)
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  contactPerson!: string;
+  contactPerson?: string | null;
 
-  @Transform(trim)
-  @IsNotEmpty()
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @Matches(/^\+?[0-9 ()-]{7,20}$/, { message: 'phone must be a phone number' })
-  phone!: string;
+  phone?: string | null;
 
-  @Transform(trim)
-  @IsNotEmpty()
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @IsEmail()
-  email!: string;
+  email?: string | null;
 
-  @Transform(trim)
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(240)
-  address!: string;
+  address?: string | null;
 
-  @Transform(trim)
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(80)
-  category!: string;
+  category?: string | null;
 
   @ValidateIf(sent)
   @Transform(trim)
@@ -219,38 +221,33 @@ export class UpdateCounterpartyDto extends CounterpartyDetailsDto {
   @IsBoolean()
   vatPayer?: boolean;
 
-  @ValidateIf(sent)
-  @Transform(trim)
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  contactPerson?: string;
+  contactPerson?: string | null;
 
-  @ValidateIf(sent)
-  @Transform(trim)
-  @IsNotEmpty()
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @Matches(/^\+?[0-9 ()-]{7,20}$/, { message: 'phone must be a phone number' })
-  phone?: string;
+  phone?: string | null;
 
-  @ValidateIf(sent)
-  @Transform(trim)
-  @IsNotEmpty()
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @IsEmail()
-  email?: string;
+  email?: string | null;
 
-  @ValidateIf(sent)
-  @Transform(trim)
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(240)
-  address?: string;
+  address?: string | null;
 
-  @ValidateIf(sent)
-  @Transform(trim)
+  @ValidateIf(given)
+  @Transform(blankToNull)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(80)
-  category?: string;
+  category?: string | null;
 
   @ValidateIf(sent)
   @Transform(trim)

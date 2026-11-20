@@ -1422,4 +1422,11 @@ export const KA: Record<string, string> = {
   "Not linked to any warehouse.": "არცერთ საწყობთან არ არის დაკავშირებული.",
   "A module admin works with all of the company's stores.": "მოდულის ადმინი კომპანიის ყველა მაღაზიასთან მუშაობს.",
   "A module admin works with all of the company's warehouses.": "მოდულის ადმინი კომპანიის ყველა საწყობთან მუშაობს.",
+  "Choose a category": "აირჩიეთ კატეგორია",
+  "Note text": "შენიშვნის ტექსტი",
+  "Template and file": "შაბლონი და ფაილი",
+  "Choose file": "ფაილის არჩევა",
+  "No file chosen yet": "ფაილი ჯერ არ არის არჩეული",
+  "Download the template or the example, choose an .xlsx file, check the records and confirm the import. One file can add both clients and suppliers.": "ჩამოტვირთე შაბლონი ან მაგალითი, აირჩიე .xlsx ფაილი, გადაამოწმე ჩანაწერები და დაადასტურე იმპორტი. ერთ ფაილში შეგიძლია დაამატო კლიენტებიც და მომწოდებლებიც.",
+  "Fill in the identification code as text so the leading zeros are kept.": "საიდენტიფიკაციო კოდი შეავსე ტექსტის ფორმატში, რომ საწყისი ნულები შენარჩუნდეს.",
 };

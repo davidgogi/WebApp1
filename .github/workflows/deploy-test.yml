@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   tenant-isolation:
+    if: github.repository == 'webapp-software/WebappOne'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:

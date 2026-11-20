@@ -29,49 +29,60 @@
       <button type="button" class="button button--dark" (click)="closed.emit()">{{ 'Done' | t }}</button>
     </div>
   } @else {
-    <p class="page-description">{{ description() }}</p>
+    <p class="import-intro">{{ description() }}</p>
 
-    <div class="button-row">
-      <button
-        type="button"
-        class="button button--outline"
-        [disabled]="busy() === 'template'"
-        (click)="downloadTemplate()"
-      >
-        <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
-        {{ busy() === 'template' ? ('Downloading…' | t) : ('Download template' | t) }}
-      </button>
-      @if (hasExample()) {
+    <div class="import-files">
+      <h3 class="import-files__title">{{ 'Template and file' | t }}</h3>
+      <div class="import-steps">
         <button
           type="button"
-          class="button button--outline"
-          [disabled]="busy() === 'example'"
-          (click)="downloadExample()"
+          class="pill pill--blue"
+          [disabled]="busy() === 'template'"
+          (click)="downloadTemplate()"
         >
-          <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
-          {{ busy() === 'example' ? ('Downloading…' | t) : ('Download example' | t) }}
+          <lucide-icon [img]="DownloadIcon" [size]="15"></lucide-icon>
+          {{ busy() === 'template' ? ('Downloading…' | t) : ('Download template' | t) }}
         </button>
+        @if (hasExample()) {
+          <button
+            type="button"
+            class="pill pill--orange"
+            [disabled]="busy() === 'example'"
+            (click)="downloadExample()"
+          >
+            <lucide-icon [img]="DownloadIcon" [size]="15"></lucide-icon>
+            {{ busy() === 'example' ? ('Downloading…' | t) : ('Download example' | t) }}
+          </button>
+        }
+        <label class="pill pill--green" [class.pill--disabled]="busy() !== ''">
+          <input
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            [disabled]="busy() !== ''"
+            (change)="chooseFile($event)"
+          />
+          <lucide-icon [img]="UploadIcon" [size]="15"></lucide-icon>
+          {{ 'Choose file' | t }}
+        </label>
+        <span class="import-steps__arrow"><lucide-icon [img]="ArrowIcon" [size]="14"></lucide-icon></span>
+        <button type="button" class="pill pill--purple" [disabled]="!canCheck()" (click)="checkFile()">
+          <lucide-icon [img]="CheckIcon" [size]="15"></lucide-icon>
+          {{ busy() === 'checking' ? ('Checking…' | t) : ('Check file' | t) }}
+        </button>
+      </div>
+      @if (hint()) {
+        <p class="field-hint import-files__hint">{{ hint() }}</p>
       }
+      <div class="import-file" [class.import-file--empty]="!file()">
+        @if (busy() === 'checking') {
+          {{ 'Checking {p0}…' | t: { p0: file()?.name } }}
+        } @else if (file()) {
+          {{ file()!.name }}
+        } @else {
+          {{ 'No file chosen yet' | t }}
+        }
+      </div>
     </div>
-
-    <label class="import-drop" [class.import-drop--busy]="busy() !== ''">
-      <input
-        type="file"
-        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        [disabled]="busy() !== ''"
-        (change)="chooseFile($event)"
-      />
-      <lucide-icon [img]="FileIcon" [size]="28"></lucide-icon>
-      @if (busy() === 'checking') {
-        <span><strong>{{ 'Checking {p0}…' | t: { p0: file()?.name } }}</strong></span>
-      } @else if (file()) {
-        <span><strong>{{ file()!.name }}</strong></span>
-        <span class="muted">{{ 'Click “Check file”, or click here to choose another file' | t }}</span>
-      } @else {
-        <span><strong>{{ 'Choose an .xlsx file' | t }}</strong></span>
-        <span class="muted">{{ 'Nothing is saved until you confirm the import' | t }}</span>
-      }
-    </label>
 
     @if (errorMessage()) {
       <div class="import-callout import-callout--error">
@@ -212,9 +223,6 @@
 
     <div class="button-row import-actions">
       <button type="button" class="button button--outline" (click)="closed.emit()">{{ 'Cancel' | t }}</button>
-      <button type="button" class="button button--outline" [disabled]="!canCheck()" (click)="checkFile()">
-        {{ busy() === 'checking' ? ('Checking…' | t) : ('Check file' | t) }}
-      </button>
       <button
         type="button"
         class="button button--primary"
