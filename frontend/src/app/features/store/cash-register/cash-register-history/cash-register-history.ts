@@ -22,12 +22,21 @@ import { CashRegisterService } from '../cash-register.service';
 import { RegisterDialog, RegisterDialogMode } from '../register-dialog/register-dialog';
 
 @Component({
-  selector: 'app-cash-register-page',
-  imports: [TranslatePipe, DatePipe, DecimalPipe, FormsModule, RouterLink, Modal, Pager, RegisterDialog],
-  templateUrl: './cash-register-page.html',
-  styleUrl: './cash-register-page.css',
+  selector: 'app-cash-register-history',
+  imports: [
+    TranslatePipe,
+    DatePipe,
+    DecimalPipe,
+    FormsModule,
+    RouterLink,
+    Modal,
+    Pager,
+    RegisterDialog,
+  ],
+  templateUrl: './cash-register-history.html',
+  styleUrl: './cash-register-history.css',
 })
-export class CashRegisterPage implements OnInit {
+export class CashRegisterHistoryPage implements OnInit {
   private readonly cashRegisterService = inject(CashRegisterService);
   private readonly storeService = inject(StoreService);
   private readonly auth = inject(AuthService);
@@ -80,7 +89,9 @@ export class CashRegisterPage implements OnInit {
     () => [this.sessions()],
   );
 
-  protected readonly chosenStore = computed(() => this.stores().find((store) => store.id === this.storeId()) ?? null);
+  protected readonly chosenStore = computed(
+    () => this.stores().find((store) => store.id === this.storeId()) ?? null,
+  );
 
   ngOnInit(): void {
     this.storeService.list().subscribe((stores) => {
@@ -102,16 +113,20 @@ export class CashRegisterPage implements OnInit {
 
   loadHistory(): void {
     this.isLoading.set(true);
-    this.cashRegisterService.list({ from: this.from(), to: this.to(), storeId: this.storeFilter() }).subscribe({
-      next: (sessions) => {
-        this.sessions.set(sessions);
-        this.isLoading.set(false);
-      },
-      error: (error) => {
-        this.errorMessage.set(errorText(error, 'Could not load registers. Is the backend running?'));
-        this.isLoading.set(false);
-      },
-    });
+    this.cashRegisterService
+      .list({ from: this.from(), to: this.to(), storeId: this.storeFilter() })
+      .subscribe({
+        next: (sessions) => {
+          this.sessions.set(sessions);
+          this.isLoading.set(false);
+        },
+        error: (error) => {
+          this.errorMessage.set(
+            errorText(error, 'Could not load registers. Is the backend running?'),
+          );
+          this.isLoading.set(false);
+        },
+      });
   }
 
   chooseStore(storeId: string): void {
@@ -136,7 +151,12 @@ export class CashRegisterPage implements OnInit {
       this.errorMessage.set('Choose a store and a register.');
       return;
     }
-    if (this.openingCash() === null || `${this.openingCash()}` === '' || !Number.isFinite(openingCash) || openingCash < 0) {
+    if (
+      this.openingCash() === null ||
+      `${this.openingCash()}` === '' ||
+      !Number.isFinite(openingCash) ||
+      openingCash < 0
+    ) {
       this.errorMessage.set('Enter the cash in the register at opening (0 if empty).');
       return;
     }
@@ -182,15 +202,17 @@ export class CashRegisterPage implements OnInit {
       this.pinError.set('The two PINs differ.');
       return;
     }
-    this.cashRegisterService.setPin(this.newPin(), this.hasPin() ? this.currentPin() : undefined).subscribe({
-      next: () => {
-        this.hasPin.set(true);
-        this.pinOpen.set(false);
-        this.notice.set('Your PIN is saved.');
-        this.resetPinForm();
-      },
-      error: (error) => this.pinError.set(errorText(error, 'Could not save the PIN.')),
-    });
+    this.cashRegisterService
+      .setPin(this.newPin(), this.hasPin() ? this.currentPin() : undefined)
+      .subscribe({
+        next: () => {
+          this.hasPin.set(true);
+          this.pinOpen.set(false);
+          this.notice.set('Your PIN is saved.');
+          this.resetPinForm();
+        },
+        error: (error) => this.pinError.set(errorText(error, 'Could not save the PIN.')),
+      });
   }
 
   openPinDialog(): void {

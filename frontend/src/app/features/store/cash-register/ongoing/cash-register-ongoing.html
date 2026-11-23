@@ -1,0 +1,323 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">{{ 'Store' | t }}</p>
+      <h1 class="page-title">{{ 'Cash register' | t }}</h1>
+      <p class="page-description">
+        {{
+          'A register is opened with the cash in it and closed by counting the cash. Every sale, return and cash movement in between is kept. {p0}'
+            | t: { p0: sees() | t }
+        }}
+      </p>
+    </div>
+    @if (canOperate() && hasPin()) {
+      <div class="button-row page-header__actions">
+        <button type="button" class="button button--outline" (click)="openPinDialog()">
+          {{ 'Change PIN' | t }}
+        </button>
+      </div>
+    }
+  </div>
+  <div>
+    <div><a [routerLink]="['/store/cash-register']">Ongoing</a></div>
+    <div>
+      <a [routerLink]="['/store/cash-register', 'cash-register-history']">Cash Register History</a>
+    </div>
+  </div>
+
+  @if (notice()) {
+    <p class="notice-success">{{ notice() | t }}</p>
+  }
+
+  @if (canOperate()) {
+    <div class="page-card">
+      @if (hasPin() === false) {
+        <h2 class="card-title">{{ 'Set your register PIN' | t }}</h2>
+        <p class="page-description">
+          {{
+            'You confirm opening and closing a register with a 4-digit PIN. Choose one now; only you know it.'
+              | t
+          }}
+        </p>
+        <form class="register-form" (ngSubmit)="savePin()">
+          <div class="field">
+            <label for="newPin">{{ 'New PIN' | t }}</label>
+            <input
+              id="newPin"
+              class="text-input"
+              type="password"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              name="newPin"
+              [(ngModel)]="newPin"
+            />
+          </div>
+          <div class="field">
+            <label for="repeatPin">{{ 'Repeat the PIN' | t }}</label>
+            <input
+              id="repeatPin"
+              class="text-input"
+              type="password"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              name="repeatPin"
+              [(ngModel)]="repeatPin"
+            />
+          </div>
+          <button type="submit" class="button button--primary">{{ 'Save PIN' | t }}</button>
+        </form>
+        @if (pinError()) {
+          <p class="field-error">{{ pinError() | t }}</p>
+        }
+      } @else if (current(); as open) {
+        <div class="page-stack">
+          <div class="register-head">
+            <div>
+              <span class="badge badge--active">{{ 'Open' | t }}</span>
+              <div class="register-head__title">
+                {{ 'Register {p0} · {p1}' | t: { p0: open.registerNo, p1: open.storeName } }}
+              </div>
+              <div class="muted">
+                {{
+                  'Opened {p0} with ₾{p1}'
+                    | t
+                      : {
+                          p0: (open.openedAt | date: 'dd.MM.yyyy HH:mm'),
+                          p1: (open.openingCash | number: '1.2-2'),
+                        }
+                }}
+                @if (open.openNote) {
+                  · {{ open.openNote }}
+                }
+              </div>
+            </div>
+            <div class="button-row">
+              <a class="button button--primary" routerLink="/store/pos">{{ 'Go to POS' | t }}</a>
+              <button type="button" class="button button--outline" (click)="dialog.set('in')">
+                {{ 'Add cash' | t }}
+              </button>
+              <button type="button" class="button button--outline" (click)="dialog.set('out')">
+                {{ 'Take out cash' | t }}
+              </button>
+              <a class="button button--outline" [routerLink]="['/store/cash-register', open.id]">{{
+                'Details' | t
+              }}</a>
+              <button type="button" class="button button--dark" (click)="dialog.set('close')">
+                {{ 'Close the register' | t }}
+              </button>
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat__label">{{ 'Sales' | t }}</div>
+              <div class="stat__value">{{ open.metrics.salesCount }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Cash sales' | t }}</div>
+              <div class="stat__value">₾{{ open.metrics.cashSales | number: '1.2-2' }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Card sales' | t }}</div>
+              <div class="stat__value">₾{{ open.metrics.cardSales | number: '1.2-2' }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Returns' | t }}</div>
+              <div class="stat__value">
+                ₾{{ open.metrics.cashReturns + open.metrics.cardReturns | number: '1.2-2' }}
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Cash added / taken out' | t }}</div>
+              <div class="stat__value">
+                ₾{{ open.metrics.cashIn | number: '1.2-2' }} / ₾{{
+                  open.metrics.cashOut | number: '1.2-2'
+                }}
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">{{ 'Expected cash' | t }}</div>
+              <div class="stat__value">₾{{ open.expectedCash | number: '1.2-2' }}</div>
+            </div>
+          </div>
+        </div>
+      } @else if (hasPin()) {
+        <h2 class="card-title">{{ 'Open a register' | t }}</h2>
+        <form class="register-form" (ngSubmit)="open()">
+          <div class="field">
+            <label for="registerStore">{{ 'Store' | t }}</label>
+            <select
+              id="registerStore"
+              class="text-select"
+              name="storeId"
+              [ngModel]="storeId()"
+              (ngModelChange)="chooseStore($event)"
+            >
+              <option value="">{{ 'Choose a store…' | t }}</option>
+              @for (store of stores(); track store.id) {
+                <option [value]="store.id">{{ store.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="registerNumber">{{ 'Register' | t }}</label>
+            <select
+              id="registerNumber"
+              class="text-select"
+              name="registerNo"
+              [ngModel]="registerNo()"
+              (ngModelChange)="registerNo.set($event)"
+              [disabled]="availability().length === 0"
+            >
+              <option [ngValue]="0">{{ 'Choose a register…' | t }}</option>
+              @for (register of availability(); track register.no) {
+                <option [ngValue]="register.no" [disabled]="register.inUseBy !== null">
+                  {{
+                    'Register {p0}{p1}'
+                      | t
+                        : {
+                            p0: register.no,
+                            p1: register.inUseBy
+                              ? (' (in use by {name})' | t: { name: register.inUseBy })
+                              : '',
+                          }
+                  }}
+                </option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="openingCash">{{ 'Opening cash (₾)' | t }}</label>
+            <input
+              id="openingCash"
+              class="text-input"
+              type="number"
+              min="0"
+              step="0.01"
+              name="openingCash"
+              [(ngModel)]="openingCash"
+              placeholder="0.00"
+            />
+          </div>
+          <div class="field">
+            <label for="openPin">{{ 'Your PIN' | t }}</label>
+            <input
+              id="openPin"
+              class="text-input"
+              type="password"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              name="openPin"
+              [(ngModel)]="openPin"
+            />
+          </div>
+          <div class="field field--note">
+            <label for="openNote">{{ 'Note' | t }}</label>
+            <input
+              id="openNote"
+              class="text-input"
+              maxlength="500"
+              name="openNote"
+              [(ngModel)]="openNote"
+              [placeholder]="'e.g. Morning shift' | t"
+            />
+          </div>
+          <button
+            type="submit"
+            class="button button--primary"
+            [disabled]="isBusy() || stores().length === 0"
+          >
+            {{ 'Open the register' | t }}
+          </button>
+        </form>
+        @if (chosenStore(); as store) {
+          @if (!store.warehouse) {
+            <p class="field-error">
+              {{
+                '{name} has no sales warehouse yet. Ask the Store admin to choose one.'
+                  | t: { name: store.name }
+              }}
+            </p>
+          }
+        }
+        @if (stores().length === 0) {
+          <p class="field-hint">{{ 'You are not assigned to a store yet. Ask your admin.' | t }}</p>
+        }
+      }
+      @if (errorMessage()) {
+        <p class="field-error">{{ errorMessage() | t }}</p>
+      }
+    </div>
+  } @else if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+</div>
+
+<app-register-dialog
+  [session]="current()"
+  [mode]="dialog()"
+  (done)="onDialogDone($event)"
+  (closed)="dialog.set(null)"
+/>
+
+<app-modal [open]="pinOpen()" [title]="'Change PIN' | t" (closed)="pinOpen.set(false)">
+  @if (pinOpen()) {
+    <form class="page-stack" (ngSubmit)="savePin()">
+      <div class="field">
+        <label for="currentPin">{{ 'Current PIN' | t }}</label>
+        <input
+          id="currentPin"
+          class="text-input"
+          type="password"
+          inputmode="numeric"
+          maxlength="4"
+          autocomplete="off"
+          name="currentPin"
+          [(ngModel)]="currentPin"
+        />
+        <span class="field-hint">{{
+          'Forgot it? Your manager or admin can reset it in HR.' | t
+        }}</span>
+      </div>
+      <div class="form-grid form-grid--two">
+        <div class="field">
+          <label for="changeNewPin">{{ 'New PIN' | t }}</label>
+          <input
+            id="changeNewPin"
+            class="text-input"
+            type="password"
+            inputmode="numeric"
+            maxlength="4"
+            autocomplete="off"
+            name="newPin"
+            [(ngModel)]="newPin"
+          />
+        </div>
+        <div class="field">
+          <label for="changeRepeatPin">{{ 'Repeat the PIN' | t }}</label>
+          <input
+            id="changeRepeatPin"
+            class="text-input"
+            type="password"
+            inputmode="numeric"
+            maxlength="4"
+            autocomplete="off"
+            name="repeatPin"
+            [(ngModel)]="repeatPin"
+          />
+        </div>
+      </div>
+      @if (pinError()) {
+        <p class="field-error">{{ pinError() | t }}</p>
+      }
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="pinOpen.set(false)">
+          {{ 'Cancel' | t }}
+        </button>
+        <button type="submit" class="button button--primary">{{ 'Save PIN' | t }}</button>
+      </div>
+    </form>
+  }
+</app-modal>

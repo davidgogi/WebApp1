@@ -3,13 +3,19 @@
     @if (session(); as session) {
       <form class="page-stack" (ngSubmit)="submit()">
         <p class="page-description">
-          {{ 'Register {p0} · {p1} · {p2}' | t: { p0: session.registerNo, p1: session.storeName, p2: session.cashierName } }}
+          {{
+            'Register {p0} · {p1} · {p2}'
+              | t: { p0: session.registerNo, p1: session.storeName, p2: session.cashierName }
+          }}
         </p>
 
         @if (mode === 'close') {
           @if (othersRegister()) {
             <p class="field-hint">
-              {{ 'You are closing a register someone else opened. Count the cash in it and confirm with your own PIN.' | t }}
+              {{
+                'You are closing a register someone else opened. Count the cash in it and confirm with your own PIN.'
+                  | t
+              }}
             </p>
           }
           <div class="stat-row">
@@ -30,11 +36,23 @@
           </div>
           <div class="form-grid form-grid--two">
             <div class="field">
-              <label for="dialogAmount">{{ 'Counted cash (₾)' | t }} <span class="required-mark">*</span></label>
-              <input id="dialogAmount" class="text-input" type="number" min="0" step="0.01" name="amount" [(ngModel)]="amount" />
+              <label for="dialogAmount"
+                >{{ 'Counted cash (₾)' | t }} <span class="required-mark">*</span></label
+              >
+              <input
+                id="dialogAmount"
+                class="text-input"
+                type="number"
+                min="0"
+                step="0.01"
+                name="amount"
+                [(ngModel)]="amount"
+              />
             </div>
             <div class="field">
-              <label for="dialogPin">{{ 'Your PIN' | t }} <span class="required-mark">*</span></label>
+              <label for="dialogPin"
+                >{{ 'Your PIN' | t }} <span class="required-mark">*</span></label
+              >
               <input
                 id="dialogPin"
                 class="text-input"
@@ -49,19 +67,42 @@
           </div>
         } @else if (mode === 'comment') {
           <p class="field-hint">
-            {{ (session.status === 'closed' ? 'Changes the closing note. Leave it empty to remove both notes.' : 'Changes the opening note. Leave it empty to remove it.') | t }}
+            {{
+              (session.status === 'closed'
+                ? 'Changes the closing note. Leave it empty to remove both notes.'
+                : 'Changes the opening note. Leave it empty to remove it.'
+              ) | t
+            }}
           </p>
         } @else {
           @if (mode === 'cover') {
             <p class="field-hint">
-              {{ 'Records who covered the missing cash. ₾{p0} of the shortage is left.' | t: { p0: (session.shortageLeft | number: '1.2-2') } }}
+              {{
+                'Records who covered the missing cash. ₾{p0} of the shortage is left.'
+                  | t: { p0: (session.shortageLeft | number: '1.2-2') }
+              }}
             </p>
           } @else if (mode === 'out') {
-            <p class="field-hint">{{ '₾{p0} should be in the register now.' | t: { p0: (session.expectedCash | number: '1.2-2') } }}</p>
+            <p class="field-hint">
+              {{
+                '₾{p0} should be in the register now.'
+                  | t: { p0: (session.expectedCash | number: '1.2-2') }
+              }}
+            </p>
           }
           <div class="field">
-            <label for="dialogAmount">{{ 'Amount (₾)' | t }} <span class="required-mark">*</span></label>
-            <input id="dialogAmount" class="text-input" type="number" min="0.01" step="0.01" name="amount" [(ngModel)]="amount" />
+            <label for="dialogAmount"
+              >{{ 'Amount (₾)' | t }} <span class="required-mark">*</span></label
+            >
+            <input
+              id="dialogAmount"
+              class="text-input"
+              type="number"
+              min="0.01"
+              step="0.01"
+              name="amount"
+              [(ngModel)]="amount"
+            />
           </div>
         }
 
@@ -79,7 +120,14 @@
             maxlength="500"
             name="note"
             [(ngModel)]="note"
-            [placeholder]="(mode === 'in' ? 'e.g. Small change from the bank' : mode === 'out' ? 'e.g. Cash taken to the bank' : '') | t"
+            [placeholder]="
+              (mode === 'in'
+                ? 'e.g. Small change from the bank'
+                : mode === 'out'
+                  ? 'e.g. Cash taken to the bank'
+                  : ''
+              ) | t
+            "
           ></textarea>
         </div>
 
@@ -87,7 +135,9 @@
           <p class="field-error">{{ errorMessage() | t }}</p>
         }
         <div class="button-row form-actions">
-          <button type="button" class="button button--outline" (click)="closed.emit()">{{ 'Cancel' | t }}</button>
+          <button type="button" class="button button--outline" (click)="closed.emit()">
+            {{ 'Cancel' | t }}
+          </button>
           <button type="submit" class="button button--primary" [disabled]="isBusy()">
             {{ (mode === 'close' ? 'Close the register' : 'Save') | t }}
           </button>

@@ -5,14 +5,24 @@
       <h1 class="page-title">{{ 'POS' | t }}</h1>
       @if (catalog(); as c) {
         <p class="page-description">
-          {{ 'Register {p0} · {p1} · stock from {p2}' | t: { p0: c.registerNo, p1: c.store.name, p2: c.warehouse.code + ' ' + c.warehouse.name } }}
+          {{
+            'Register {p0} · {p1} · stock from {p2}'
+              | t
+                : {
+                    p0: c.registerNo,
+                    p1: c.store.name,
+                    p2: c.warehouse.code + ' ' + c.warehouse.name,
+                  }
+          }}
         </p>
       }
     </div>
     @if (catalog()) {
       <div class="button-row page-header__actions">
         <a class="button button--outline" routerLink="/store/sales">{{ 'Sales' | t }}</a>
-        <a class="button button--outline" routerLink="/store/cash-register">{{ 'Cash register' | t }}</a>
+        <a class="button button--outline" routerLink="/store/cash-register">{{
+          'Cash register' | t
+        }}</a>
       </div>
     }
   </div>
@@ -33,9 +43,13 @@
     <p class="page-description">{{ 'Loading…' | t }}</p>
   } @else if (noRegister()) {
     <div class="page-card">
-      <p class="page-description">{{ 'Open a register first, then come back here to sell.' | t }}</p>
+      <p class="page-description">
+        {{ 'Open a register first, then come back here to sell.' | t }}
+      </p>
       <div class="button-row">
-        <a class="button button--primary" routerLink="/store/cash-register">{{ 'Open a register' | t }}</a>
+        <a class="button button--primary" routerLink="/store/cash-register">{{
+          'Open a register' | t
+        }}</a>
       </div>
     </div>
   } @else if (catalog(); as c) {
@@ -58,7 +72,12 @@
           />
         </div>
         <div class="pos-categories">
-          <button type="button" class="check-chip" [class.check-chip--on]="!categoryId()" (click)="categoryId.set('')">
+          <button
+            type="button"
+            class="check-chip"
+            [class.check-chip--on]="!categoryId()"
+            (click)="categoryId.set('')"
+          >
             {{ 'All' | t }}
           </button>
           @for (category of c.categories; track category.id) {
@@ -74,20 +93,32 @@
         </div>
         @if (c.products.length === 0) {
           <p class="page-description">
-            {{ 'No products can be sold yet. In WMS → Products, set a product\'s POS status to "Available at POS".' | t }}
+            {{
+              'No products can be sold yet. In WMS → Products, set a product\'s POS status to "Available at POS".'
+                | t
+            }}
           </p>
         } @else if (products().length === 0) {
           <p class="page-description">{{ 'Nothing matches.' | t }}</p>
         } @else {
           <div class="pos-grid">
             @for (product of products(); track product.id) {
-              <button type="button" class="pos-tile" [disabled]="product.stock <= 0" (click)="add(product)">
-                <span class="pos-tile__name">{{ product.name }}</span>
-                <span class="muted" [class.short]="product.stock <= 0">
-                  {{ '{p0} {p1} in stock' | t: { p0: product.stock, p1: (product.unit | t) } }}
-                </span>
-                <span class="pos-tile__price">₾{{ product.price | number: '1.2-2' }} / {{ product.unit | t }}</span>
-              </button>
+              @if (product.stock > 0) {
+                <button
+                  type="button"
+                  class="pos-tile"
+                  [disabled]="product.stock <= 0"
+                  (click)="add(product)"
+                >
+                  <span class="pos-tile__name">{{ product.name }}</span>
+                  <span class="muted" [class.short]="product.stock <= 0">
+                    {{ '{p0} {p1} in stock' | t: { p0: product.stock, p1: (product.unit | t) } }}
+                  </span>
+                  <span class="pos-tile__price"
+                    >₾{{ product.price | number: '1.2-2' }} / {{ product.unit | t }}</span
+                  >
+                </button>
+              }
             }
           </div>
         }
@@ -103,9 +134,16 @@
               <div class="pos-line">
                 <div>
                   <div class="cell-strong">{{ line.product.name }}</div>
-                  <div class="muted">₾{{ line.product.price | number: '1.2-2' }} / {{ line.product.unit | t }}</div>
+                  <div class="muted">
+                    ₾{{ line.product.price | number: '1.2-2' }} / {{ line.product.unit | t }}
+                  </div>
                   @if (line.quantity > line.product.stock) {
-                    <div class="short">{{ 'Only {p0} {p1} in stock' | t: { p0: line.product.stock, p1: (line.product.unit | t) } }}</div>
+                    <div class="short">
+                      {{
+                        'Only {p0} {p1} in stock'
+                          | t: { p0: line.product.stock, p1: (line.product.unit | t) }
+                      }}
+                    </div>
                   } @else if (!wholeOk(line)) {
                     <div class="short">{{ 'Counted in pcs: whole numbers only' | t }}</div>
                   }
@@ -120,7 +158,12 @@
                   (ngModelChange)="setQuantity(line, $event)"
                 />
                 <span class="pos-line__total">₾{{ lineTotal(line) | number: '1.2-2' }}</span>
-                <button type="button" class="icon-action icon-action--danger" [title]="'Remove' | t" (click)="remove(line)">
+                <button
+                  type="button"
+                  class="icon-action icon-action--danger"
+                  [title]="'Remove' | t"
+                  (click)="remove(line)"
+                >
                   <lucide-icon [img]="DeleteIcon" [size]="16"></lucide-icon>
                 </button>
               </div>
@@ -132,10 +175,20 @@
           <span>₾{{ total() | number: '1.2-2' }}</span>
         </div>
         <div class="button-row">
-          <button type="button" class="button button--outline" [disabled]="cart().length === 0" (click)="clearCart()">
+          <button
+            type="button"
+            class="button button--outline"
+            [disabled]="cart().length === 0"
+            (click)="clearCart()"
+          >
             {{ 'Empty the cart' | t }}
           </button>
-          <button type="button" class="button button--primary" [disabled]="cart().length === 0 || hasProblem()" (click)="openPay()">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="cart().length === 0 || hasProblem()"
+            (click)="openPay()"
+          >
             {{ 'Pay' | t }}
           </button>
         </div>
@@ -152,10 +205,22 @@
         <span>₾{{ total() | number: '1.2-2' }}</span>
       </div>
       <div class="pos-methods">
-        <button type="button" class="button" [class.button--dark]="method() === 'cash'" [class.button--outline]="method() !== 'cash'" (click)="method.set('cash')">
+        <button
+          type="button"
+          class="button"
+          [class.button--dark]="method() === 'cash'"
+          [class.button--outline]="method() !== 'cash'"
+          (click)="method.set('cash')"
+        >
           {{ 'Cash' | t }}
         </button>
-        <button type="button" class="button" [class.button--dark]="method() === 'card'" [class.button--outline]="method() !== 'card'" (click)="method.set('card')">
+        <button
+          type="button"
+          class="button"
+          [class.button--dark]="method() === 'card'"
+          [class.button--outline]="method() !== 'card'"
+          (click)="method.set('card')"
+        >
           {{ 'Card' | t }}
         </button>
       </div>
@@ -173,21 +238,29 @@
               [placeholder]="total() | number: '1.2-2'"
               [(ngModel)]="received"
             />
-            <span class="field-hint">{{ 'Leave empty if the customer paid the exact amount.' | t }}</span>
+            <span class="field-hint">{{
+              'Leave empty if the customer paid the exact amount.' | t
+            }}</span>
           </div>
           <div class="stat">
             <div class="stat__label">{{ 'Change' | t }}</div>
-            <div class="stat__value" [class.change-out]="(change() ?? 0) < 0">₾{{ change() ?? 0 | number: '1.2-2' }}</div>
+            <div class="stat__value" [class.change-out]="(change() ?? 0) < 0">
+              ₾{{ change() ?? 0 | number: '1.2-2' }}
+            </div>
           </div>
         </div>
       } @else {
-        <p class="field-hint">{{ 'Take the payment on the card terminal, then confirm here.' | t }}</p>
+        <p class="field-hint">
+          {{ 'Take the payment on the card terminal, then confirm here.' | t }}
+        </p>
       }
       @if (payError()) {
         <p class="field-error">{{ payError() | t }}</p>
       }
       <div class="button-row form-actions">
-        <button type="button" class="button button--outline" (click)="payOpen.set(false)">{{ 'Cancel' | t }}</button>
+        <button type="button" class="button button--outline" (click)="payOpen.set(false)">
+          {{ 'Cancel' | t }}
+        </button>
         <button type="submit" class="button button--primary" [disabled]="isPaying()">
           {{ isPaying() ? ('Saving…' | t) : ('Confirm the sale' | t) }}
         </button>

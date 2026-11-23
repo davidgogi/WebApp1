@@ -9,9 +9,16 @@ export default [
     loadComponent: () => import('./stores/stores-list/stores-list').then((m) => m.StoresList),
   },
   {
+    path: 'cash-register/cash-register-history',
+    loadComponent: () =>
+      import('./cash-register/cash-register-history/cash-register-history').then(
+        (m) => m.CashRegisterHistoryPage,
+      ),
+  },
+  {
     path: 'cash-register',
     loadComponent: () =>
-      import('./cash-register/cash-register-page/cash-register-page').then((m) => m.CashRegisterPage),
+      import('./cash-register/ongoing/cash-register-ongoing').then((m) => m.OngoingPage),
   },
   {
     path: 'cash-register/:id',
@@ -38,6 +45,16 @@ export default [
   {
     path: 'record-expense',
     loadComponent: () =>
-      import('./record-expense/record-expense-page/record-expense-page').then((m) => m.RecordExpensePage),
+      import('./record-expense/record-expense-page/record-expense-page').then(
+        (m) => m.RecordExpensePage,
+      ),
+  },
+  {
+    path: 'child',
+    loadComponent: () => import('./child/child').then((m) => m.Child),
+  },
+  {
+    path: 'parent',
+    loadComponent: () => import('./parent/parent').then((m) => m.Parent),
   },
 ] satisfies Routes;
