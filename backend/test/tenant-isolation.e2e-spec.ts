@@ -43,6 +43,10 @@ interface Tenant {
   salesWarehouseId: string;
   storeId: string;
   sessionId: string;
+  expenseCategoryId: string;
+  expenseTypeId: string;
+  bankAccountId: string;
+  expenseId: string;
   saleId: string;
   saleLineId: string;
 }
@@ -330,6 +334,19 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
     items: [{ productId: product.id, quantity: 1 }],
     paymentMethod: 'cash',
   });
+  const [expenseCategory] = await ok('POST', '/store/expenses/categories', storeAdmin.token, {
+    name: `${secret} expense category`,
+  });
+  const [withType] = await ok('POST', `/store/expenses/categories/${expenseCategory.id}/types`, storeAdmin.token, {
+    name: `${secret} expense type`,
+  });
+  const [bankAccount] = await ok('POST', '/store/expenses/bank-accounts', storeAdmin.token, {
+    name: `${secret} bank`,
+    openingBalance: 100,
+  });
+  const [expense] = await ok('POST', '/store/expenses', cashier.token, {
+    lines: [{ typeId: withType.types[0].id, source: 'cash', amount: 1, purpose: `${secret} purpose` }],
+  });
 
   return {
     label,
@@ -351,6 +368,10 @@ async function buildTenant(label: string, superuser: string): Promise<Tenant> {
     salesWarehouseId: salesWarehouse.id,
     storeId: store.id,
     sessionId: session.id,
+    expenseCategoryId: expenseCategory.id,
+    expenseTypeId: withType.types[0].id,
+    bankAccountId: bankAccount.id,
+    expenseId: expense.id,
     saleId: sale.id,
     saleLineId: sale.lines[0].id,
   };
@@ -821,6 +842,48 @@ describe('tenant isolation', () => {
     expect(bSale.status).toBe(200);
     expect(bSale.body.returns).toEqual([]);
     expect((await call('GET', '/store/stores', b.storeAdmin)).text).not.toContain('hacked');
+  });
+
+  it("the other company's expenses and transactions stay out of reach", async () => {
+    const lists = ['/store/transactions', '/store/transactions/operations', '/store/expenses/workspace'];
+    for (const path of lists) {
+      const own = await call('GET', path, a.storeAdmin);
+      expect(own.status, path).toBe(200);
+      expect(own.text, path).toContain(a.secret);
+      expect(own.text, path).not.toContain(b.secret);
+      const admin = await call('GET', path, a.systemAdmin);
+      expect(admin.status, path).toBe(200);
+      expect(admin.text, path).not.toContain(b.secret);
+    }
+
+    expectRefused(await call('POST', `/store/expenses/${b.expenseId}/void`, a.storeAdmin, { reason: 'hacked' }), b);
+    expectRefused(await call('PATCH', `/store/expenses/categories/${b.expenseCategoryId}`, a.storeAdmin, { name: 'hacked' }), b);
+    expectRefused(await call('DELETE', `/store/expenses/categories/${b.expenseCategoryId}`, a.storeAdmin), b);
+    expectRefused(await call('POST', `/store/expenses/categories/${b.expenseCategoryId}/types`, a.storeAdmin, { name: 'hacked' }), b);
+    expectRefused(await call('PATCH', `/store/expenses/types/${b.expenseTypeId}`, a.storeAdmin, { name: 'hacked' }), b);
+    expectRefused(await call('PATCH', `/store/expenses/types/${a.expenseTypeId}`, a.storeAdmin, { categoryId: b.expenseCategoryId }), b);
+    expectRefused(await call('DELETE', `/store/expenses/types/${b.expenseTypeId}`, a.storeAdmin), b);
+    expectRefused(await call('PATCH', `/store/expenses/bank-accounts/${b.bankAccountId}`, a.storeAdmin, { name: 'hacked' }), b);
+    expectRefused(await call('DELETE', `/store/expenses/bank-accounts/${b.bankAccountId}`, a.storeAdmin), b);
+
+    const line = { source: 'cash', amount: 1, purpose: 'hacked' };
+    expectRefused(await call('POST', '/store/expenses', a.cashier, { lines: [{ ...line, typeId: b.expenseTypeId }] }), b);
+    const bank = { source: 'bank', amount: 1, purpose: 'hacked', typeId: a.expenseTypeId };
+    expectRefused(
+      await call('POST', '/store/expenses', a.storeManager, { lines: [{ ...bank, bankAccountId: b.bankAccountId, storeId: a.storeId }] }),
+      b,
+    );
+    expectRefused(
+      await call('POST', '/store/expenses', a.storeManager, { lines: [{ ...bank, bankAccountId: a.bankAccountId, storeId: b.storeId }] }),
+      b,
+    );
+
+    const bTransactions = await call('GET', '/store/transactions', b.storeAdmin);
+    expect(bTransactions.status).toBe(200);
+    const bExpense = bTransactions.body.find((row: { id: string }) => row.id === b.expenseId);
+    expect(bExpense.status).toBe('active');
+    expect(bTransactions.text).not.toContain('hacked');
+    expect((await call('GET', '/store/expenses/workspace', b.storeAdmin)).text).not.toContain('hacked');
   });
 
   it("the database shows the app role only the current company's rows", async () => {

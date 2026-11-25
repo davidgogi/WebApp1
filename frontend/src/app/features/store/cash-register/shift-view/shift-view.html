@@ -72,6 +72,10 @@
         <div class="stat__label">{{ 'Cash added / taken out' | t }}</div>
         <div class="stat__value">₾{{ s.metrics.cashIn | number: '1.2-2' }} / ₾{{ s.metrics.cashOut | number: '1.2-2' }}</div>
       </div>
+      <div class="stat">
+        <div class="stat__label">{{ 'Expenses' | t }}</div>
+        <div class="stat__value">₾{{ s.metrics.expenses | number: '1.2-2' }}</div>
+      </div>
     </div>
     <div class="stat-row">
       <div class="stat">
@@ -150,6 +154,8 @@
                 <td>
                   @if (row.saleId) {
                     <a [routerLink]="['/store/sales', row.saleId]">{{ row.code }}</a>
+                  } @else if (row.expenseId) {
+                    <a routerLink="/store/transactions" [queryParams]="{ tab: 'transactions' }">{{ row.code }}</a>
                   } @else {
                     –
                   }
@@ -187,7 +193,12 @@
             <tbody>
               @for (coverage of s.coverages; track coverage.id) {
                 <tr>
-                  <td class="cell-strong">{{ coverage.code }}</td>
+                  <td class="cell-strong cell-nowrap">
+                    {{ coverage.code }}
+                    @if (coverage.expenseCode) {
+                      <div class="muted">{{ 'Expense' | t }} {{ coverage.expenseCode }}</div>
+                    }
+                  </td>
                   <td class="cell-nowrap">{{ coverage.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
                   <td class="cell-figure">₾{{ coverage.amount | number: '1.2-2' }}</td>
                   <td>{{ coverage.coveredByName }}</td>

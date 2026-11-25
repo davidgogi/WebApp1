@@ -13,7 +13,11 @@ export function isStoreAdmin(actor: AuthUser): boolean {
 }
 
 export function todayInStore(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: STORE_TIME_ZONE }).format(new Date());
+  return dayInStore(new Date());
+}
+
+export function dayInStore(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: STORE_TIME_ZONE }).format(date);
 }
 
 export function period(from: string | undefined, to: string | undefined, defaultDays = 30): { from: string; to: string } {

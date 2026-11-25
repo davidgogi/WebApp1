@@ -1,5 +1,9 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { CanMatchFn, Router, Routes } from '@angular/router';
 import { accessGuard } from '../../core/auth/auth.guards';
+
+const historyTab: CanMatchFn = () =>
+  inject(Router).currentNavigation()?.extractedUrl.queryParams['tab'] === 'history';
 
 export default [
   { path: '', pathMatch: 'full', redirectTo: 'cash-register' },
@@ -10,6 +14,12 @@ export default [
   },
   {
     path: 'cash-register/cash-register-history',
+    canActivate: [() => inject(Router).parseUrl('/store/cash-register?tab=history')],
+    children: [],
+  },
+  {
+    path: 'cash-register',
+    canMatch: [historyTab],
     loadComponent: () =>
       import('./cash-register/cash-register-history/cash-register-history').then(
         (m) => m.CashRegisterHistoryPage,
@@ -43,18 +53,15 @@ export default [
     loadComponent: () => import('./reports/reports-page/reports-page').then((m) => m.ReportsPage),
   },
   {
+    path: 'transactions',
+    loadComponent: () =>
+      import('./transactions/transactions-page/transactions-page').then((m) => m.TransactionsPage),
+  },
+  {
     path: 'record-expense',
     loadComponent: () =>
       import('./record-expense/record-expense-page/record-expense-page').then(
         (m) => m.RecordExpensePage,
       ),
-  },
-  {
-    path: 'child',
-    loadComponent: () => import('./child/child').then((m) => m.Child),
-  },
-  {
-    path: 'parent',
-    loadComponent: () => import('./parent/parent').then((m) => m.Parent),
   },
 ] satisfies Routes;

@@ -789,6 +789,16 @@ textarea {
   padding: 16px 20px 24px;
 }
 
+.notice-warning {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius);
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.96rem;
+}
+
 .notice-success {
   margin: 0;
   padding: 8px 12px;
@@ -1182,6 +1192,56 @@ lucide-icon.search-input__icon {
   background: var(--accent-soft);
   color: var(--accent-strong);
   box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.checkbox-row input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.pill-tabs {
+  display: inline-flex;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.pill-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.pill-tabs__tab:hover,
+.pill-tabs__tab:focus-visible {
+  background: var(--surface-muted);
+}
+
+.pill-tabs__tab--active,
+.pill-tabs__tab--active:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
 }
 
 .form-tabs {

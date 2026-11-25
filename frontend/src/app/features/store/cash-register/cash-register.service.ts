@@ -50,7 +50,7 @@ export class CashRegisterService {
     return this.http.patch<RegisterSessionDetail>(`${API_URL}/sessions/${id}/comment`, { comment });
   }
 
-  cover(id: string, payload: { amount: number; note?: string }): Observable<RegisterSessionDetail> {
+  cover(id: string, payload: { amount: number; note: string }): Observable<RegisterSessionDetail> {
     return this.http.post<RegisterSessionDetail>(`${API_URL}/sessions/${id}/coverages`, payload);
   }
 }

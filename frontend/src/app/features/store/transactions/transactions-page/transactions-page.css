@@ -1,0 +1,24 @@
+.row--voided td {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+}
+
+.row--voided td:last-child,
+.row--voided td:nth-last-child(2) {
+  text-decoration: none;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.detail-list dt {
+  color: var(--ink-muted);
+}
+
+.detail-list dd {
+  margin: 0;
+}

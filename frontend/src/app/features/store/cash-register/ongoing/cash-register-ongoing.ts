@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { Coins, History, LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { TranslatePipe } from '../../../../core/i18n/t.pipe';
 import { Modal } from '../../../../shared/modal/modal';
@@ -22,11 +23,13 @@ import { RegisterDialog, RegisterDialogMode } from '../register-dialog/register-
 
 @Component({
   selector: 'app-cash-register-ongoing',
-  imports: [TranslatePipe, DatePipe, DecimalPipe, FormsModule, RouterLink, Modal, RegisterDialog],
+  imports: [TranslatePipe, DatePipe, DecimalPipe, FormsModule, RouterLink, LucideAngularModule, Modal, RegisterDialog],
   templateUrl: './cash-register-ongoing.html',
   styleUrl: './cash-register-ongoing.css',
 })
 export class OngoingPage implements OnInit {
+  protected readonly OngoingIcon = Coins;
+  protected readonly HistoryIcon = History;
   private readonly cashRegisterService = inject(CashRegisterService);
   private readonly storeService = inject(StoreService);
   private readonly auth = inject(AuthService);

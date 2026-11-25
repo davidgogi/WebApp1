@@ -5,7 +5,13 @@ import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
 import { Counterparty } from '../../../../shared/counterparties/counterparty.model';
 import { CounterpartyService } from '../../../../shared/counterparties/counterparty.service';
-import { Product, ProductPosStatus, ProductStatus, ProductUnit, ProductUsage } from '../product.model';
+import {
+  Product,
+  ProductPosStatus,
+  ProductStatus,
+  ProductUnit,
+  ProductUsage,
+} from '../product.model';
 import { ProductService } from '../product.service';
 import { Combobox, ComboOption } from '../../../../shared/combobox/combobox';
 import { TranslatePipe } from '../../../../core/i18n/t.pipe';
@@ -71,13 +77,17 @@ export class ProductForm implements OnInit {
     };
   });
   protected readonly shownErrors = computed(() =>
-    this.submitted() ? this.errors() : { name: '', barcode: '', categoryId: '', supplierId: '', costPrice: '', salePrice: '' },
+    this.submitted()
+      ? this.errors()
+      : { name: '', barcode: '', categoryId: '', supplierId: '', costPrice: '', salePrice: '' },
   );
 
   protected readonly groups = computed(() => {
     const category = this.allCategories()?.find((c) => c.id === this.categoryId());
     const currentId = this.product()?.groupId;
-    return (category?.groups ?? []).filter((group) => group.status === 'active' || group.id === currentId);
+    return (category?.groups ?? []).filter(
+      (group) => group.status === 'active' || group.id === currentId,
+    );
   });
 
   ngOnInit(): void {
@@ -86,7 +96,8 @@ export class ProductForm implements OnInit {
       error: () => this.formError.set('Could not load the categories.'),
     });
     this.counterpartyService.list().subscribe({
-      next: (counterparties) => this.allSuppliers.set(counterparties.filter((counterparty) => counterparty.isSupplier)),
+      next: (counterparties) =>
+        this.allSuppliers.set(counterparties.filter((counterparty) => counterparty.isSupplier)),
       error: () => this.formError.set('Could not load the suppliers.'),
     });
     const product = this.product();
@@ -182,7 +193,9 @@ export class ProductForm implements OnInit {
     };
 
     const id = this.product()?.id;
-    const request = id ? this.productService.update(id, payload) : this.productService.create(payload);
+    const request = id
+      ? this.productService.update(id, payload)
+      : this.productService.create(payload);
     this.isSaving.set(true);
     this.formError.set('');
     request.subscribe({
@@ -204,7 +217,9 @@ export class ProductForm implements OnInit {
   ): ComboOption[] {
     return (items ?? [])
       .filter((item) => item.status === 'active' || item.id === currentId)
-      .map((item) => ({ value: item.id, label: item.status === 'active' ? item.name : `${item.name} (inactive)` }));
+      .map((item) => ({
+        value: item.id,
+        label: item.status === 'active' ? item.name : `${item.name} (inactive)`,
+      }));
   }
-
 }

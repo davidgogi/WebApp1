@@ -1,0 +1,357 @@
+<div class="page-stack">
+  <div class="page-header">
+    <div>
+      <p class="page-eyebrow">{{ 'Store' | t }}</p>
+      <h1 class="page-title">{{ 'Transactions' | t }}</h1>
+      <p class="page-description">
+        {{
+          'Transactions are documents (a sale, a return, an expense, a shortage coverage). Operations are what is inside them: each sold product line, each expense.'
+            | t
+        }}
+      </p>
+    </div>
+  </div>
+
+  <nav class="pill-tabs">
+    <a
+      class="pill-tabs__tab"
+      [class.pill-tabs__tab--active]="activeTab() === 'transactions'"
+      routerLink="/store/transactions"
+      [queryParams]="{ tab: 'transactions' }"
+    >
+      <lucide-icon [img]="TransactionsIcon" [size]="15"></lucide-icon>
+      {{ 'Transactions' | t }}
+    </a>
+    <a
+      class="pill-tabs__tab"
+      [class.pill-tabs__tab--active]="activeTab() === 'operations'"
+      routerLink="/store/transactions"
+      [queryParams]="{ tab: 'operations' }"
+    >
+      <lucide-icon [img]="OperationsIcon" [size]="15"></lucide-icon>
+      {{ 'Operations' | t }}
+    </a>
+  </nav>
+
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  <div class="page-card">
+    <div class="table-filters">
+      <div class="search-input table-filters__search">
+        <lucide-icon [img]="SearchIcon" [size]="16" class="search-input__icon"></lucide-icon>
+        <input
+          class="text-input"
+          type="search"
+          [attr.aria-label]="'Search' | t"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+          [placeholder]="(activeTab() === 'transactions' ? 'Number, store, who, description' : 'Product, expense, document, store') | t"
+        />
+      </div>
+      <input class="text-input" type="date" [attr.aria-label]="'From' | t" [ngModel]="from()" (ngModelChange)="from.set($event)" (change)="load()" />
+      <input class="text-input" type="date" [attr.aria-label]="'To' | t" [ngModel]="to()" (ngModelChange)="to.set($event)" (change)="load()" />
+      @if (stores().length > 1) {
+        <select class="text-select" [attr.aria-label]="'Store' | t" [ngModel]="storeFilter()" (ngModelChange)="storeFilter.set($event); load()">
+          <option value="">{{ 'All stores' | t }}</option>
+          @for (store of stores(); track store.id) {
+            <option [value]="store.id">{{ store.name }}</option>
+          }
+        </select>
+      }
+      <select class="text-select" [attr.aria-label]="'Type' | t" [ngModel]="kindFilter()" (ngModelChange)="kindFilter.set($event)">
+        <option value="all">{{ 'All types' | t }}</option>
+        <option value="sale">{{ 'Sales' | t }}</option>
+        <option value="return">{{ 'Returns' | t }}</option>
+        <option value="expense">{{ 'Expenses' | t }}</option>
+        <option value="coverage">{{ 'Shortage coverage' | t }}</option>
+      </select>
+      <select class="text-select" [attr.aria-label]="'Payment' | t" [ngModel]="methodFilter()" (ngModelChange)="methodFilter.set($event)">
+        <option value="all">{{ 'Any payment' | t }}</option>
+        <option value="cash">{{ 'Cash' | t }}</option>
+        <option value="card">{{ 'Card' | t }}</option>
+        <option value="bank">{{ 'Bank' | t }}</option>
+      </select>
+      <label class="checkbox-row">
+        <input type="checkbox" [checked]="showVoided()" (change)="showVoided.set(!showVoided())" />
+        {{ 'Show deleted' | t }}
+      </label>
+      <button type="button" class="link-button" (click)="clearFilters()">{{ 'Clear' | t }}</button>
+    </div>
+
+    @if (isLoading()) {
+      <p class="page-description">{{ 'Loading…' | t }}</p>
+    } @else if (activeTab() === 'transactions') {
+      @if (filteredTransactions().length === 0) {
+        <p class="page-description">{{ 'Nothing in this period.' | t }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="data-table data-table--compact">
+            <thead>
+              <tr>
+                <th>{{ 'Document' | t }}</th>
+                <th>{{ 'Type' | t }}</th>
+                <th>{{ 'Date' | t }}</th>
+                <th>{{ 'Store' | t }}</th>
+                <th>{{ 'Register' | t }}</th>
+                <th>{{ 'Payment' | t }}</th>
+                <th>{{ 'Amount' | t }}</th>
+                <th>{{ 'Description' | t }}</th>
+                <th>{{ 'By' | t }}</th>
+                <th>{{ 'Status' | t }}</th>
+                <th>{{ 'Actions' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of transactionPages.items(); track row.kind + row.id) {
+                <tr [class.row--voided]="row.status === 'voided'">
+                  <td class="cell-strong cell-nowrap">
+                    @switch (row.kind) {
+                      @case ('expense') {
+                        <button type="button" class="link-button" (click)="detail.set(row.expense)">{{ row.code }}</button>
+                      }
+                      @case ('coverage') {
+                        <a [routerLink]="['/store/cash-register', row.sessionId]">{{ row.code }}</a>
+                      }
+                      @default {
+                        <a [routerLink]="['/store/sales', row.id]">{{ row.code }}</a>
+                      }
+                    }
+                  </td>
+                  <td>
+                    <span
+                      class="badge"
+                      [class.badge--done]="row.kind === 'sale'"
+                      [class.badge--cancelled]="row.kind === 'return'"
+                      [class.badge--inactive]="row.kind === 'expense'"
+                      [class.badge--active]="row.kind === 'coverage'"
+                    >
+                      {{ kindLabels[row.kind] | t }}
+                    </span>
+                  </td>
+                  <td class="cell-nowrap">{{ row.at | date: 'dd.MM.yyyy HH:mm' }}</td>
+                  <td>{{ row.storeName }}</td>
+                  <td class="cell-figure">
+                    @if (row.sessionId) {
+                      <a [routerLink]="['/store/cash-register', row.sessionId]">#{{ row.registerNo }}</a>
+                    } @else {
+                      –
+                    }
+                  </td>
+                  <td>{{ methodLabels[row.method] | t }}</td>
+                  <td class="cell-figure cell-nowrap" [class.change-in]="row.direction === 'in'" [class.change-out]="row.direction === 'out'">
+                    {{ row.direction === 'out' ? '−' : '+' }}₾{{ row.amount | number: '1.2-2' }}
+                  </td>
+                  <td>
+                    @switch (row.kind) {
+                      @case ('sale') {
+                        {{ '{count} lines' | t: { count: row.lineCount } }}
+                      }
+                      @case ('return') {
+                        @if (row.original; as original) {
+                          {{ 'Return of' | t }} <a [routerLink]="['/store/sales', original.id]">{{ original.code }}</a>
+                        }
+                      }
+                      @default {
+                        {{ row.description ?? '' }}
+                      }
+                    }
+                  </td>
+                  <td class="cell-nowrap">{{ row.by }}</td>
+                  <td>
+                    @if (row.status === 'voided') {
+                      <span class="badge badge--cancelled" [title]="row.expense?.voidReason ?? ''">{{ 'Deleted' | t }}</span>
+                    } @else {
+                      <span class="badge badge--active">{{ 'Active' | t }}</span>
+                    }
+                  </td>
+                  <td>
+                    @if (row.expense) {
+                      <div class="icon-actions">
+                        <button
+                          type="button"
+                          class="icon-action icon-action--danger"
+                          [disabled]="!row.canVoid"
+                          [title]="
+                            (row.canVoid
+                              ? 'Delete'
+                              : row.status === 'voided'
+                                ? 'Already deleted'
+                                : 'Only the Store admin or the store manager can delete it, and a cash expense only while its register is open'
+                            ) | t
+                          "
+                          [attr.aria-label]="'Delete' | t"
+                          (click)="askVoid(row)"
+                        >
+                          <lucide-icon [img]="DeleteIcon" [size]="14"></lucide-icon>
+                        </button>
+                      </div>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    } @else {
+      @if (filteredOperations().length === 0) {
+        <p class="page-description">{{ 'Nothing in this period.' | t }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="data-table data-table--compact">
+            <thead>
+              <tr>
+                <th>{{ 'Name' | t }}</th>
+                <th>{{ 'Details' | t }}</th>
+                <th>{{ 'Type' | t }}</th>
+                <th>{{ 'Quantity' | t }}</th>
+                <th>{{ 'Price' | t }}</th>
+                <th>{{ 'Amount' | t }}</th>
+                <th>{{ 'Document' | t }}</th>
+                <th>{{ 'Date' | t }}</th>
+                <th>{{ 'Store' | t }}</th>
+                <th>{{ 'Payment' | t }}</th>
+                <th>{{ 'By' | t }}</th>
+                <th>{{ 'Status' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of operationPages.items(); track row.kind + row.id) {
+                <tr [class.row--voided]="row.status === 'voided'">
+                  <td class="cell-strong">
+                    <button type="button" class="link-button" (click)="openOperation(row)">
+                      {{ row.kind === 'coverage' ? (row.name | t) : row.name }}
+                    </button>
+                  </td>
+                  <td class="muted">{{ row.detail ?? '' }}</td>
+                  <td>
+                    <span
+                      class="badge"
+                      [class.badge--done]="row.kind === 'sale'"
+                      [class.badge--cancelled]="row.kind === 'return'"
+                      [class.badge--inactive]="row.kind === 'expense'"
+                      [class.badge--active]="row.kind === 'coverage'"
+                    >
+                      {{ kindLabels[row.kind] | t }}
+                    </span>
+                  </td>
+                  <td class="cell-figure cell-nowrap">
+                    {{ row.quantity === null ? '–' : (row.quantity | number: '1.0-3') + ' ' + (row.unit! | t) }}
+                  </td>
+                  <td class="cell-figure">{{ row.unitPrice === null ? '–' : '₾' + (row.unitPrice | number: '1.2-2') }}</td>
+                  <td class="cell-figure cell-nowrap" [class.change-in]="row.direction === 'in'" [class.change-out]="row.direction === 'out'">
+                    {{ row.direction === 'out' ? '−' : '+' }}₾{{ row.amount | number: '1.2-2' }}
+                  </td>
+                  <td class="cell-nowrap">{{ row.documentCode }}</td>
+                  <td class="cell-nowrap">{{ row.at | date: 'dd.MM.yyyy HH:mm' }}</td>
+                  <td>{{ row.storeName }}</td>
+                  <td>{{ methodLabels[row.method] | t }}</td>
+                  <td class="cell-nowrap">{{ row.by }}</td>
+                  <td>
+                    @if (row.status === 'voided') {
+                      <span class="badge badge--cancelled">{{ 'Deleted' | t }}</span>
+                    } @else {
+                      <span class="badge badge--active">{{ 'Active' | t }}</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+
+    @if (!isLoading()) {
+      <div class="doc-total">
+        <span>{{ 'Money in' | t }}: <strong class="change-in">₾{{ totals().in | number: '1.2-2' }}</strong></span>
+        <span>{{ 'Money out' | t }}: <strong class="change-out">₾{{ totals().out | number: '1.2-2' }}</strong></span>
+        <span>{{ 'Net' | t }}: <strong>₾{{ totals().in - totals().out | number: '1.2-2' }}</strong></span>
+      </div>
+      @if (activeTab() === 'transactions') {
+        <app-pager [pagination]="transactionPages" />
+      } @else {
+        <app-pager [pagination]="operationPages" />
+      }
+    }
+  </div>
+</div>
+
+<app-modal [open]="!!detail()" [title]="(detail()?.code ?? '') + ' · ' + ('Expense' | t)" (closed)="detail.set(null)">
+  @if (detail(); as expense) {
+    <dl class="detail-list">
+      <dt>{{ 'Expense type' | t }}</dt>
+      <dd>{{ expense.typeName }}</dd>
+      <dt>{{ 'Category' | t }}</dt>
+      <dd>{{ expense.categoryName }}</dd>
+      <dt>{{ 'Amount' | t }}</dt>
+      <dd>₾{{ expense.amount | number: '1.2-2' }}</dd>
+      <dt>{{ 'Purpose' | t }}</dt>
+      <dd>{{ expense.purpose }}</dd>
+      <dt>{{ 'Date' | t }}</dt>
+      <dd>{{ expense.expenseDate | date: 'dd.MM.yyyy' }}</dd>
+      <dt>{{ 'Paid from' | t }}</dt>
+      <dd>
+        @if (expense.source === 'cash') {
+          {{ 'Cash · register {no}, {store}' | t: { no: expense.registerNo, store: expense.storeName } }}
+        } @else {
+          {{ 'Bank · {name}' | t: { name: expense.bankAccountName } }} ({{ expense.storeName }})
+        }
+      </dd>
+      <dt>{{ 'Supplier' | t }}</dt>
+      <dd>{{ expense.supplierName ?? '–' }}</dd>
+      <dt>{{ 'Recorded by' | t }}</dt>
+      <dd>{{ expense.createdByName }}, {{ expense.createdAt | date: 'dd.MM.yyyy HH:mm' }}</dd>
+      @if (expense.status === 'voided') {
+        <dt>{{ 'Deleted' | t }}</dt>
+        <dd>
+          {{ expense.voidedByName }}, {{ expense.voidedAt | date: 'dd.MM.yyyy HH:mm' }}
+          @if (expense.voidReason) {
+            · {{ expense.voidReason }}
+          }
+        </dd>
+      }
+    </dl>
+  }
+</app-modal>
+
+<app-modal [open]="!!voidTarget()" [title]="'Delete the expense' | t" (closed)="voidTarget.set(null)">
+  @if (voidTarget(); as row) {
+    <div class="page-stack">
+      <p>
+        {{
+          'Delete {code} (₾{amount})? It stays in the list as deleted and no longer counts.'
+            | t: { code: row.code, amount: (row.amount | number: '1.2-2') }
+        }}
+      </p>
+      <div class="field">
+        <label for="voidReason">{{ 'Reason' | t }}</label>
+        <textarea
+          id="voidReason"
+          class="text-input text-area"
+          rows="2"
+          maxlength="500"
+          [placeholder]="'Optional' | t"
+          [ngModel]="voidReason()"
+          (ngModelChange)="voidReason.set($event)"
+        ></textarea>
+      </div>
+      @if (row.kind === 'coverage') {
+        <p class="notice-warning">
+          {{ 'This also removes the shortage coverage: the register is short again by this amount.' | t }}
+        </p>
+      }
+      @if (voidError()) {
+        <p class="field-error">{{ voidError() | t }}</p>
+      }
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="voidTarget.set(null)">{{ 'Cancel' | t }}</button>
+        <button type="button" class="button button--danger" [disabled]="isVoiding()" (click)="confirmVoid()">
+          {{ 'Delete' | t }}
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>

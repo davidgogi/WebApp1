@@ -3,7 +3,720 @@
     <div>
       <p class="page-eyebrow">{{ 'Store' | t }}</p>
       <h1 class="page-title">{{ 'Recording an expense' | t }}</h1>
-      <p class="page-description">{{ 'Coming soon.' | t }}</p>
+      <p class="page-description">
+        {{
+          'Money paid out from a register or a bank account. Cash expenses lower the expected cash of your open register.'
+            | t
+        }}
+      </p>
+    </div>
+    <div class="button-row page-header__actions">
+      @if (workspace()?.canManage) {
+        <button type="button" class="button button--outline" (click)="newCategory()">
+          <lucide-icon [img]="AddIcon" [size]="14"></lucide-icon>
+          {{ 'New category' | t }}
+        </button>
+        <button type="button" class="button button--outline" [disabled]="activeCategories().length === 0" (click)="newType()">
+          <lucide-icon [img]="AddIcon" [size]="14"></lucide-icon>
+          {{ 'New type' | t }}
+        </button>
+        <button type="button" class="button button--outline" (click)="newBank()">
+          <lucide-icon [img]="AddIcon" [size]="14"></lucide-icon>
+          {{ 'New bank account' | t }}
+        </button>
+      }
+      <button type="button" class="button button--outline" [disabled]="isLoading()" (click)="load()">
+        <lucide-icon [img]="RefreshIcon" [size]="14"></lucide-icon>
+        {{ 'Refresh' | t }}
+      </button>
+      @if (canPost()) {
+        <button type="button" class="button button--primary" [disabled]="typeOptions().length === 0 || noSource()" (click)="openSingle()">
+          <lucide-icon [img]="AddIcon" [size]="14"></lucide-icon>
+          {{ 'Add' | t }}
+        </button>
+      }
     </div>
   </div>
+
+  @if (notice()) {
+    <p class="notice-success">{{ notice() }}</p>
+  }
+  @if (errorMessage()) {
+    <p class="field-error">{{ errorMessage() | t }}</p>
+  }
+
+  @if (workspace(); as ws) {
+    @if (ws.canCover) {
+      <div class="page-card shortage-card">
+        <div>
+          <h2 class="card-title">{{ 'Shortage coverage' | t }}</h2>
+          <p class="page-description">
+            @if (ws.shortages.length) {
+              {{ '{count} closed registers are missing money. Covering a shortage records it as an expense.' | t: { count: ws.shortages.length } }}
+            } @else {
+              {{ 'No closed register is missing money.' | t }}
+            }
+          </p>
+        </div>
+        <button type="button" class="button button--primary" [disabled]="ws.shortages.length === 0" (click)="openCover()">
+          {{ 'Cover a shortage' | t }}
+        </button>
+      </div>
+    }
+
+    @if (!canPost()) {
+      <p class="page-description">
+        {{
+          (ws.canManage
+            ? 'You manage the categories, types and bank accounts. Expenses are recorded by store managers and cashiers.'
+            : 'You can see expenses on the Transactions page. To pay one from cash, open a register first.'
+          ) | t
+        }}
+      </p>
+    } @else {
+      @if (noSource()) {
+        <p class="notice-warning">{{ noSourceHint() | t }}</p>
+      } @else if (!ws.canPostCash) {
+        <p class="page-description">
+          {{ 'No register of yours is open, so you can’t pay from cash.' | t }}
+        </p>
+      } @else if (ws.session; as session) {
+        <p class="page-description">
+          {{
+            'Cash in register {no} ({store}) should be ₾{amount}.'
+              | t: { no: session.registerNo, store: session.storeName, amount: (session.expectedCash | number: '1.2-2') }
+          }}
+        </p>
+      }
+
+      @if (typeOptions().length === 0) {
+        <div class="page-card">
+          <p class="page-description">
+            {{
+              (ws.canManage
+                ? 'Add a category and an expense type first.'
+                : 'There are no expense types yet. Ask the Store admin to add them.'
+              ) | t
+            }}
+          </p>
+        </div>
+      } @else {
+        <div class="page-card">
+          <div class="table-toolbar">
+            <div class="expense-toolbar__title">
+              <span class="muted">{{ 'Table entry' | t }}</span>
+              <strong>{{ '{count} lines' | t: { count: visibleLines().length } }}</strong>
+            </div>
+            <div class="button-row expense-toolbar__actions">
+              <select class="text-select expense-toolbar__filter" [attr.aria-label]="'Category' | t" [ngModel]="categoryFilter()" (ngModelChange)="categoryFilter.set($event)">
+                <option value="">{{ 'All categories' | t }}</option>
+                @for (category of activeCategories(); track category.id) {
+                  <option [value]="category.id">{{ category.name }}</option>
+                }
+              </select>
+              @if (categoryFilter()) {
+                <button type="button" class="link-button" (click)="categoryFilter.set('')">{{ 'Clear' | t }}</button>
+              }
+              <button type="button" class="button button--outline" (click)="addLine()">
+                <lucide-icon [img]="AddIcon" [size]="14"></lucide-icon>
+                {{ 'Add line' | t }}
+              </button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table data-table--compact expense-table">
+              <thead>
+                <tr>
+                  <th>{{ 'Select' | t }}</th>
+                  <th>{{ 'Date' | t }}</th>
+                  <th>{{ 'Expense type' | t }}</th>
+                  <th>{{ 'Category' | t }}</th>
+                  <th>{{ 'Supplier' | t }}</th>
+                  <th>{{ 'Paid from' | t }}</th>
+                  <th>{{ 'Store' | t }}</th>
+                  <th>{{ 'Amount' | t }}</th>
+                  <th>{{ 'Purpose' | t }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of visibleLines(); track line.key) {
+                  <tr [class.expense-row--selected]="line.selected">
+                    <td>
+                      <input
+                        type="checkbox"
+                        [attr.aria-label]="'Select line' | t"
+                        [checked]="line.selected"
+                        (change)="patch(line.key, { selected: !line.selected })"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        class="text-input expense-input--date"
+                        type="date"
+                        [attr.aria-label]="'Date' | t"
+                        [max]="ws.today"
+                        [disabled]="!isBank(line)"
+                        [ngModel]="line.date"
+                        (ngModelChange)="patch(line.key, { date: $event })"
+                      />
+                    </td>
+                    <td>
+                      <select
+                        class="text-select"
+                        [attr.aria-label]="'Expense type' | t"
+                        [ngModel]="line.typeId"
+                        (ngModelChange)="patch(line.key, { typeId: $event })"
+                      >
+                        <option value="" disabled>{{ 'Choose…' | t }}</option>
+                        @for (category of activeCategories(); track category.id) {
+                          <optgroup [label]="category.name">
+                            @for (type of category.types; track type.id) {
+                              @if (type.status === 'active') {
+                                <option [value]="type.id">{{ type.name }}</option>
+                              }
+                            }
+                          </optgroup>
+                        }
+                      </select>
+                    </td>
+                    <td class="cell-nowrap muted">{{ typeOf(line.typeId)?.categoryName ?? '–' }}</td>
+                    <td>
+                      <select
+                        class="text-select"
+                        [attr.aria-label]="'Supplier' | t"
+                        [ngModel]="line.supplierId"
+                        (ngModelChange)="patch(line.key, { supplierId: $event })"
+                      >
+                        <option value="">{{ 'None' | t }}</option>
+                        @for (supplier of ws.suppliers; track supplier.id) {
+                          <option [value]="supplier.id">{{ supplier.name }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        class="text-select"
+                        [attr.aria-label]="'Paid from' | t"
+                        [ngModel]="line.source"
+                        (ngModelChange)="patch(line.key, { source: $event })"
+                      >
+                        <option value="" disabled>{{ 'Choose…' | t }}</option>
+                        @if (ws.canPostCash) {
+                          <option value="cash">{{ cashLabel() }}</option>
+                        }
+                        @if (ws.canPostBank) {
+                          @for (account of activeBanks(); track account.id) {
+                            <option [value]="'bank:' + account.id">{{ 'Bank · {name}' | t: { name: account.name } }}</option>
+                          }
+                        }
+                        @if (ws.canCover) {
+                          @for (shortage of ws.shortages; track shortage.sessionId) {
+                            <option [value]="'shortage:' + shortage.sessionId">{{ shortageLabel(shortage) }}</option>
+                          }
+                        }
+                      </select>
+                    </td>
+                    <td>
+                      @if (isBank(line)) {
+                        <select
+                          class="text-select"
+                          [attr.aria-label]="'Store' | t"
+                          [ngModel]="line.storeId"
+                          (ngModelChange)="patch(line.key, { storeId: $event })"
+                        >
+                          <option value="" disabled>{{ 'Choose…' | t }}</option>
+                          @for (store of ws.stores; track store.id) {
+                            <option [value]="store.id">{{ store.name }}</option>
+                          }
+                        </select>
+                      } @else {
+                        <span class="cell-nowrap muted">{{ lineStore(line) }}</span>
+                      }
+                    </td>
+                    <td>
+                      <input
+                        class="text-input expense-input--amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        [attr.aria-label]="'Amount' | t"
+                        [ngModel]="line.amount"
+                        (ngModelChange)="patch(line.key, { amount: $event })"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        class="text-input expense-input--purpose"
+                        maxlength="500"
+                        [attr.aria-label]="'Purpose' | t"
+                        [placeholder]="'Purpose' | t"
+                        [ngModel]="line.purpose"
+                        (ngModelChange)="patch(line.key, { purpose: $event })"
+                      />
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="9" class="muted">{{ 'No lines. Use "Add line".' | t }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="expense-footer">
+            <span>
+              {{ 'Selected: {count}, total' | t: { count: selectedLines().length } }}
+              <strong>₾{{ selectedTotal() | number: '1.2-2' }}</strong>
+            </span>
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="isSaving() || selectedLines().length === 0 || noSource()"
+              (click)="openConfirmation()"
+            >
+              <lucide-icon [img]="SendIcon" [size]="14"></lucide-icon>
+              {{ 'Pay out' | t }}
+            </button>
+          </div>
+        </div>
+      }
+    }
+
+    @if (ws.canManage) {
+      <div class="page-card">
+        <h2 class="card-title">{{ 'Categories and types' | t }}</h2>
+        @if (ws.categories.length === 0) {
+          <p class="page-description">{{ 'No categories yet.' | t }}</p>
+        } @else {
+          <div class="table-scroll">
+            <table class="data-table data-table--compact">
+              <thead>
+                <tr>
+                  <th>{{ 'Name' | t }}</th>
+                  <th>{{ 'Status' | t }}</th>
+                  <th>{{ 'Expenses' | t }}</th>
+                  <th>{{ 'Actions' | t }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (category of ws.categories; track category.id) {
+                  <tr class="catalog-row--category">
+                    <td class="cell-strong">{{ category.name }}</td>
+                    <td>
+                      <span class="badge" [class.badge--active]="category.status === 'active'" [class.badge--inactive]="category.status === 'inactive'">
+                        {{ statusLabels[category.status] | t }}
+                      </span>
+                    </td>
+                    <td class="cell-figure">{{ category.expenseCount }}</td>
+                    <td>
+                      <div class="icon-actions">
+                        <button type="button" class="icon-action" [title]="'Add a type' | t" [attr.aria-label]="'Add a type' | t" (click)="newType(category.id)">
+                          <lucide-icon [img]="AddIcon" [size]="14"></lucide-icon>
+                        </button>
+                        <button type="button" class="icon-action" [title]="'Edit' | t" [attr.aria-label]="'Edit' | t" (click)="editCategory(category)">
+                          <lucide-icon [img]="EditIcon" [size]="14"></lucide-icon>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-action icon-action--danger"
+                          [disabled]="category.expenseCount > 0"
+                          [title]="(category.expenseCount > 0 ? 'Has expenses: set it to Inactive instead' : 'Delete') | t"
+                          [attr.aria-label]="'Delete' | t"
+                          (click)="removeCategory(category)"
+                        >
+                          <lucide-icon [img]="DeleteIcon" [size]="14"></lucide-icon>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  @for (type of category.types; track type.id) {
+                    <tr>
+                      <td class="catalog-type">{{ type.name }}</td>
+                      <td>
+                        <span class="badge" [class.badge--active]="type.status === 'active'" [class.badge--inactive]="type.status === 'inactive'">
+                          {{ statusLabels[type.status] | t }}
+                        </span>
+                      </td>
+                      <td class="cell-figure">{{ type.expenseCount }}</td>
+                      <td>
+                        <div class="icon-actions">
+                          <button type="button" class="icon-action" [title]="'Edit' | t" [attr.aria-label]="'Edit' | t" (click)="editType(type)">
+                            <lucide-icon [img]="EditIcon" [size]="14"></lucide-icon>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-action icon-action--danger"
+                            [disabled]="type.expenseCount > 0"
+                            [title]="(type.expenseCount > 0 ? 'Has expenses: set it to Inactive instead' : 'Delete') | t"
+                            [attr.aria-label]="'Delete' | t"
+                            (click)="removeType(type)"
+                          >
+                            <lucide-icon [img]="DeleteIcon" [size]="14"></lucide-icon>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+
+      <div class="page-card">
+        <h2 class="card-title">{{ 'Bank accounts' | t }}</h2>
+        @if (ws.bankAccounts.length === 0) {
+          <p class="page-description">{{ 'No bank accounts yet.' | t }}</p>
+        } @else {
+          <div class="table-scroll">
+            <table class="data-table data-table--compact">
+              <thead>
+                <tr>
+                  <th>{{ 'Name' | t }}</th>
+                  <th>{{ 'Account number' | t }}</th>
+                  <th>{{ 'Opening balance' | t }}</th>
+                  <th>{{ 'Balance' | t }}</th>
+                  <th>{{ 'Status' | t }}</th>
+                  <th>{{ 'Actions' | t }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (account of ws.bankAccounts; track account.id) {
+                  <tr>
+                    <td class="cell-strong">{{ account.name }}</td>
+                    <td class="cell-nowrap">{{ account.accountNumber ?? '–' }}</td>
+                    <td class="cell-figure">₾{{ account.openingBalance | number: '1.2-2' }}</td>
+                    <td class="cell-figure" [class.change-out]="account.balance < 0">₾{{ account.balance | number: '1.2-2' }}</td>
+                    <td>
+                      <span class="badge" [class.badge--active]="account.status === 'active'" [class.badge--inactive]="account.status === 'inactive'">
+                        {{ statusLabels[account.status] | t }}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="icon-actions">
+                        <button type="button" class="icon-action" [title]="'Edit' | t" [attr.aria-label]="'Edit' | t" (click)="editBank(account)">
+                          <lucide-icon [img]="EditIcon" [size]="14"></lucide-icon>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-action icon-action--danger"
+                          [disabled]="account.expenseCount > 0"
+                          [title]="(account.expenseCount > 0 ? 'Has expenses: set it to Inactive instead' : 'Delete') | t"
+                          [attr.aria-label]="'Delete' | t"
+                          (click)="removeBank(account)"
+                        >
+                          <lucide-icon [img]="DeleteIcon" [size]="14"></lucide-icon>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+  } @else if (isLoading()) {
+    <p class="page-description">{{ 'Loading…' | t }}</p>
+  }
 </div>
+
+<app-modal [open]="confirmOpen()" [title]="'Pay out the expenses' | t" (closed)="confirmOpen.set(false)">
+  <div class="page-stack">
+    <div class="table-scroll">
+      <table class="data-table data-table--compact">
+        <thead>
+          <tr>
+            <th>{{ 'Expense type' | t }}</th>
+            <th>{{ 'Paid from' | t }}</th>
+            <th>{{ 'Amount' | t }}</th>
+            <th>{{ 'Purpose' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of selectedLines(); track line.key) {
+            <tr>
+              <td>{{ typeOf(line.typeId)?.name }}</td>
+              <td>{{ sourceText(line) }}</td>
+              <td class="cell-figure">₾{{ line.amount | number: '1.2-2' }}</td>
+              <td>{{ line.purpose }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p>{{ 'Total' | t }}: <strong>₾{{ selectedTotal() | number: '1.2-2' }}</strong></p>
+    <div class="button-row form-actions">
+      <button type="button" class="button button--outline" (click)="confirmOpen.set(false)">{{ 'Cancel' | t }}</button>
+      <button type="button" class="button button--primary" [disabled]="isSaving()" (click)="submitSelected()">
+        {{ isSaving() ? ('Saving…' | t) : ('Pay out' | t) }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<app-modal [open]="!!single()" [title]="'Record an expense' | t" (closed)="single.set(null)">
+  @if (single(); as line) {
+    @if (workspace(); as ws) {
+      <form class="page-stack" (ngSubmit)="submitSingle()">
+        <div class="form-grid form-grid--two">
+          <div class="field">
+            <label for="singleType">{{ 'Expense type' | t }} <span class="required-mark">*</span></label>
+            <select id="singleType" class="text-select" name="typeId" [ngModel]="line.typeId" (ngModelChange)="patchSingle({ typeId: $event })">
+              @for (category of activeCategories(); track category.id) {
+                <optgroup [label]="category.name">
+                  @for (type of category.types; track type.id) {
+                    @if (type.status === 'active') {
+                      <option [value]="type.id">{{ type.name }}</option>
+                    }
+                  }
+                </optgroup>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="singleCategory">{{ 'Category' | t }}</label>
+            <input id="singleCategory" class="text-input" name="category" disabled [value]="typeOf(line.typeId)?.categoryName ?? ''" />
+          </div>
+          <div class="field">
+            <label for="singleSource">{{ 'Paid from' | t }} <span class="required-mark">*</span></label>
+            <select id="singleSource" class="text-select" name="source" [ngModel]="line.source" (ngModelChange)="patchSingle({ source: $event })">
+              <option value="" disabled>{{ 'Choose…' | t }}</option>
+              @if (ws.canPostCash) {
+                <option value="cash">{{ cashLabel() }}</option>
+              }
+              @if (ws.canPostBank) {
+                @for (account of activeBanks(); track account.id) {
+                  <option [value]="'bank:' + account.id">{{ 'Bank · {name}' | t: { name: account.name } }}</option>
+                }
+              }
+              @if (ws.canCover) {
+                @for (shortage of ws.shortages; track shortage.sessionId) {
+                  <option [value]="'shortage:' + shortage.sessionId">{{ shortageLabel(shortage) }}</option>
+                }
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="singleDate">{{ 'Date' | t }} <span class="required-mark">*</span></label>
+            <input
+              id="singleDate"
+              class="text-input"
+              type="date"
+              name="date"
+              [max]="ws.today"
+              [disabled]="!isBank(line)"
+              [ngModel]="line.date"
+              (ngModelChange)="patchSingle({ date: $event })"
+            />
+          </div>
+          @if (isBank(line)) {
+            <div class="field">
+              <label for="singleStore">{{ 'Store' | t }} <span class="required-mark">*</span></label>
+              <select id="singleStore" class="text-select" name="storeId" [ngModel]="line.storeId" (ngModelChange)="patchSingle({ storeId: $event })">
+                <option value="" disabled>{{ 'Choose…' | t }}</option>
+                @for (store of ws.stores; track store.id) {
+                  <option [value]="store.id">{{ store.name }}</option>
+                }
+              </select>
+            </div>
+          }
+          <div class="field">
+            <label for="singleSupplier">{{ 'Supplier' | t }}</label>
+            <select id="singleSupplier" class="text-select" name="supplierId" [ngModel]="line.supplierId" (ngModelChange)="patchSingle({ supplierId: $event })">
+              <option value="">{{ 'None' | t }}</option>
+              @for (supplier of ws.suppliers; track supplier.id) {
+                <option [value]="supplier.id">{{ supplier.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="singleAmount">{{ 'Amount (₾)' | t }} <span class="required-mark">*</span></label>
+            <input
+              id="singleAmount"
+              class="text-input"
+              type="number"
+              min="0"
+              step="0.01"
+              name="amount"
+              placeholder="0.00"
+              [ngModel]="line.amount"
+              (ngModelChange)="patchSingle({ amount: $event })"
+            />
+          </div>
+          <div class="field field--full">
+            <label for="singlePurpose">{{ 'Purpose' | t }} <span class="required-mark">*</span></label>
+            <textarea
+              id="singlePurpose"
+              class="text-input text-area"
+              rows="2"
+              maxlength="500"
+              name="purpose"
+              [placeholder]="'e.g. Paid the cleaning company' | t"
+              [ngModel]="line.purpose"
+              (ngModelChange)="patchSingle({ purpose: $event })"
+            ></textarea>
+          </div>
+        </div>
+        @if (singleError()) {
+          <p class="field-error">{{ singleError() | t }}</p>
+        }
+        <div class="button-row form-actions">
+          <button type="button" class="button button--outline" (click)="single.set(null)">{{ 'Cancel' | t }}</button>
+          <button type="submit" class="button button--primary" [disabled]="isSaving()">
+            {{ isSaving() ? ('Saving…' | t) : ('Pay out' | t) }}
+          </button>
+        </div>
+      </form>
+    }
+  }
+</app-modal>
+
+<app-modal
+  [open]="!!catalogForm()"
+  [title]="
+    (catalogForm()?.kind === 'category'
+      ? catalogForm()?.id ? 'Edit category' : 'New category'
+      : catalogForm()?.kind === 'type'
+        ? catalogForm()?.id ? 'Edit expense type' : 'New type'
+        : catalogForm()?.id ? 'Edit bank account' : 'New bank account'
+    ) | t
+  "
+  (closed)="catalogForm.set(null)"
+>
+  @if (catalogForm(); as form) {
+    <form class="page-stack" (ngSubmit)="saveCatalog()">
+      <div class="form-grid">
+        @if (form.kind === 'type') {
+          <div class="field">
+            <label for="catalogCategory">{{ 'Category' | t }} <span class="required-mark">*</span></label>
+            <select id="catalogCategory" class="text-select" name="categoryId" [ngModel]="form.categoryId" (ngModelChange)="patchCatalog({ categoryId: $event })">
+              @for (category of workspace()?.categories ?? []; track category.id) {
+                <option [value]="category.id">{{ category.name }}</option>
+              }
+            </select>
+          </div>
+        }
+        <div class="field">
+          <label for="catalogName">{{ 'Name' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="catalogName"
+            class="text-input"
+            name="name"
+            maxlength="140"
+            [placeholder]="(form.kind === 'category' ? 'e.g. Rent' : form.kind === 'type' ? 'e.g. Office rent' : 'e.g. TBC Bank GEL') | t"
+            [ngModel]="form.name"
+            (ngModelChange)="patchCatalog({ name: $event })"
+          />
+        </div>
+        @if (form.kind === 'bank') {
+          <div class="field">
+            <label for="catalogIban">{{ 'Account number (IBAN)' | t }}</label>
+            <input
+              id="catalogIban"
+              class="text-input"
+              name="accountNumber"
+              placeholder="GE29NB0000000101904917"
+              [ngModel]="form.accountNumber"
+              (ngModelChange)="patchCatalog({ accountNumber: $event })"
+            />
+          </div>
+          <div class="field">
+            <label for="catalogOpening">{{ 'Opening balance (₾)' | t }}</label>
+            <input
+              id="catalogOpening"
+              class="text-input"
+              type="number"
+              min="0"
+              step="0.01"
+              name="openingBalance"
+              placeholder="0.00"
+              [ngModel]="form.openingBalance"
+              (ngModelChange)="patchCatalog({ openingBalance: $event })"
+            />
+          </div>
+        }
+        <div class="field">
+          <label for="catalogStatus">{{ 'Status' | t }}</label>
+          <select id="catalogStatus" class="text-select" name="status" [ngModel]="form.status" (ngModelChange)="patchCatalog({ status: $event })">
+            <option value="active">{{ 'Active' | t }}</option>
+            <option value="inactive">{{ 'Inactive' | t }}</option>
+          </select>
+        </div>
+      </div>
+      @if (catalogError()) {
+        <p class="field-error">{{ catalogError() | t }}</p>
+      }
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="catalogForm.set(null)">{{ 'Cancel' | t }}</button>
+        <button type="submit" class="button button--primary">{{ 'Save' | t }}</button>
+      </div>
+    </form>
+  }
+</app-modal>
+
+<app-modal [open]="coverOpen()" [title]="'Cover a shortage' | t" (closed)="coverOpen.set(false)">
+  @if (workspace(); as ws) {
+    <form class="page-stack" (ngSubmit)="submitCover()">
+      <p class="page-description">{{ 'An expense is recorded for the covered amount and shows in Transactions.' | t }}</p>
+      <div class="field">
+        <label for="coverSession">{{ 'Register' | t }}</label>
+        <select id="coverSession" class="text-select" name="sessionId" [ngModel]="coverSessionId()" (ngModelChange)="chooseShortage($event)">
+          @for (shortage of ws.shortages; track shortage.sessionId) {
+            <option [value]="shortage.sessionId">
+              {{ shortage.storeName }} · #{{ shortage.registerNo }} · {{ shortage.cashierName }} · {{ shortage.closedAt | date: 'dd.MM.yyyy HH:mm' }} · {{ 'left' | t }} ₾{{ shortage.left | number: '1.2-2' }}
+            </option>
+          }
+        </select>
+      </div>
+      <div class="form-grid form-grid--two">
+        <div class="field">
+          <label for="coverAmount">{{ 'Amount to cover (₾)' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="coverAmount"
+            class="text-input"
+            type="number"
+            min="0"
+            step="0.01"
+            name="amount"
+            [max]="coverTarget()?.left ?? null"
+            [ngModel]="coverAmount()"
+            (ngModelChange)="coverAmount.set($event)"
+          />
+        </div>
+        <div class="field">
+          <label for="coverNote">{{ 'Comment' | t }} <span class="required-mark">*</span></label>
+          <input
+            id="coverNote"
+            class="text-input"
+            name="note"
+            maxlength="500"
+            [placeholder]="'Where did the money go?' | t"
+            [ngModel]="coverNote()"
+            (ngModelChange)="coverNote.set($event)"
+          />
+        </div>
+      </div>
+      @if (coverLeftAfter() !== null) {
+        <p class="cover-left">
+          {{ 'Left to cover' | t }}:
+          <strong [class.change-out]="coverLeftAfter()! < 0">₾{{ coverLeftAfter() | number: '1.2-2' }}</strong>
+        </p>
+      }
+      @if (coverError()) {
+        <p class="field-error">{{ coverError() | t }}</p>
+      }
+      <div class="button-row form-actions">
+        <button type="button" class="button button--outline" (click)="coverOpen.set(false)">{{ 'Cancel' | t }}</button>
+        <button type="submit" class="button button--primary" [disabled]="isSaving() || !coverTarget()">
+          {{ isSaving() ? ('Saving…' | t) : ('Save' | t) }}
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>

@@ -1,6 +1,6 @@
 export type PaymentMethod = 'cash' | 'card';
 export type CoverageStatus = 'uncovered' | 'partly_covered' | 'covered';
-export type ActivityType = 'open' | 'sale' | 'return' | 'cash_in' | 'cash_out' | 'close';
+export type ActivityType = 'open' | 'sale' | 'return' | 'cash_in' | 'cash_out' | 'expense' | 'close';
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   cash: 'Cash',
@@ -19,6 +19,7 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   return: 'Return',
   cash_in: 'Cash added',
   cash_out: 'Cash taken out',
+  expense: 'Expense',
   close: 'Closing',
 };
 
@@ -31,6 +32,7 @@ export interface SessionMetrics {
   cardReturns: number;
   cashIn: number;
   cashOut: number;
+  expenses: number;
   netSales: number;
   expectedCash: number;
   covered: number;
@@ -67,6 +69,7 @@ export interface ActivityRow {
   type: ActivityType;
   code: string | null;
   saleId: string | null;
+  expenseId: string | null;
   paymentMethod: PaymentMethod | null;
   amount: number;
   cashEffect: number;
@@ -79,6 +82,7 @@ export interface ActivityRow {
 export interface Coverage {
   id: string;
   code: string;
+  expenseCode: string | null;
   amount: number;
   note: string | null;
   coveredByName: string;

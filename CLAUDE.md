@@ -416,7 +416,7 @@ submodules are planned, so keep to the structure below.
   (206322102, the company itself, usually ₾0.00). Internal-transfer waybills are now also issued by the
   app (see WMS → Transfers). Not built yet: sales waybills (see RetailApp's `src/rs-waybill/`). RS dates come in two formats
   (`2026-10-22T14:04:39` and `22-OCT-26`); `rsDate` in `rs-client.ts` turns both into ISO.
-- **Store** → **Stores**, **Cash register**, **POS**, **Sales**, **Reports**, **Recording an expense**
+- **Store** → **Stores**, **Cash register**, **POS**, **Sales**, **Reports**, **Transactions**, **Recording an expense**
   (2026-11-18: სალარო + საცალო POS, rebuilt from RetailApp's `cashier/` and `sales/` logic, simplified by the
   user's choice). **Store requires WMS** (the superuser can't sell Store without it; the company form ticks
   WMS with Store): the POS sells **WMS products** from the store's **sales warehouse**.
@@ -440,11 +440,32 @@ submodules are planned, so keep to the structure below.
   - *Cash register* (`cash-register/`, a shift = one `register_sessions` row): open with opening cash + optional
     note + PIN; one open session per register and per person (partial unique indexes). During the shift
     **cash in / out** (`register_cash_moves`, note required; out can't exceed the cash that should be there).
-    **Expected cash** = opening + cash sales − cash refunds + cash in − cash out (card never counts). **Close**:
+    **Expected cash** = opening + cash sales − cash refunds + cash in − cash out − active cash expenses (card never
+    counts). The tab links **Ongoing / Cash register history** are `?tab=ongoing|history` on `/store/cash-register`
+    (2026-11-24): two routes with the same path, the History one has `canMatch: [historyTab]` (reads the query
+    param from `Router.currentNavigation()`), the old `/cash-register/cash-register-history` URL is a guard
+    redirect (a plain `redirectTo` kept showing Ongoing). The two pages are near-copies (shared PIN / notices /
+    dialog code duplicated): merging them is a pending cleanup. The pill-style tabs are `.pill-tabs` in `styles.css`. **Close**:
     counted cash + PIN; `expected_cash` and `variance` (counted − expected) are stored, a note is required when
     they differ, and a shortage gets `coverage_status` uncovered. **Shortage coverage** (`shortage_coverages`,
-    CV-000001, by the store manager or Store admin, partial or full → partly_covered / covered); in RetailApp
-    it also creates an expense, here only the document until expenses exist. **Comment**: edits the opening
+    CV-000001, by the store manager or Store admin, partial or full → partly_covered / covered) **also records an
+    expense** like RetailApp (2026-11-24): `expenses.source = 'shortage'`, no type / category (shown as "Shortage
+    coverage" / "Cash register"), `session_id` = the closed register, linked by `shortage_coverages.expense_id`
+    (composite FK). It doesn't change the closed register's figures or cash movement (cash maths count only
+    `source = 'cash'`); its date is the day the register was opened. Transactions lists coverages from their expenses
+    (kind `coverage`, EX number, money out). The comment is **required** (2026-11-25, `CoverageDto.note`; a line's purpose serves as it). Three ways to make one
+    (all through `CashRegisterService.coverLocked`):
+    the shift page's Cover, the "Shortage coverage" card → "Cover a shortage" pop-up on Recording an expense (closed
+    registers with money still missing, shortage / covered / left, amount starting at what's left, comment; no type),
+    and (2026-11-25, RetailApp's backend path) an **ordinary table line** whose "Paid from" is "Shortage · register N,
+    store, date (left ₾X)" (`source: 'shortage'` + `sessionId`): the chosen type / category / supplier / purpose are
+    kept, the purpose becomes the coverage note, all lines on one register together ≤ what's left. Store manager /
+    Store admin only. **Deleting** a coverage expense in Transactions (store manager / Store admin, any time)
+    **undoes the coverage** (`uncoverLocked` removes the `shortage_coverages` row and recomputes the status); the
+    voided expense stays listed. Note: RetailApp's own expense page has this row / pop-up in its code but never shows
+    it (`toPostingExpenseCategories` filters the system type out first); its working button is on the Cashier page. Migration `ShortageCoverageExpense` recreates the `expense_source` enum
+    (rename + create + convert, because a value added with `ADD VALUE` can't be used in the same transaction) and
+    backfills an expense for every older coverage (tested on real rows in a rolled-back transaction). **Comment**: edits the opening
     note on an open shift, the closing note on a closed one; empty clears both. Shift page
     `/store/cash-register/:id`: figures, notes, the **cash movement** (every operation with cash before /
     change / after) and coverages. Row access: admins all, manager his stores (+ his own shifts), cashier his
@@ -471,8 +492,36 @@ submodules are planned, so keep to the structure below.
     Periods are at most 366 days (`store-scope.ts`).
   - WMS stock history shows the kinds "Store sale" / "Store return" and links them to the sale for people with
     Store access.
-  - *Recording an expense*: still an empty shell; the user wants expenses next (RetailApp: categories, types,
-    bank accounts, expenses paid from a register, which then lower the expected cash).
+  - *Recording an expense* (2026-11-24, `store/expenses/`, `/store/record-expense`, API `/store/expenses`; modelled
+    on RetailApp's `cashier/expenses`, simplified): money paid out, **EX-000001** per company (`expenses`). Each
+    expense has a **type** (`expense_types`) inside a **category** (`expense_categories`; names unique ignoring
+    capitals, types unique within their category), a store, an optional **supplier** (an active counterparty marked
+    supplier; stored as id + name snapshot, **no foreign key**, so deleting the counterparty isn't blocked), a date,
+    an amount (> 0), a purpose (required) and a **source**: `cash` = the poster's **own open register** (cashier or
+    manager; date = today; all cash lines of one post together can't exceed the register's expected cash) or `bank`
+    = a **bank account** (`bank_accounts`: name, optional IBAN checked by `common/iban.ts`, opening balance; balance
+    = opening − active bank expenses, computed, may go negative) chosen with a store (Store admin any store, a
+    manager his stores; date ≤ today). The page follows RetailApp: a **table entry** (one line per active type,
+    tick / type an amount to select, "Pay out" with a confirmation, all lines in one transaction, all or nothing),
+    a single **Add** form, and for the **Store admin only** New category / New type / New bank account plus a
+    catalogue (edit, Active / Inactive, delete only when unused). The system admin reads only. Not taken from
+    RetailApp: category codes, payment methods for bank expenses, supplier debts / payables, paying a closed
+    register's shortage through an expense (WebApp1 keeps its own coverage document). **Deleting** an expense =
+    voiding (`status` voided + who / when / reason; it stays in lists): Store admin or the store's manager, a cash
+    expense only while its register is still open (a closed register's figures are frozen). Cash expenses show in
+    the shift's cash movement (`expense` rows) and its "Expenses" figure. Who sees which expenses: admins all, a
+    manager his stores + his own register, a cashier those of his own registers (`ExpensesService.visibleExpenses`).
+    Migration `StoreExpenses` (the three catalogue tables share the enum `expense_item_status`; the duplicate
+    `CREATE TYPE` was removed by hand). A store with expenses can't be deleted.
+  - *Transactions* (2026-11-24, `store/transactions/`, `/store/transactions?tab=transactions|operations`, read-only
+    API `GET /store/transactions` and `/store/transactions/operations`, period ≤ 366 days): **Transactions** = one row
+    per document (sale, return, expense, shortage coverage), **Operations** = one row per thing inside a document
+    (each sale / return line with product, quantity, price; each expense; each coverage). For expenses and coverages
+    the two lists match; they differ for sales with several lines (the user knows this and wanted both). In Operations
+    the name opens the sale, the shift (coverage) or an expense detail pop-up; in Transactions expenses have Delete
+    (void, with an optional reason). Filters in the browser (search, type, payment cash / card / bank, show deleted),
+    money in / out / net of the shown non-deleted rows. Same row visibility as Sales / registers. The tab is the page's
+    `tab` input (router input binding); one page component, not two.
 - **Restaurant** → **Table service**, **Menu management**, **Kitchen screen**, **Waiter view**
   (`/restaurant/table-service`, `/restaurant/menu-management`, `/restaurant/kitchen-screen`,
   `/restaurant/waiter-view`). Empty shells for now: frontend only, "Coming soon". Only admins can reach
@@ -628,7 +677,7 @@ companyId-only version and an optional RLS version). Remaining risks and next st
   company setting, only A's with it, and can't write B's rows; plus the composite foreign key. It
   drops the database and role afterwards. Shown to catch a permissive RLS policy and a missing
   `companyId` filter (once RLS is also off). CI runs it in its own job (`tenant-isolation`) before
-  the image build, so a failure blocks the deploy. Covers HR, Counterparties, WMS (including groups) and Store (stores, registers, sales, returns; 2026-11-18) so far: add
+  the image build, so a failure blocks the deploy. Covers HR, Counterparties, WMS (including groups) and Store (stores, registers, sales, returns; 2026-11-18; expenses, their catalogue and transactions, 2026-11-24) so far: add
   RS when touching it. It also guards the patch on TypeORM's
   internal `PostgresQueryRunner` against upgrades.
 
@@ -709,8 +758,8 @@ browser in localStorage). **English text is the key**: there are no message ids.
   For UI checks, headless Chrome through the DevTools protocol worked well.
 - Not built yet: editing an employee (so a role can't change after creation), voiding a sale (a
   wrong scan is undone by a manager's return), real invites / email / auth,
-  per-store or per-warehouse editing of members from the admin pages, the empty shells (Recording
-  an expense, all Restaurant pages), and write-offs / stock counts (see WMS stock → Roadmap). POS: no
+  per-store or per-warehouse editing of members from the admin pages, the empty shells (all Restaurant
+  pages), and write-offs / stock counts (see WMS stock → Roadmap). POS: no
   discounts, customers, split payments, receipt printing or fiscal / RS (left out on purpose for now).
 
 ## Working state and conventions to know
@@ -748,7 +797,9 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
   numbers), `receipts/`, `transfers/` (documents that post through `StockService`).
 - `store/` has `stores/`, `cash-register/` (shifts, PIN, cash moves, coverage; also holds the `Sale` /
   `SaleLine` entities), `pos/` (catalogue + checkout), `sales/` (list, view, returns; `SalesService.record`
-  writes every sale / return and posts its stock), `reports/`, and `store-scope.ts` (periods, Tbilisi days).
+  writes every sale / return and posts its stock), `reports/`, `expenses/` (expenses + their catalogue),
+  `transactions/` (read-only lists over sales, expenses and coverages), and `store-scope.ts` (periods, Tbilisi days).
+  Expenses read `Counterparty` (Parameters is always included).
   Store reads WMS `Product`, `Warehouse` and `StockService`: a deliberate exception, Store requires WMS.
 - `data-snapshot.ts` — export/import of the whole database (see Running It). (`seed.ts` was
   deleted; its `npm run seed` script in package.json is now dead.)

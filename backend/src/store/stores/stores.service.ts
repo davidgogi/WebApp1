@@ -1,3 +1,4 @@
+import { Expense } from '../expenses/expense.entity.js';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository, SelectQueryBuilder } from 'typeorm';
@@ -133,6 +134,9 @@ export class StoresService {
     const store = await this.findEntity(actor, id);
     if (await this.sessionsRepository.existsBy({ companyId: actor.companyId!, storeId: id })) {
       throw new ConflictException(`${store.name} has register history, so it can't be deleted`);
+    }
+    if (await this.storesRepository.manager.existsBy(Expense, { companyId: actor.companyId!, storeId: id })) {
+      throw new ConflictException(`${store.name} has expenses, so it can't be deleted`);
     }
     await this.storesRepository.remove(store);
     await this.audit.record(actor, 'store.delete', `Deleted store ${store.name}`);

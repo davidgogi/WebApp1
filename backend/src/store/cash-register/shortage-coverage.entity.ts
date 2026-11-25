@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique, type Relation } from 'typeorm';
 import { decimalTransformer } from '../../common/decimal.transformer.js';
 import { TenantEntity } from '../../companies/tenant.entity.js';
+import { Expense } from '../expenses/expense.entity.js';
 import { RegisterSession } from './register-session.entity.js';
 
 @Entity({ name: 'shortage_coverages' })
@@ -22,6 +23,16 @@ export class ShortageCoverage extends TenantEntity {
     { name: 'session_id', referencedColumnName: 'id' },
   ])
   session?: Relation<RegisterSession>;
+
+  @Column({ name: 'expense_id', type: 'uuid', nullable: true })
+  expenseId!: string | null;
+
+  @ManyToOne(() => Expense)
+  @JoinColumn([
+    { name: 'company_id', referencedColumnName: 'companyId' },
+    { name: 'expense_id', referencedColumnName: 'id' },
+  ])
+  expense?: Relation<Expense> | null;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, transformer: decimalTransformer })
   amount!: number;

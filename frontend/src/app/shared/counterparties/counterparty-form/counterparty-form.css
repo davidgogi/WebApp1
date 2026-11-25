@@ -50,18 +50,6 @@
   border-color: var(--danger);
 }
 
-.checkbox-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 400;
-}
-
-.checkbox-row input {
-  margin: 0;
-  accent-color: var(--accent);
-}
-
 @media (max-width: 640px) {
   .contact-entry__columns {
     grid-template-columns: minmax(0, 1fr);

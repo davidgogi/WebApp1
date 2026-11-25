@@ -78,11 +78,11 @@ export class CoverageDto {
   @Max(1_000_000)
   amount!: number;
 
-  @IsOptional()
   @Transform(trim)
   @IsString()
+  @IsNotEmpty({ message: 'Write where the missing money went' })
   @MaxLength(500)
-  note?: string;
+  note!: string;
 }
 
 export class PinDto {

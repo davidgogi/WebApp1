@@ -18,12 +18,26 @@
       </div>
     }
   </div>
-  <div>
-    <div><a [routerLink]="['/store/cash-register']">Ongoing</a></div>
-    <div>
-      <a [routerLink]="['/store/cash-register', 'cash-register-history']">Cash Register History</a>
-    </div>
-  </div>
+  <nav class="pill-tabs">
+    <a
+      class="pill-tabs__tab"
+      [class.pill-tabs__tab--active]="true"
+      routerLink="/store/cash-register"
+      [queryParams]="{ tab: 'ongoing' }"
+    >
+      <lucide-icon [img]="OngoingIcon" [size]="15"></lucide-icon>
+      {{ 'Ongoing' | t }}
+    </a>
+    <a
+      class="pill-tabs__tab"
+      [class.pill-tabs__tab--active]="false"
+      routerLink="/store/cash-register"
+      [queryParams]="{ tab: 'history' }"
+    >
+      <lucide-icon [img]="HistoryIcon" [size]="15"></lucide-icon>
+      {{ 'Cash register history' | t }}
+    </a>
+  </nav>
 
   @if (notice()) {
     <p class="notice-success">{{ notice() | t }}</p>

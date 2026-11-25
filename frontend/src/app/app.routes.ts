@@ -27,7 +27,6 @@ export const routes: Routes = [
     canActivate: [superuserGuard],
     loadChildren: () => import('./features/superadmin/superadmin.routes'),
   },
-
   {
     path: '',
     component: Shell,

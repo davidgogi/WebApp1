@@ -1,0 +1,70 @@
+.expense-toolbar__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.expense-toolbar__actions {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.expense-toolbar__filter {
+  width: 200px;
+}
+
+.expense-table .text-input,
+.expense-table .text-select {
+  min-width: 0;
+}
+
+.expense-table select.text-select {
+  min-width: 150px;
+}
+
+.expense-input--date {
+  width: 140px;
+}
+
+.expense-input--amount {
+  width: 100px;
+}
+
+.expense-input--purpose {
+  min-width: 200px;
+}
+
+.expense-row--selected td {
+  background: var(--accent-soft);
+}
+
+.expense-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.catalog-row--category td {
+  background: var(--surface-muted);
+}
+
+.data-table td.catalog-type {
+  padding-left: 28px;
+}
+
+.shortage-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.shortage-card .page-description {
+  margin: 0;
+}
+
+.cover-left {
+  margin: 0;
+}

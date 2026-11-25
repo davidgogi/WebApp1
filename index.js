@@ -1,13 +1,18 @@
-function func(nums, target) {
-  let map = new Map();
-
-  for (let i = 0; i < nums.length; i++) {
-    if (map.has(target - nums[i])) console.log(nums[i], target - nums[i]);
-    else map.set(nums[i], i);
+function func(nums) {
+  let zero = 0;
+  for (let item of nums) {
+    if (item == 0) zero++;
+  }
+  let index = 0;
+  while (index < zero) {
+    nums[index++] = 0;
+  }
+  while (index < nums.length) {
+    nums[index++] = 1;
   }
 }
 
-let nums = [8, 7, 2, 5, 3, 1];
-let target = 10;
+const nums = [1, 0, 1, 0, 1, 0, 0, 1];
 
-func(nums, target);
+func(nums);
+console.log(nums);

@@ -109,7 +109,7 @@
         <div class="field">
           <label for="dialogNote">
             {{ (mode === 'comment' ? 'Comment' : 'Note') | t }}
-            @if (mode === 'in' || mode === 'out') {
+            @if (mode === 'in' || mode === 'out' || mode === 'cover') {
               <span class="required-mark">*</span>
             }
           </label>
@@ -125,7 +125,9 @@
                 ? 'e.g. Small change from the bank'
                 : mode === 'out'
                   ? 'e.g. Cash taken to the bank'
-                  : ''
+                  : mode === 'cover'
+                    ? 'Where did the money go?'
+                    : ''
               ) | t
             "
           ></textarea>

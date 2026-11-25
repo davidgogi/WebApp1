@@ -43,6 +43,7 @@ const ACTIVITY_LABELS: Record<ActivityType, string> = {
   return: 'Return',
   cash_in: 'Cash added',
   cash_out: 'Cash taken out',
+  expense: 'Expense',
   close: 'Closing',
 };
 

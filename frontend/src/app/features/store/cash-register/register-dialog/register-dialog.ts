@@ -70,6 +70,10 @@ export class RegisterDialog {
       this.errorMessage.set('Write what the cash is for.');
       return;
     }
+    if (mode === 'cover' && !note) {
+      this.errorMessage.set('Write where the missing money went.');
+      return;
+    }
     if (mode === 'close' && !/^\d{4}$/.test(this.pin())) {
       this.errorMessage.set('Enter your 4-digit PIN.');
       return;
@@ -84,7 +88,7 @@ export class RegisterDialog {
         : mode === 'comment'
           ? this.cashRegisterService.comment(session.id, note)
           : mode === 'cover'
-            ? this.cashRegisterService.cover(session.id, { amount, note: note || undefined })
+            ? this.cashRegisterService.cover(session.id, { amount, note })
             : this.cashRegisterService.moveCash(session.id, { kind: mode, amount, note });
     this.isBusy.set(true);
     this.errorMessage.set('');

@@ -8,7 +8,10 @@ import { User } from '../../auth/user.entity.js';
 import { UserRole } from '../../auth/user-role.enum.js';
 import { formatDocumentNumber, nextDocumentNumber } from '../../common/document-number.js';
 import { isUniqueViolation } from '../../common/is-unique-violation.js';
-import { localDaySql, period, round2 } from '../store-scope.js';
+import { dayInStore, localDaySql, period, round2 } from '../store-scope.js';
+import { Expense } from '../expenses/expense.entity.js';
+import { ExpenseSource } from '../expenses/expense-source.enum.js';
+import { ExpenseStatus } from '../expenses/expense-status.enum.js';
 import { StoreEmployee } from '../stores/store-employee.entity.js';
 import { Store } from '../stores/store.entity.js';
 import { CashMoveKind } from './cash-move-kind.enum.js';
@@ -30,6 +33,7 @@ export interface SessionMetrics {
   cardReturns: number;
   cashIn: number;
   cashOut: number;
+  expenses: number;
   netSales: number;
   expectedCash: number;
   covered: number;
@@ -61,13 +65,14 @@ export interface SessionView {
   canCover: boolean;
 }
 
-export type ActivityType = 'open' | 'sale' | 'return' | 'cash_in' | 'cash_out' | 'close';
+export type ActivityType = 'open' | 'sale' | 'return' | 'cash_in' | 'cash_out' | 'expense' | 'close';
 
 export interface ActivityRow {
   at: Date;
   type: ActivityType;
   code: string | null;
   saleId: string | null;
+  expenseId: string | null;
   paymentMethod: PaymentMethod | null;
   amount: number;
   cashEffect: number;
@@ -80,6 +85,7 @@ export interface ActivityRow {
 export interface CoverageView {
   id: string;
   code: string;
+  expenseCode: string | null;
   amount: number;
   note: string | null;
   coveredByName: string;
@@ -109,6 +115,8 @@ export class CashRegisterService {
     private readonly cashMovesRepository: Repository<RegisterCashMove>,
     @InjectRepository(ShortageCoverage)
     private readonly coveragesRepository: Repository<ShortageCoverage>,
+    @InjectRepository(Expense)
+    private readonly expensesRepository: Repository<Expense>,
     @InjectRepository(Store)
     private readonly storesRepository: Repository<Store>,
     @InjectRepository(StoreEmployee)
@@ -150,7 +158,7 @@ export class CashRegisterService {
       throw new NotFoundException(`Register session ${id} not found`);
     }
     const [view] = await this.toViews(actor, [session]);
-    const [sales, moves, coverages] = await Promise.all([
+    const [sales, moves, coverages, expenses] = await Promise.all([
       this.salesRepository.find({
         where: { companyId: actor.companyId!, sessionId: id },
         order: { createdAt: 'ASC' },
@@ -161,15 +169,22 @@ export class CashRegisterService {
       }),
       this.coveragesRepository.find({
         where: { companyId: actor.companyId!, sessionId: id },
+        relations: { expense: true },
+        order: { createdAt: 'ASC' },
+      }),
+      this.expensesRepository.find({
+        where: { companyId: actor.companyId!, sessionId: id, status: ExpenseStatus.ACTIVE, source: ExpenseSource.CASH },
+        relations: { type: true },
         order: { createdAt: 'ASC' },
       }),
     ]);
     return {
       ...view,
-      activity: activityOf(session, sales, moves),
+      activity: activityOf(session, sales, moves, expenses),
       coverages: coverages.map((coverage) => ({
         id: coverage.id,
         code: formatDocumentNumber('CV', coverage.number),
+        expenseCode: coverage.expense ? formatDocumentNumber('EX', coverage.expense.number) : null,
         amount: coverage.amount,
         note: coverage.note,
         coveredByName: coverage.coveredByName,
@@ -334,46 +349,119 @@ export class CashRegisterService {
   }
 
   async cover(actor: AuthUser, id: string, dto: CoverageDto): Promise<SessionDetail> {
-    const code = await this.sessionsRepository.manager.transaction(async (manager) => {
+    const summary = await this.sessionsRepository.manager.transaction(async (manager) => {
       const { session, store } = await this.lockSession(manager, actor, id);
-      if (!this.isStoreManager(actor, store) && actor.role !== UserRole.MODULE_ADMIN) {
-        throw new ForbiddenException('Only the store manager or the Store admin can cover a shortage');
-      }
-      if (!session.closedAt) {
-        throw new BadRequestException('A shortage can only be covered after the register is closed');
-      }
-      if ((session.variance ?? 0) >= 0) {
-        throw new BadRequestException('This register has no shortage');
-      }
-      const covered = await this.coveredAmount(manager, actor, session.id);
-      const shortage = round2(-session.variance!);
-      const left = round2(shortage - covered);
-      if (left <= 0) {
-        throw new BadRequestException('This shortage is already covered');
-      }
-      if (dto.amount > left) {
-        throw new BadRequestException(`At most ₾${left.toFixed(2)} of the shortage is left to cover`);
-      }
-      const number = await nextDocumentNumber(manager, ShortageCoverage, actor.companyId!, 'shortage-coverage');
-      await manager.save(
-        manager.create(ShortageCoverage, {
-          companyId: actor.companyId!,
-          sessionId: session.id,
-          number,
-          amount: dto.amount,
-          note: dto.note || null,
-          coveredByName: actor.displayName,
-        }),
-      );
-      await manager.update(
-        RegisterSession,
-        { id: session.id, companyId: actor.companyId! },
-        { coverageStatus: round2(covered + dto.amount) >= shortage ? CoverageStatus.COVERED : CoverageStatus.PARTLY_COVERED },
-      );
-      return `${formatDocumentNumber('CV', number)} (register ${session.registerNo} in ${store.name}, ${session.cashierName})`;
+      return (await this.coverLocked(manager, actor, session, store, dto.amount, { note: dto.note })).summary;
     });
-    await this.audit.record(actor, 'register.cover', `Covered ₾${dto.amount.toFixed(2)} of a shortage: ${code}`);
+    await this.audit.record(actor, 'register.cover', `Covered ₾${dto.amount.toFixed(2)} of a shortage: ${summary}`);
     return this.findOne(actor, id);
+  }
+
+  async coverLocked(
+    manager: EntityManager,
+    actor: AuthUser,
+    session: RegisterSession,
+    store: Store,
+    amount: number,
+    details: {
+      note: string | null;
+      purpose?: string;
+      categoryId?: string | null;
+      typeId?: string | null;
+      supplierId?: string | null;
+      supplierName?: string | null;
+    },
+  ): Promise<{ expenseId: string; summary: string }> {
+    if (!this.isStoreManager(actor, store) && actor.role !== UserRole.MODULE_ADMIN) {
+      throw new ForbiddenException('Only the store manager or the Store admin can cover a shortage');
+    }
+    if (!session.closedAt) {
+      throw new BadRequestException('A shortage can only be covered after the register is closed');
+    }
+    if ((session.variance ?? 0) >= 0) {
+      throw new BadRequestException('This register has no shortage');
+    }
+    const covered = await this.coveredAmount(manager, actor, session.id);
+    const shortage = round2(-session.variance!);
+    const left = round2(shortage - covered);
+    if (left <= 0) {
+      throw new BadRequestException('This shortage is already covered');
+    }
+    if (amount > left) {
+      throw new BadRequestException(`At most ₾${left.toFixed(2)} of the shortage is left to cover`);
+    }
+    const expenseNumber = await nextDocumentNumber(manager, Expense, actor.companyId!, 'expense');
+    const expense = await manager.save(
+      manager.create(Expense, {
+        companyId: actor.companyId!,
+        number: expenseNumber,
+        storeId: session.storeId,
+        source: ExpenseSource.SHORTAGE,
+        sessionId: session.id,
+        bankAccountId: null,
+        categoryId: details.categoryId ?? null,
+        typeId: details.typeId ?? null,
+        supplierId: details.supplierId ?? null,
+        supplierName: details.supplierName ?? null,
+        expenseDate: dayInStore(session.openedAt),
+        amount,
+        purpose: details.purpose || details.note || `Shortage of register ${session.registerNo} (${session.cashierName})`,
+        createdByName: actor.displayName,
+      }),
+    );
+    const number = await nextDocumentNumber(manager, ShortageCoverage, actor.companyId!, 'shortage-coverage');
+    await manager.save(
+      manager.create(ShortageCoverage, {
+        companyId: actor.companyId!,
+        sessionId: session.id,
+        expenseId: expense.id,
+        number,
+        amount,
+        note: details.note,
+        coveredByName: actor.displayName,
+      }),
+    );
+    await manager.update(
+      RegisterSession,
+      { id: session.id, companyId: actor.companyId! },
+      { coverageStatus: round2(covered + amount) >= shortage ? CoverageStatus.COVERED : CoverageStatus.PARTLY_COVERED },
+    );
+    return {
+      expenseId: expense.id,
+      summary: `${formatDocumentNumber('CV', number)}, expense ${formatDocumentNumber('EX', expenseNumber)} (register ${session.registerNo} in ${store.name}, ${session.cashierName})`,
+    };
+  }
+
+  async uncoverLocked(manager: EntityManager, actor: AuthUser, session: RegisterSession, expenseId: string): Promise<void> {
+    await manager.delete(ShortageCoverage, { companyId: actor.companyId!, expenseId });
+    const covered = await this.coveredAmount(manager, actor, session.id);
+    const shortage = round2(-(session.variance ?? 0));
+    await manager.update(
+      RegisterSession,
+      { id: session.id, companyId: actor.companyId! },
+      {
+        coverageStatus:
+          covered <= 0 ? CoverageStatus.UNCOVERED : covered >= shortage ? CoverageStatus.COVERED : CoverageStatus.PARTLY_COVERED,
+      },
+    );
+  }
+
+  async lockOwnOpenSession(manager: EntityManager, actor: AuthUser): Promise<{ session: RegisterSession; store: Store }> {
+    const session = actor.employeeId
+      ? await manager.findOne(RegisterSession, {
+          where: { companyId: actor.companyId!, cashierId: actor.employeeId, closedAt: IsNull() },
+          lock: { mode: 'pessimistic_write' },
+        })
+      : null;
+    if (!session) {
+      throw new BadRequestException('Open a register first (Store → Cash register)');
+    }
+    const store = await manager.findOneByOrFail(Store, { id: session.storeId, companyId: actor.companyId! });
+    return { session, store };
+  }
+
+  async expectedCashOf(manager: EntityManager, actor: AuthUser, session: RegisterSession): Promise<number> {
+    return (await this.metricsFor(manager, actor, [session])).get(session.id)!.expectedCash;
   }
 
   async openSessionForSale(
@@ -455,6 +543,7 @@ export class CashRegisterService {
         cardReturns: 0,
         cashIn: 0,
         cashOut: 0,
+        expenses: 0,
         netSales: 0,
         expectedCash: session.openingCash,
         covered: 0,
@@ -465,7 +554,7 @@ export class CashRegisterService {
     }
     const ids = sessions.map((session) => session.id);
     const companyId = actor.companyId;
-    const [sales, moves, coverages] = await Promise.all([
+    const [sales, moves, coverages, expenses] = await Promise.all([
       manager
         .createQueryBuilder(Sale, 'sale')
         .select('sale.session_id', 'sessionId')
@@ -497,6 +586,16 @@ export class CashRegisterService {
         .andWhere('coverage.session_id IN (:...ids)', { ids })
         .groupBy('coverage.session_id')
         .getRawMany<{ sessionId: string; total: string }>(),
+      manager
+        .createQueryBuilder(Expense, 'expense')
+        .select('expense.session_id', 'sessionId')
+        .addSelect('COALESCE(SUM(expense.amount), 0)', 'total')
+        .where('expense.company_id = :companyId', { companyId })
+        .andWhere('expense.session_id IN (:...ids)', { ids })
+        .andWhere('expense.status = :active', { active: ExpenseStatus.ACTIVE })
+        .andWhere('expense.source = :cash', { cash: ExpenseSource.CASH })
+        .groupBy('expense.session_id')
+        .getRawMany<{ sessionId: string; total: string }>(),
     ]);
     for (const row of sales) {
       const metrics = result.get(row.sessionId)!;
@@ -520,11 +619,14 @@ export class CashRegisterService {
     for (const row of coverages) {
       result.get(row.sessionId)!.covered = Number(row.total);
     }
+    for (const row of expenses) {
+      result.get(row.sessionId)!.expenses = Number(row.total);
+    }
     for (const session of sessions) {
       const metrics = result.get(session.id)!;
       metrics.netSales = round2(metrics.cashSales + metrics.cardSales - metrics.cashReturns - metrics.cardReturns);
       metrics.expectedCash = round2(
-        session.openingCash + metrics.cashSales - metrics.cashReturns + metrics.cashIn - metrics.cashOut,
+        session.openingCash + metrics.cashSales - metrics.cashReturns + metrics.cashIn - metrics.cashOut - metrics.expenses,
       );
     }
     return result;
@@ -540,7 +642,7 @@ export class CashRegisterService {
     return Number(row?.total ?? 0);
   }
 
-  private async lockSession(manager: EntityManager, actor: AuthUser, id: string): Promise<{ session: RegisterSession; store: Store }> {
+  async lockSession(manager: EntityManager, actor: AuthUser, id: string): Promise<{ session: RegisterSession; store: Store }> {
     const visible = await this.visibleSessions(actor).andWhere('session.id = :id', { id }).getOne();
     if (!visible) {
       throw new NotFoundException(`Register session ${id} not found`);
@@ -605,13 +707,14 @@ export function saleCode(sale: Pick<Sale, 'kind' | 'number'>): string {
   return formatDocumentNumber(sale.kind === SaleKind.SALE ? 'S' : 'R', sale.number);
 }
 
-function activityOf(session: RegisterSession, sales: Sale[], moves: RegisterCashMove[]): ActivityRow[] {
+function activityOf(session: RegisterSession, sales: Sale[], moves: RegisterCashMove[], expenses: Expense[]): ActivityRow[] {
   const events: Omit<ActivityRow, 'balanceBefore' | 'balanceAfter'>[] = [
     {
       at: session.openedAt,
       type: 'open',
       code: null,
       saleId: null,
+      expenseId: null,
       paymentMethod: null,
       amount: session.openingCash,
       cashEffect: session.openingCash,
@@ -627,6 +730,7 @@ function activityOf(session: RegisterSession, sales: Sale[], moves: RegisterCash
       type: sale.kind === SaleKind.SALE ? 'sale' : 'return',
       code: saleCode(sale),
       saleId: sale.id,
+      expenseId: null,
       paymentMethod: sale.paymentMethod,
       amount: sale.total,
       cashEffect: cash ? sign * sale.total : 0,
@@ -641,11 +745,26 @@ function activityOf(session: RegisterSession, sales: Sale[], moves: RegisterCash
       type: move.kind === CashMoveKind.IN ? 'cash_in' : 'cash_out',
       code: null,
       saleId: null,
+      expenseId: null,
       paymentMethod: PaymentMethod.CASH,
       amount: move.amount,
       cashEffect: sign * move.amount,
       by: move.createdByName,
       note: move.note,
+    });
+  }
+  for (const expense of expenses) {
+    events.push({
+      at: expense.createdAt,
+      type: 'expense',
+      code: formatDocumentNumber('EX', expense.number),
+      saleId: null,
+      expenseId: expense.id,
+      paymentMethod: PaymentMethod.CASH,
+      amount: expense.amount,
+      cashEffect: -expense.amount,
+      by: expense.createdByName,
+      note: expense.type ? `${expense.type.name}: ${expense.purpose}` : expense.purpose,
     });
   }
   events.sort((a, b) => (a.type === 'open' ? -1 : b.type === 'open' ? 1 : a.at.getTime() - b.at.getTime()));
@@ -655,6 +774,7 @@ function activityOf(session: RegisterSession, sales: Sale[], moves: RegisterCash
       type: 'close',
       code: null,
       saleId: null,
+      expenseId: null,
       paymentMethod: null,
       amount: session.countedCash ?? 0,
       cashEffect: 0,
