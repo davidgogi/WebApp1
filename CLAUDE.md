@@ -811,7 +811,7 @@ sidebar WMS → Products = frontend route `/wms/products` = API `/wms/products`.
   (HTTP only, URLs built from `core/api.ts`), and one folder per page (e.g. `products-list/`).
 - `layout/` — app frames (`shell/` sidebar for companies, `superadmin-shell/`, not-found page).
   `core/` — app-wide config and `core/auth/`.
-- `playground/` (none right now) — put learning/experiment pages here, never in `features/`;
+- `playground/` (now: `zone-demo/` at `/playground/zone`, no login, patches `setTimeout` like Zone.js; disposable) — put learning/experiment pages here, never in `features/`;
   business modules must not import from it.
 - `shared/` — reusable components used across modules. Currently `shared/modal/` (`<app-modal
   [open] title (closed)>`, built on native `<dialog>`; used for "Add employee"). Shared styles

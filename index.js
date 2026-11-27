@@ -1,18 +1,13 @@
-function func(nums) {
-  let zero = 0;
-  for (let item of nums) {
-    if (item == 0) zero++;
+function func(array) {
+  let xor = 0;
+  for (let i = 1; i < array.length; i++) {
+    xor = xor ^ i;
   }
-  let index = 0;
-  while (index < zero) {
-    nums[index++] = 0;
+  for (let item of array) {
+    xor = xor ^ item;
   }
-  while (index < nums.length) {
-    nums[index++] = 1;
-  }
+  return xor;
 }
 
-const nums = [1, 0, 1, 0, 1, 0, 0, 1];
-
-func(nums);
-console.log(nums);
+let array = [1, 2, 3, 4, 2];
+console.log(func(array));

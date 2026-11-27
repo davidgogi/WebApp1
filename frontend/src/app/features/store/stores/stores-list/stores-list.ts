@@ -41,13 +41,14 @@ export class StoresList implements OnInit {
     this.options().warehouses.filter(
       (warehouse) =>
         warehouse.id === this.warehouseId() ||
-        (warehouse.status === 'active' && (!warehouse.storeId || warehouse.storeId === this.editingId())),
+        (warehouse.status === 'active' &&
+          (!warehouse.storeId || warehouse.storeId === this.editingId())),
     ),
   );
 
   ngOnInit(): void {
     this.load();
-    if (this.canManage()) {
+    if (this.isAdmin()) {
       this.storeService.options().subscribe((options) => this.options.set(options));
     }
   }
@@ -72,7 +73,7 @@ export class StoresList implements OnInit {
       return;
     }
     if (!this.warehouseId()) {
-      this.errorMessage.set('Choose the store\'s sales warehouse.');
+      this.errorMessage.set("Choose the store's sales warehouse.");
       return;
     }
 
@@ -126,7 +127,9 @@ export class StoresList implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         const message = error.error?.message;
-        this.errorMessage.set(typeof message === 'string' ? message : 'Could not delete the store.');
+        this.errorMessage.set(
+          typeof message === 'string' ? message : 'Could not delete the store.',
+        );
       },
     });
   }

@@ -44,7 +44,9 @@ export class AuthGuard implements CanActivate {
       ROLES,
       targets,
     );
+
     if (roles && !roles.includes(user.role)) {
+      console.log('blocked', user.role, 'needs one of', roles);
       throw new ForbiddenException('Your role cannot do this');
     }
 

@@ -4,10 +4,11 @@
       <p class="page-eyebrow">{{ 'Store' | t }}</p>
       <h1 class="page-title">{{ 'Stores' | t }}</h1>
       <p class="page-description">
-        @if (canManage()) {
-          {{ 'Your shops, each with one manager picked from the people you added in HR and one sales warehouse from WMS: the POS sells that warehouse\'s stock. A store\'s cashiers are added by its manager in HR.' | t }}
-        } @else if (isAdmin()) {
-          {{ 'All of the company\'s stores. They are created and edited by the Store admin.' | t }}
+        @if (isAdmin()) {
+          {{
+            "Your shops, each with one manager picked from the people you added in HR and one sales warehouse from WMS: the POS sells that warehouse's stock. A store's cashiers are added by its manager in HR."
+              | t
+          }}
         } @else {
           {{ 'The stores you manage.' | t }}
         }
@@ -15,7 +16,7 @@
     </div>
   </div>
 
-  @if (canManage()) {
+  @if (isAdmin()) {
     <div class="page-card">
       <form class="page-stack" (ngSubmit)="save()">
         <div class="form-grid">
@@ -67,23 +68,37 @@
             </select>
             @if (options().managers.length === 0) {
               <span class="field-hint">
-                {{ 'No managers yet. In HR, add an employee with the Manager role in the Store module.' | t }}
+                {{
+                  'No managers yet. In HR, add an employee with the Manager role in the Store module.'
+                    | t
+                }}
               </span>
             }
           </div>
 
           <div class="field">
-            <label for="storeWarehouse">{{ 'Sales warehouse' | t }} <span class="required-mark">*</span></label>
-            <select id="storeWarehouse" class="text-select" name="warehouseId" [(ngModel)]="warehouseId">
+            <label for="storeWarehouse"
+              >{{ 'Sales warehouse' | t }} <span class="required-mark">*</span></label
+            >
+            <select
+              id="storeWarehouse"
+              class="text-select"
+              name="warehouseId"
+              [(ngModel)]="warehouseId"
+            >
               <option value="">{{ 'Choose a warehouse…' | t }}</option>
               @for (warehouse of warehouseChoices(); track warehouse.id) {
                 <option [value]="warehouse.id">
-                  {{ warehouse.code }} · {{ warehouse.name }}{{ warehouse.branch ? ' · ' + warehouse.branch : '' }}
+                  {{ warehouse.code }} · {{ warehouse.name
+                  }}{{ warehouse.branch ? ' · ' + warehouse.branch : '' }}
                 </option>
               }
             </select>
             <span class="field-hint">
-              {{ 'A sales warehouse from WMS that no other store uses. Sales take its stock, returns put it back.' | t }}
+              {{
+                'A sales warehouse from WMS that no other store uses. Sales take its stock, returns put it back.'
+                  | t
+              }}
             </span>
           </div>
         </div>
@@ -101,7 +116,9 @@
             }
           </button>
           @if (editingId()) {
-            <button type="button" class="button button--secondary" (click)="resetForm()">{{ 'Cancel' | t }}</button>
+            <button type="button" class="button button--secondary" (click)="resetForm()">
+              {{ 'Cancel' | t }}
+            </button>
           }
         </div>
       </form>
@@ -115,10 +132,8 @@
       <p class="page-description">{{ 'Loading…' | t }}</p>
     } @else if (stores().length === 0) {
       <p class="page-description">
-        @if (canManage()) {
+        @if (isAdmin()) {
           {{ 'No stores yet. Add the first one above.' | t }}
-        } @else if (isAdmin()) {
-          {{ 'No stores yet. The Store admin adds them.' | t }}
         } @else {
           {{ 'No stores are assigned to you yet.' | t }}
         }
@@ -133,7 +148,7 @@
               <th>{{ 'Manager' | t }}</th>
               <th>{{ 'Sales warehouse' | t }}</th>
               <th class="cell-number">{{ 'Registers' | t }}</th>
-              @if (canManage()) {
+              @if (isAdmin()) {
                 <th>{{ 'Actions' | t }}</th>
               }
             </tr>
@@ -148,17 +163,25 @@
                   @if (store.warehouse; as warehouse) {
                     <code class="code-tag">{{ warehouse.code }}</code> {{ warehouse.name }}
                   } @else {
-                    <span class="short">{{ 'Not chosen: the POS can\'t sell here' | t }}</span>
+                    <span class="short">{{ "Not chosen: the POS can't sell here" | t }}</span>
                   }
                 </td>
                 <td class="cell-number">{{ store.registers }}</td>
-                @if (canManage()) {
+                @if (isAdmin()) {
                   <td>
                     <div class="button-row button-row--tight">
-                      <button type="button" class="button button--secondary button--sm" (click)="edit(store)">
+                      <button
+                        type="button"
+                        class="button button--secondary button--sm"
+                        (click)="edit(store)"
+                      >
                         {{ 'Edit' | t }}
                       </button>
-                      <button type="button" class="button button--secondary button--sm" (click)="remove(store)">
+                      <button
+                        type="button"
+                        class="button button--secondary button--sm"
+                        (click)="remove(store)"
+                      >
                         {{ 'Delete' | t }}
                       </button>
                     </div>
